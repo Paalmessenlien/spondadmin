@@ -73,9 +73,44 @@ class Settings(BaseSettings):
     CACHE_TTL_GROUPS: int = 3600  # 1 hour
     CACHE_TTL_MEMBERS: int = 3600  # 1 hour
 
-    # Sync Settings
+    # Sync Settings (Legacy - kept for backwards compatibility)
     AUTO_SYNC_ENABLED: bool = True
     SYNC_INTERVAL_MINUTES: int = 15
+
+    # Background Scheduler Settings
+    # Events sync
+    SYNC_EVENTS_ENABLED: bool = Field(
+        default=True,
+        description="Enable automatic events synchronization"
+    )
+    SYNC_EVENTS_INTERVAL_MINUTES: int = Field(
+        default=60,
+        description="Interval in minutes for events sync (default 1 hour)"
+    )
+    SYNC_EVENTS_MAX_EVENTS: int = Field(
+        default=500,
+        description="Maximum events to sync per run"
+    )
+
+    # Groups sync
+    SYNC_GROUPS_ENABLED: bool = Field(
+        default=True,
+        description="Enable automatic groups synchronization"
+    )
+    SYNC_GROUPS_INTERVAL_MINUTES: int = Field(
+        default=360,
+        description="Interval in minutes for groups sync (default 6 hours)"
+    )
+
+    # Members sync
+    SYNC_MEMBERS_ENABLED: bool = Field(
+        default=True,
+        description="Enable automatic members synchronization"
+    )
+    SYNC_MEMBERS_INTERVAL_MINUTES: int = Field(
+        default=360,
+        description="Interval in minutes for members sync (default 6 hours)"
+    )
 
 
 # Create global settings instance

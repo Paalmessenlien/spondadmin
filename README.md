@@ -197,8 +197,14 @@ spond/
 - ✅ Search functionality on detail pages
 - ✅ Statistics cards on all detail pages
 
+**Phase 8: Background Synchronization** ✅
+- ✅ Background scheduler service with APScheduler
+- ✅ Scheduled automatic sync for events, groups, and members
+- ✅ Configurable sync intervals via environment variables
+- ✅ API endpoints for job management and monitoring
+- ✅ Graceful scheduler lifecycle management (startup/shutdown)
+
 ### Planned
-- 📋 Background synchronization with scheduled tasks
 - 📋 Advanced filtering and multi-select options
 - 📋 Export reports to PDF/Excel
 - 📋 Docker deployment and production setup
@@ -253,10 +259,11 @@ spond/
    - Group detail page with member roster
    - Navigation links and search functionality
 
-8. **Phase 8: Background Synchronization** 📋 Planned
-   - Scheduled automatic sync
-   - Webhook support for real-time updates
-   - Background task management
+8. **Phase 8: Background Synchronization** ✅ Complete
+   - Background scheduler service with APScheduler
+   - Scheduled automatic sync for events, groups, and members
+   - Configurable sync intervals via environment variables
+   - API endpoints for job management and monitoring
 
 9. **Phase 9: Production Deployment** 📋 Planned
    - Docker containers
@@ -304,6 +311,11 @@ The backend provides automatic API documentation:
 - `GET /api/v1/analytics/response-rates` - Response rate statistics
 - `GET /api/v1/analytics/event-types` - Event type distribution
 - `GET /api/v1/analytics/member-participation` - Top members by participation
+
+**Scheduler:**
+- `GET /api/v1/scheduler/status` - Get scheduler status and job list
+- `GET /api/v1/scheduler/jobs` - List all scheduled background jobs
+- `POST /api/v1/scheduler/jobs/{job_id}/trigger` - Manually trigger a scheduled job
 
 ## Frontend Pages
 
@@ -423,6 +435,114 @@ The backend provides automatic API documentation:
 - Frontend tested with Playwright MCP automated browser testing
 - Verified sync successfully creates new events and updates existing ones
 - Screenshot saved at `.playwright-mcp/sync-fixed-481-events.png`
+
+### Phase 8: Background Synchronization (2025-11-18) ✅
+
+**Implementation**: Automated background synchronization system for keeping Spond data up-to-date without manual intervention. The system uses APScheduler to run periodic sync jobs for events, groups, and members at configurable intervals.
+
+**What Was Built**:
+
+1. **Scheduler Service** (`backend/app/services/scheduler_service.py`):
+   - AsyncIOScheduler for non-blocking background task execution
+   - Three independent sync jobs (events, groups, members)
+   - Job management methods (get_jobs, trigger_job)
+   - Graceful startup and shutdown handling
+   - Error handling and logging for each sync operation
+
+2. **Scheduler API Endpoints** (`backend/app/api/v1/scheduler.py`):
+   - `GET /api/v1/scheduler/status` - View scheduler status and active jobs
+   - `GET /api/v1/scheduler/jobs` - List all scheduled jobs with next run times
+   - `POST /api/v1/scheduler/jobs/{job_id}/trigger` - Manually trigger a specific job
+
+3. **Configuration System** (`backend/app/core/config.py`):
+   - `AUTO_SYNC_ENABLED` - Master switch to enable/disable scheduler
+   - `SYNC_EVENTS_ENABLED` - Enable/disable event sync job
+   - `SYNC_EVENTS_INTERVAL_MINUTES` - Event sync frequency (default: 60 minutes)
+   - `SYNC_EVENTS_MAX_EVENTS` - Max events per sync (default: 500)
+   - `SYNC_GROUPS_ENABLED` - Enable/disable group sync job
+   - `SYNC_GROUPS_INTERVAL_MINUTES` - Group sync frequency (default: 360 minutes)
+   - `SYNC_MEMBERS_ENABLED` - Enable/disable member sync job
+   - `SYNC_MEMBERS_INTERVAL_MINUTES` - Member sync frequency (default: 360 minutes)
+
+4. **Application Lifecycle Integration** (`backend/app/main.py:28-64`):
+   - Scheduler starts automatically during application startup
+   - Jobs are scheduled based on configuration
+   - Scheduler stops gracefully during shutdown
+   - Error handling ensures app starts even if scheduler fails
+
+**How It Works**:
+
+The scheduler service runs in the background and executes sync jobs at specified intervals:
+
+- **Events**: Syncs every 60 minutes (1 hour) by default
+- **Groups**: Syncs every 360 minutes (6 hours) by default
+- **Members**: Syncs every 360 minutes (6 hours) by default
+
+Each job:
+1. Creates a new database session
+2. Calls the appropriate sync service (EventSyncService, GroupSyncService, MemberSyncService)
+3. Commits the transaction on success
+4. Logs results and errors
+5. Releases the database session
+
+**Configuration**:
+
+Add these settings to your `.env` file:
+
+```bash
+# Enable background synchronization
+AUTO_SYNC_ENABLED=true
+
+# Event sync settings
+SYNC_EVENTS_ENABLED=true
+SYNC_EVENTS_INTERVAL_MINUTES=60
+SYNC_EVENTS_MAX_EVENTS=500
+
+# Group sync settings
+SYNC_GROUPS_ENABLED=true
+SYNC_GROUPS_INTERVAL_MINUTES=360
+
+# Member sync settings
+SYNC_MEMBERS_ENABLED=true
+SYNC_MEMBERS_INTERVAL_MINUTES=360
+```
+
+**Using the API**:
+
+Check scheduler status:
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  http://localhost:8001/api/v1/scheduler/status
+```
+
+List all scheduled jobs:
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  http://localhost:8001/api/v1/scheduler/jobs
+```
+
+Manually trigger a job:
+```bash
+curl -X POST -H "Authorization: Bearer YOUR_TOKEN" \
+  http://localhost:8001/api/v1/scheduler/jobs/sync_events/trigger
+```
+
+**Results**:
+- ✅ **3 scheduled jobs** running successfully (sync_events, sync_groups, sync_members)
+- ✅ **Automated synchronization** keeps data fresh without manual intervention
+- ✅ **Configurable intervals** allow customization for different environments
+- ✅ **API management** enables monitoring and manual triggering of sync jobs
+- ✅ **Graceful lifecycle** ensures clean startup and shutdown
+- ✅ **Error isolation** allows app to run even if individual sync jobs fail
+
+**Testing**:
+- Verified scheduler starts successfully with application
+- Confirmed all 3 jobs are registered and scheduled
+- Tested API endpoints for status, job listing, and manual triggering
+- Logs show proper scheduling: "Next wakeup is due at 2025-11-18 13:10:58+01:00"
+
+**Dependencies Added**:
+- `APScheduler==3.10.4` - Production-ready job scheduling library
 
 ## Troubleshooting
 

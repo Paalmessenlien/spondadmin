@@ -39,10 +39,29 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize database: {e}")
         raise
 
+    # Start background scheduler
+    if settings.AUTO_SYNC_ENABLED:
+        from app.services.scheduler_service import scheduler_service
+        try:
+            await scheduler_service.start()
+            logger.info("Background scheduler started successfully")
+        except Exception as e:
+            logger.error(f"Failed to start background scheduler: {e}")
+            # Don't raise - allow app to start even if scheduler fails
+
     yield
 
     # Shutdown
     logger.info("Shutting down Spond Admin API...")
+
+    # Stop background scheduler
+    if settings.AUTO_SYNC_ENABLED:
+        from app.services.scheduler_service import scheduler_service
+        try:
+            await scheduler_service.stop()
+            logger.info("Background scheduler stopped successfully")
+        except Exception as e:
+            logger.error(f"Error stopping background scheduler: {e}")
 
 
 # Create FastAPI application
@@ -123,10 +142,11 @@ async def root():
 
 
 # Include API routers
-from app.api.v1 import auth, events, groups, members, analytics
+from app.api.v1 import auth, events, groups, members, analytics, scheduler
 
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(events.router, prefix=f"{settings.API_V1_PREFIX}/events", tags=["events"])
 app.include_router(groups.router, prefix=f"{settings.API_V1_PREFIX}/groups", tags=["groups"])
 app.include_router(members.router, prefix=f"{settings.API_V1_PREFIX}/members", tags=["members"])
 app.include_router(analytics.router, prefix=f"{settings.API_V1_PREFIX}/analytics", tags=["analytics"])
+app.include_router(scheduler.router, prefix=f"{settings.API_V1_PREFIX}/scheduler", tags=["scheduler"])
