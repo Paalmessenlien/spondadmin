@@ -32,43 +32,98 @@
 
         <!-- Filters -->
         <UCard>
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <UInput
-              v-model="filters.search"
-              placeholder="Search events..."
-              icon="i-heroicons-magnifying-glass"
-            />
+          <div class="space-y-4">
+            <!-- Filter Controls -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+              <UInput
+                v-model="filters.search"
+                placeholder="Search events..."
+                icon="i-heroicons-magnifying-glass"
+                class="lg:col-span-2"
+              >
+                <template #trailing>
+                  <UButton
+                    v-if="filters.search"
+                    color="gray"
+                    variant="link"
+                    icon="i-heroicons-x-mark"
+                    :padded="false"
+                    @click="filters.search = ''"
+                  />
+                </template>
+              </UInput>
 
-            <USelectMenu
-              v-model="filters.include_hidden"
-              :options="[
-                { label: 'All Events', value: 'both' },
-                { label: 'Visible Only', value: 'false' },
-                { label: 'Hidden Only', value: 'true' },
-              ]"
-              value-attribute="value"
-              option-attribute="label"
-              placeholder="Filter by visibility"
-            />
+              <USelectMenu
+                v-model="filters.event_type"
+                :options="eventTypeOptions"
+                value-attribute="value"
+                option-attribute="label"
+                placeholder="All Types"
+              />
 
-            <USelectMenu
-              v-model="filters.include_archived"
-              :options="[
-                { label: 'Active & Upcoming', value: 'false' },
-                { label: 'All Events', value: 'both' },
-                { label: 'Archived Only', value: 'true' },
-              ]"
-              value-attribute="value"
-              option-attribute="label"
-              placeholder="Filter by status"
-            />
+              <USelectMenu
+                v-model="filters.include_hidden"
+                :options="visibilityOptions"
+                value-attribute="value"
+                option-attribute="label"
+                placeholder="Visibility"
+              />
 
-            <UButton
-              variant="soft"
-              @click="loadEvents"
-            >
-              Apply Filters
-            </UButton>
+              <USelectMenu
+                v-model="filters.include_archived"
+                :options="archivedOptions"
+                value-attribute="value"
+                option-attribute="label"
+                placeholder="Status"
+              />
+
+              <UButton
+                v-if="hasActiveFilters"
+                color="gray"
+                variant="soft"
+                icon="i-heroicons-x-circle"
+                @click="clearFilters"
+              >
+                Clear Filters
+              </UButton>
+            </div>
+
+            <!-- Date Range Filters -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <UInput
+                v-model="filters.start_date"
+                type="date"
+                label="From Date"
+                placeholder="Filter from date"
+              />
+              <UInput
+                v-model="filters.end_date"
+                type="date"
+                label="To Date"
+                placeholder="Filter to date"
+              />
+            </div>
+
+            <!-- Active Filter Chips -->
+            <div v-if="activeFilterChips.length > 0" class="flex flex-wrap gap-2">
+              <UBadge
+                v-for="chip in activeFilterChips"
+                :key="chip.key"
+                color="primary"
+                variant="subtle"
+                class="gap-1"
+              >
+                {{ chip.label }}
+                <UButton
+                  color="primary"
+                  variant="link"
+                  icon="i-heroicons-x-mark"
+                  :padded="false"
+                  size="2xs"
+                  @click="removeFilter(chip.key)"
+                />
+              </UBadge>
+            </div>
           </div>
         </UCard>
 
@@ -83,9 +138,11 @@
           <template v-else-if="events.length === 0">
             <div class="text-center py-12">
               <UIcon name="i-heroicons-calendar" class="h-12 w-12 mx-auto text-gray-400" />
-              <h3 class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">No events</h3>
+              <h3 class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
+                {{ filters.search ? 'No events found' : 'No events' }}
+              </h3>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Sync events from Spond to get started.
+                {{ filters.search ? `No results for "${filters.search}"` : 'Sync events from Spond to get started.' }}
               </p>
             </div>
           </template>
@@ -93,13 +150,33 @@
           <template v-else>
             <div class="overflow-x-auto">
               <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-800">
+                <thead class="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
                   <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Event
+                    <th
+                      class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      @click="toggleSort('heading')"
+                    >
+                      <div class="flex items-center gap-1">
+                        <span>Event</span>
+                        <UIcon
+                          v-if="filters.order_by === 'heading'"
+                          :name="filters.order_desc ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-up'"
+                          class="w-4 h-4"
+                        />
+                      </div>
                     </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Date
+                    <th
+                      class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      @click="toggleSort('start_time')"
+                    >
+                      <div class="flex items-center gap-1">
+                        <span>Date</span>
+                        <UIcon
+                          v-if="filters.order_by === 'start_time'"
+                          :name="filters.order_desc ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-up'"
+                          class="w-4 h-4"
+                        />
+                      </div>
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Type
@@ -119,14 +196,18 @@
                   <tr
                     v-for="event in events"
                     :key="`event-${event.id}`"
-                    class="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                    class="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
                     @click="navigateTo(`/dashboard/events/${event.id}`)"
                   >
-                    <td class="px-6 py-4 whitespace-nowrap">
+                    <td class="px-6 py-4">
                       <div class="text-sm font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400">
                         {{ event.heading }}
                       </div>
-                      <div v-if="event.description" class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-md">
+                      <div
+                        v-if="event.description"
+                        class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 max-w-md"
+                        :title="event.description"
+                      >
                         {{ event.description }}
                       </div>
                     </td>
@@ -134,7 +215,7 @@
                       {{ formatDate(event.start_time) }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                      <UBadge :color="event.event_type === 'RECURRING' ? 'blue' : 'gray'">
+                      <UBadge :color="getEventTypeColor(event.event_type)">
                         {{ event.event_type }}
                       </UBadge>
                     </td>
@@ -150,7 +231,10 @@
                       />
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      <div class="flex space-x-2">
+                      <div
+                        class="flex space-x-2"
+                        :title="getResponsesTooltip(event.responses)"
+                      >
                         <span class="text-green-600">✓ {{ event.responses?.accepted_uids?.length || 0 }}</span>
                         <span class="text-red-600">✗ {{ event.responses?.declined_uids?.length || 0 }}</span>
                         <span class="text-gray-600">? {{ event.responses?.unanswered_uids?.length || 0 }}</span>
@@ -161,28 +245,54 @@
               </table>
             </div>
 
-            <!-- Pagination -->
-            <div class="flex justify-between items-center mt-4 px-4">
-              <div class="text-sm text-gray-700 dark:text-gray-300">
-                Showing {{ events.length }} of {{ total }} events
+            <!-- Enhanced Pagination -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+              <div class="flex items-center gap-4">
+                <div class="text-sm text-gray-700 dark:text-gray-300">
+                  Showing {{ startItem }} - {{ endItem }} of {{ total }} events
+                </div>
+                <USelectMenu
+                  v-model="filters.limit"
+                  :options="pageSizeOptions"
+                  value-attribute="value"
+                  option-attribute="label"
+                  size="sm"
+                  class="w-32"
+                />
               </div>
-              <div class="flex space-x-2">
+
+              <div class="flex items-center gap-2">
                 <UButton
                   size="sm"
                   variant="soft"
-                  :disabled="filters.skip === 0"
+                  icon="i-heroicons-chevron-double-left"
+                  :disabled="currentPage === 1"
+                  @click="goToFirstPage"
+                />
+                <UButton
+                  size="sm"
+                  variant="soft"
+                  icon="i-heroicons-chevron-left"
+                  :disabled="currentPage === 1"
                   @click="previousPage"
-                >
-                  Previous
-                </UButton>
+                />
+                <div class="text-sm text-gray-700 dark:text-gray-300 px-3">
+                  Page {{ currentPage }} of {{ totalPages }}
+                </div>
                 <UButton
                   size="sm"
                   variant="soft"
-                  :disabled="filters.skip + filters.limit >= total"
+                  icon="i-heroicons-chevron-right"
+                  :disabled="currentPage === totalPages"
                   @click="nextPage"
-                >
-                  Next
-                </UButton>
+                />
+                <UButton
+                  size="sm"
+                  variant="soft"
+                  icon="i-heroicons-chevron-double-right"
+                  :disabled="currentPage === totalPages"
+                  @click="goToLastPage"
+                />
               </div>
             </div>
           </template>
@@ -206,10 +316,115 @@ const syncing = ref(false)
 
 const filters = reactive({
   search: '',
+  event_type: '',
   include_hidden: 'true',
-  include_archived: 'false',  // Default to showing only active and upcoming events
+  include_archived: 'false',
+  start_date: '',
+  end_date: '',
   skip: 0,
   limit: 20,
+  order_by: 'start_time',
+  order_desc: true,
+})
+
+// Filter options
+const eventTypeOptions = [
+  { label: 'All Types', value: '' },
+  { label: 'Regular Events', value: 'EVENT' },
+  { label: 'Recurring Events', value: 'RECURRING' },
+  { label: 'Availability', value: 'AVAILABILITY' },
+]
+
+const visibilityOptions = [
+  { label: 'All Events', value: 'both' },
+  { label: 'Visible Only', value: 'false' },
+  { label: 'Hidden Only', value: 'true' },
+]
+
+const archivedOptions = [
+  { label: 'Active & Upcoming', value: 'false' },
+  { label: 'All Events', value: 'both' },
+  { label: 'Archived Only', value: 'true' },
+]
+
+const pageSizeOptions = [
+  { label: '10 per page', value: 10 },
+  { label: '20 per page', value: 20 },
+  { label: '50 per page', value: 50 },
+  { label: '100 per page', value: 100 },
+]
+
+// Computed properties
+const currentPage = computed(() => Math.floor(filters.skip / filters.limit) + 1)
+const totalPages = computed(() => Math.ceil(total.value / filters.limit))
+const startItem = computed(() => Math.min(filters.skip + 1, total.value))
+const endItem = computed(() => Math.min(filters.skip + filters.limit, total.value))
+
+const hasActiveFilters = computed(() => {
+  return filters.search ||
+         filters.event_type ||
+         filters.include_hidden !== 'true' ||
+         filters.include_archived !== 'false' ||
+         filters.start_date ||
+         filters.end_date
+})
+
+const activeFilterChips = computed(() => {
+  const chips = []
+
+  if (filters.search) {
+    chips.push({ key: 'search', label: `Search: "${filters.search}"` })
+  }
+
+  if (filters.event_type) {
+    const typeOption = eventTypeOptions.find(opt => opt.value === filters.event_type)
+    chips.push({ key: 'event_type', label: `Type: ${typeOption?.label}` })
+  }
+
+  if (filters.include_hidden !== 'true') {
+    const visOption = visibilityOptions.find(opt => opt.value === filters.include_hidden)
+    chips.push({ key: 'include_hidden', label: `Visibility: ${visOption?.label}` })
+  }
+
+  if (filters.include_archived !== 'false') {
+    const archOption = archivedOptions.find(opt => opt.value === filters.include_archived)
+    chips.push({ key: 'include_archived', label: `Status: ${archOption?.label}` })
+  }
+
+  if (filters.start_date) {
+    chips.push({ key: 'start_date', label: `From: ${filters.start_date}` })
+  }
+
+  if (filters.end_date) {
+    chips.push({ key: 'end_date', label: `To: ${filters.end_date}` })
+  }
+
+  return chips
+})
+
+// Watch for filter changes and auto-apply
+let searchTimeout: NodeJS.Timeout | null = null
+
+watch(() => filters.search, (newValue) => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    filters.skip = 0 // Reset to first page on search
+    loadEvents()
+  }, 300) // 300ms debounce
+})
+
+watch(() => [
+  filters.event_type,
+  filters.include_hidden,
+  filters.include_archived,
+  filters.start_date,
+  filters.end_date,
+  filters.limit,
+  filters.order_by,
+  filters.order_desc,
+], () => {
+  filters.skip = 0 // Reset to first page when filters change
+  loadEvents()
 })
 
 onMounted(() => {
@@ -224,10 +439,24 @@ const loadEvents = async () => {
       limit: filters.limit,
       include_hidden: filters.include_hidden,
       include_archived: filters.include_archived,
+      order_by: filters.order_by,
+      order_desc: filters.order_desc,
     }
 
     if (filters.search) {
       params.search = filters.search
+    }
+
+    if (filters.event_type) {
+      params.event_type = filters.event_type
+    }
+
+    if (filters.start_date) {
+      params.start_date = new Date(filters.start_date).toISOString()
+    }
+
+    if (filters.end_date) {
+      params.end_date = new Date(filters.end_date).toISOString()
     }
 
     const response = await api.getEvents(params)
@@ -261,6 +490,47 @@ const handleSync = async () => {
   }
 }
 
+const toggleSort = (field: string) => {
+  if (filters.order_by === field) {
+    filters.order_desc = !filters.order_desc
+  } else {
+    filters.order_by = field
+    filters.order_desc = true
+  }
+}
+
+const clearFilters = () => {
+  filters.search = ''
+  filters.event_type = ''
+  filters.include_hidden = 'true'
+  filters.include_archived = 'false'
+  filters.start_date = ''
+  filters.end_date = ''
+}
+
+const removeFilter = (key: string) => {
+  switch (key) {
+    case 'search':
+      filters.search = ''
+      break
+    case 'event_type':
+      filters.event_type = ''
+      break
+    case 'include_hidden':
+      filters.include_hidden = 'true'
+      break
+    case 'include_archived':
+      filters.include_archived = 'false'
+      break
+    case 'start_date':
+      filters.start_date = ''
+      break
+    case 'end_date':
+      filters.end_date = ''
+      break
+  }
+}
+
 const formatDate = (dateString: string) => {
   if (!dateString) return '-'
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -272,13 +542,49 @@ const formatDate = (dateString: string) => {
   })
 }
 
-const nextPage = () => {
-  filters.skip += filters.limit
+const getEventTypeColor = (type: string) => {
+  switch (type) {
+    case 'RECURRING':
+      return 'blue'
+    case 'AVAILABILITY':
+      return 'purple'
+    default:
+      return 'gray'
+  }
+}
+
+const getResponsesTooltip = (responses: any) => {
+  if (!responses) return 'No responses yet'
+
+  const accepted = responses.accepted_uids?.length || 0
+  const declined = responses.declined_uids?.length || 0
+  const unanswered = responses.unanswered_uids?.length || 0
+
+  return `${accepted} accepted, ${declined} declined, ${unanswered} unanswered`
+}
+
+// Pagination functions
+const goToFirstPage = () => {
+  filters.skip = 0
   loadEvents()
 }
 
-const previousPage = () => {
-  filters.skip = Math.max(0, filters.skip - filters.limit)
+const goToLastPage = () => {
+  filters.skip = (totalPages.value - 1) * filters.limit
   loadEvents()
+}
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    filters.skip += filters.limit
+    loadEvents()
+  }
+}
+
+const previousPage = () => {
+  if (currentPage.value > 1) {
+    filters.skip = Math.max(0, filters.skip - filters.limit)
+    loadEvents()
+  }
 }
 </script>
