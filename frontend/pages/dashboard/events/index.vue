@@ -137,7 +137,7 @@
           />
 
           <!-- List View -->
-          <div v-if="selectedView === 0">
+          <div v-if="selectedView === 'list'">
             <template v-if="loading">
               <div class="flex justify-center py-12">
                 <UIcon name="i-heroicons-arrow-path" class="animate-spin h-8 w-8" />
@@ -308,7 +308,7 @@
           </div>
 
           <!-- Calendar View -->
-          <div v-else-if="selectedView === 1">
+          <div v-else-if="selectedView === 'calendar'">
             <EventsFullCalendarView
               :events="events"
               :filters="filters"
@@ -319,7 +319,7 @@
           </div>
 
           <!-- Upcoming View -->
-          <div v-else-if="selectedView === 2">
+          <div v-else-if="selectedView === 'upcoming'">
             <EventsUpcomingView
               :events="events"
               :loading="loading"
@@ -345,19 +345,22 @@ const syncing = ref(false)
 
 // View management with localStorage persistence
 const selectedView = ref(
-  process.client ? parseInt(localStorage.getItem('events-view-preference') || '0') : 0
+  process.client ? (localStorage.getItem('events-view-preference') || 'list') : 'list'
 )
 
 const viewTabs = [
   {
+    value: 'list',
     label: 'List',
     icon: 'i-heroicons-list-bullet',
   },
   {
+    value: 'calendar',
     label: 'Calendar',
     icon: 'i-heroicons-calendar-days',
   },
   {
+    value: 'upcoming',
     label: 'Upcoming',
     icon: 'i-heroicons-clock',
   },
@@ -366,7 +369,7 @@ const viewTabs = [
 // Watch for view changes and save to localStorage
 watch(selectedView, (newView) => {
   if (process.client) {
-    localStorage.setItem('events-view-preference', String(newView))
+    localStorage.setItem('events-view-preference', newView)
   }
 })
 
