@@ -1,33 +1,39 @@
 <script setup lang="ts">
-const props = defineProps<{
-  status: 'synced' | 'pending' | 'local_only' | 'error'
+const props = withDefaults(defineProps<{
+  status?: 'synced' | 'pending' | 'local_only' | 'error'
   error?: string | null
-}>()
+}>(), {
+  status: 'synced',
+  error: null
+})
 
-const statusConfig = {
+const statusConfig: Record<string, { color: string, icon: string, label: string }> = {
   synced: {
-    color: 'green' as const,
+    color: 'green',
     icon: 'i-heroicons-check-circle',
     label: 'Synced'
   },
   pending: {
-    color: 'amber' as const,
+    color: 'amber',
     icon: 'i-heroicons-clock',
     label: 'Pending'
   },
   local_only: {
-    color: 'gray' as const,
+    color: 'gray',
     icon: 'i-heroicons-computer-desktop',
     label: 'Local Only'
   },
   error: {
-    color: 'red' as const,
+    color: 'red',
     icon: 'i-heroicons-exclamation-circle',
     label: 'Error'
   }
 }
 
-const config = computed(() => statusConfig[props.status])
+const config = computed(() => {
+  const status = props.status || 'synced'
+  return statusConfig[status] || statusConfig.synced
+})
 </script>
 
 <template>

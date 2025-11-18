@@ -45,7 +45,7 @@
                     <UBadge :color="getEventTypeColor(event.event_type)">
                       {{ event.event_type || 'Event' }}
                     </UBadge>
-                    <SyncStatusBadge :status="event.sync_status || 'synced'" :error="event.sync_error" />
+                    <SyncStatusBadge :status="event.sync_status" :error="event.sync_error" />
                   </div>
                 </div>
 

@@ -133,9 +133,8 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
                       <SyncStatusBadge
-                        v-if="event"
-                        :status="event.sync_status || 'synced'"
-                        :error="event.sync_error || null"
+                        :status="event.sync_status"
+                        :error="event.sync_error"
                       />
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
@@ -206,7 +205,6 @@ onMounted(() => {
 
 const loadEvents = async () => {
   loading.value = true
-  events.value = [] // Clear events before loading
   try {
     const params: any = {
       skip: filters.skip,
