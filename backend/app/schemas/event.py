@@ -17,6 +17,13 @@ class EventResponses(BaseModel):
     unconfirmed_uids: List[str] = Field(default_factory=list)
 
 
+class EventLocation(BaseModel):
+    """Location schema"""
+    address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+
 class EventBase(BaseModel):
     """
     Base event schema with common fields
@@ -31,6 +38,10 @@ class EventBase(BaseModel):
     invite_time: Optional[datetime] = None
     cancelled: bool = False
     hidden: bool = False
+    location_address: Optional[str] = None
+    location_latitude: Optional[float] = None
+    location_longitude: Optional[float] = None
+    max_accepted: int = 0
 
 
 class EventResponse(EventBase):
@@ -39,6 +50,8 @@ class EventResponse(EventBase):
     """
     id: int
     responses: Optional[EventResponses] = None
+    sync_status: str  # synced, pending, local_only, error
+    sync_error: Optional[str] = None
     last_synced_at: datetime
     created_at: datetime
     updated_at: datetime
@@ -56,14 +69,39 @@ class EventListResponse(BaseModel):
     limit: int
 
 
+class EventCreate(BaseModel):
+    """
+    Schema for creating a new event
+    """
+    heading: str
+    description: Optional[str] = None
+    event_type: Literal["AVAILABILITY", "EVENT", "RECURRING"] = "EVENT"
+    start_time: datetime
+    end_time: datetime
+    location_address: Optional[str] = None
+    location_latitude: Optional[float] = None
+    location_longitude: Optional[float] = None
+    max_accepted: int = 0
+    cancelled: bool = False
+    hidden: bool = False
+    sync_to_spond: bool = False  # Whether to immediately sync to Spond
+
+
 class EventUpdate(BaseModel):
     """
     Schema for updating an event
     """
     heading: Optional[str] = None
     description: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    location_address: Optional[str] = None
+    location_latitude: Optional[float] = None
+    location_longitude: Optional[float] = None
+    max_accepted: Optional[int] = None
     cancelled: Optional[bool] = None
     hidden: Optional[bool] = None
+    sync_to_spond: bool = False  # Whether to immediately sync changes to Spond
 
 
 class EventFilters(BaseModel):

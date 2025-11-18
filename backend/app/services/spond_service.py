@@ -130,6 +130,46 @@ class SpondService:
             logger.error(f"Error fetching event {event_id}: {e}")
             raise
 
+    async def create_event(
+        self,
+        event_data: Dict[str, Any],
+        group_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new event in Spond
+
+        Args:
+            event_data: Dictionary with event fields
+            group_id: Optional group ID to associate event with
+
+        Returns:
+            Created event dictionary
+        """
+        client = await self._get_client()
+
+        try:
+            # Use the event template as base
+            from spond.spond import Spond
+            event_payload = Spond._EVENT_TEMPLATE.copy()
+
+            # Update with provided data
+            for key, value in event_data.items():
+                if key in event_payload:
+                    event_payload[key] = value
+
+            # POST to create new event
+            url = f"{client.api_url}sponds"
+            async with client.clientsession.post(
+                url, json=event_payload, headers=client.auth_headers
+            ) as r:
+                result = await r.json()
+                logger.info(f"Created event: {result.get('id')}")
+                return result
+
+        except Exception as e:
+            logger.error(f"Error creating event: {e}")
+            raise
+
     async def update_event(
         self,
         event_id: str,

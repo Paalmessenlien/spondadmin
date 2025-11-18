@@ -12,6 +12,7 @@ from app.models.admin import Admin
 from app.schemas.event import (
     EventResponse,
     EventListResponse,
+    EventCreate,
     EventUpdate,
     EventFilters,
     EventStats,
@@ -69,6 +70,46 @@ async def sync_events(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to sync events: {str(e)}"
+        )
+
+
+@router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
+async def create_event(
+    create_data: EventCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+    spond_service: SpondService = Depends(get_spond_service),
+):
+    """
+    Create a new event
+
+    Args:
+        create_data: Event creation data
+        db: Database session
+        current_user: Current authenticated user
+        spond_service: Spond service instance
+
+    Returns:
+        Created event
+
+    Raises:
+        HTTPException: If creation fails
+    """
+    try:
+        event = await EventService.create(
+            db,
+            create_data,
+            spond_service=spond_service if create_data.sync_to_spond else None
+        )
+
+        await db.commit()
+        return event
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create event: {str(e)}"
         )
 
 
@@ -245,6 +286,51 @@ async def update_event(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update event: {str(e)}"
+        )
+
+
+@router.post("/{event_id}/push-to-spond", response_model=EventResponse)
+async def push_event_to_spond(
+    event_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+    spond_service: SpondService = Depends(get_spond_service),
+):
+    """
+    Manually push a local or pending event to Spond
+
+    Args:
+        event_id: Event ID
+        db: Database session
+        current_user: Current authenticated user
+        spond_service: Spond service instance
+
+    Returns:
+        Updated event with sync status
+
+    Raises:
+        HTTPException: If event not found or sync fails
+    """
+    try:
+        event = await EventService.push_to_spond(
+            db,
+            event_id,
+            spond_service
+        )
+
+        await db.commit()
+        return event
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to push event to Spond: {str(e)}"
         )
 
 

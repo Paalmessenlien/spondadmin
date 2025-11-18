@@ -34,6 +34,14 @@ class Event(Base, TimestampMixin):
     cancelled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Location
+    location_address: Mapped[str] = mapped_column(String(500), nullable=True)
+    location_latitude: Mapped[float] = mapped_column(nullable=True)
+    location_longitude: Mapped[float] = mapped_column(nullable=True)
+
+    # Participants
+    max_accepted: Mapped[int] = mapped_column(default=0, nullable=False)
+
     # Responses (stored as JSON)
     responses: Mapped[dict] = mapped_column(JSON, nullable=True)
 
@@ -41,6 +49,13 @@ class Event(Base, TimestampMixin):
     raw_data: Mapped[dict] = mapped_column(JSON, nullable=True)
 
     # Sync metadata
+    sync_status: Mapped[str] = mapped_column(
+        String(50),
+        default="synced",
+        nullable=False,
+        index=True
+    )  # synced, pending, local_only, error
+    sync_error: Mapped[str] = mapped_column(Text, nullable=True)  # Error message if sync failed
     last_synced_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),

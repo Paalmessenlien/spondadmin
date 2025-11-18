@@ -9,8 +9,9 @@ from sqlalchemy import select, func, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event import Event
-from app.schemas.event import EventUpdate, EventFilters
+from app.schemas.event import EventCreate, EventUpdate, EventFilters
 from app.services.spond_service import SpondService
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -175,35 +176,63 @@ class EventService:
         if not event:
             return None
 
+        # Track if any changes were made
+        has_changes = False
+
         # Update local fields
         if update_data.heading is not None:
             event.heading = update_data.heading
+            has_changes = True
 
         if update_data.description is not None:
             event.description = update_data.description
+            has_changes = True
+
+        if update_data.start_time is not None:
+            event.start_time = update_data.start_time
+            has_changes = True
+
+        if update_data.end_time is not None:
+            event.end_time = update_data.end_time
+            has_changes = True
+
+        if update_data.location_address is not None:
+            event.location_address = update_data.location_address
+            has_changes = True
+
+        if update_data.location_latitude is not None:
+            event.location_latitude = update_data.location_latitude
+            has_changes = True
+
+        if update_data.location_longitude is not None:
+            event.location_longitude = update_data.location_longitude
+            has_changes = True
+
+        if update_data.max_accepted is not None:
+            event.max_accepted = update_data.max_accepted
+            has_changes = True
 
         if update_data.cancelled is not None:
             event.cancelled = update_data.cancelled
+            has_changes = True
 
         if update_data.hidden is not None:
             event.hidden = update_data.hidden
+            has_changes = True
 
-        # Update in Spond API if service provided
-        if spond_service:
-            try:
-                updates = {}
-                if update_data.heading is not None:
-                    updates["heading"] = update_data.heading
-                if update_data.description is not None:
-                    updates["description"] = update_data.description
-
-                if updates:
-                    await spond_service.update_event(event.spond_id, updates)
-                    logger.info(f"Updated event {event.spond_id} in Spond API")
-
-            except Exception as e:
-                logger.error(f"Failed to update event in Spond API: {e}")
-                # Continue with local update even if Spond update fails
+        # Update sync status
+        if has_changes:
+            if update_data.sync_to_spond and spond_service and event.sync_status != "local_only":
+                # Sync immediately to Spond
+                try:
+                    await EventService.push_to_spond(db, event_id, spond_service)
+                except Exception as e:
+                    logger.error(f"Failed to sync event to Spond: {e}")
+                    event.sync_status = "error"
+                    event.sync_error = str(e)
+            elif event.sync_status == "synced":
+                # Mark as pending if not syncing immediately
+                event.sync_status = "pending"
 
         await db.flush()
         await db.refresh(event)
@@ -230,6 +259,173 @@ class EventService:
         await db.flush()
 
         return True
+
+    @staticmethod
+    async def create(
+        db: AsyncSession,
+        create_data: EventCreate,
+        spond_service: Optional[SpondService] = None,
+    ) -> Event:
+        """
+        Create a new event
+
+        Args:
+            db: Database session
+            create_data: Event creation data
+            spond_service: Optional Spond service for API sync
+
+        Returns:
+            Created event
+        """
+        now = datetime.utcnow()
+
+        # Generate a temporary spond_id for local-only events
+        temp_spond_id = f"local_{uuid.uuid4().hex[:12]}"
+
+        # Determine initial sync status
+        sync_status = "local_only"
+        spond_id = temp_spond_id
+
+        # Create event in Spond if requested
+        if create_data.sync_to_spond and spond_service:
+            try:
+                # Prepare event data for Spond API
+                spond_data = {
+                    "heading": create_data.heading,
+                    "description": create_data.description or "",
+                    "spondType": create_data.event_type,
+                    "startTimestamp": create_data.start_time.isoformat(),
+                    "endTimestamp": create_data.end_time.isoformat(),
+                }
+
+                # Add location if provided
+                if create_data.location_address:
+                    spond_data["location"] = {
+                        "address": create_data.location_address,
+                        "latitude": create_data.location_latitude,
+                        "longitude": create_data.location_longitude,
+                    }
+
+                # Add max participants if set
+                if create_data.max_accepted > 0:
+                    spond_data["maxAccepted"] = create_data.max_accepted
+
+                # Create in Spond
+                result = await spond_service.create_event(spond_data)
+                spond_id = result.get("id", temp_spond_id)
+                sync_status = "synced"
+                logger.info(f"Created event in Spond: {spond_id}")
+
+            except Exception as e:
+                logger.error(f"Failed to create event in Spond: {e}")
+                sync_status = "error"
+                # Continue with local creation
+
+        # Create local event record
+        event = Event(
+            spond_id=spond_id,
+            heading=create_data.heading,
+            description=create_data.description,
+            event_type=create_data.event_type,
+            start_time=create_data.start_time,
+            end_time=create_data.end_time,
+            created_time=now,
+            invite_time=None,
+            location_address=create_data.location_address,
+            location_latitude=create_data.location_latitude,
+            location_longitude=create_data.location_longitude,
+            max_accepted=create_data.max_accepted,
+            cancelled=create_data.cancelled,
+            hidden=create_data.hidden,
+            sync_status=sync_status,
+            sync_error=None,
+            last_synced_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+
+        db.add(event)
+        await db.flush()
+        await db.refresh(event)
+
+        logger.info(f"Created event locally: {event.id} (spond_id: {event.spond_id})")
+        return event
+
+    @staticmethod
+    async def push_to_spond(
+        db: AsyncSession,
+        event_id: int,
+        spond_service: SpondService,
+    ) -> Event:
+        """
+        Push a local or pending event to Spond
+
+        Args:
+            db: Database session
+            event_id: Event ID
+            spond_service: Spond service instance
+
+        Returns:
+            Updated event
+
+        Raises:
+            ValueError: If event not found
+            Exception: If sync fails
+        """
+        event = await EventService.get_by_id(db, event_id)
+        if not event:
+            raise ValueError(f"Event {event_id} not found")
+
+        try:
+            # Prepare event data for Spond API
+            spond_data = {
+                "heading": event.heading,
+                "description": event.description or "",
+                "spondType": event.event_type,
+                "startTimestamp": event.start_time.isoformat(),
+                "endTimestamp": event.end_time.isoformat(),
+            }
+
+            # Add location if provided
+            if event.location_address:
+                spond_data["location"] = {
+                    "address": event.location_address,
+                    "latitude": event.location_latitude,
+                    "longitude": event.location_longitude,
+                }
+
+            # Add max participants if set
+            if event.max_accepted > 0:
+                spond_data["maxAccepted"] = event.max_accepted
+
+            # Create or update in Spond
+            if event.sync_status == "local_only" or event.spond_id.startswith("local_"):
+                # Create new event in Spond
+                result = await spond_service.create_event(spond_data)
+                event.spond_id = result.get("id")
+                logger.info(f"Created event in Spond: {event.spond_id}")
+            else:
+                # Update existing event in Spond
+                await spond_service.update_event(event.spond_id, spond_data)
+                logger.info(f"Updated event in Spond: {event.spond_id}")
+
+            # Update sync status
+            event.sync_status = "synced"
+            event.sync_error = None
+            event.last_synced_at = datetime.utcnow()
+
+            await db.flush()
+            await db.refresh(event)
+
+            return event
+
+        except Exception as e:
+            logger.error(f"Failed to push event to Spond: {e}")
+            event.sync_status = "error"
+            event.sync_error = str(e)
+            await db.flush()
+            await db.refresh(event)
+            raise
 
     @staticmethod
     async def get_statistics(

@@ -144,6 +144,15 @@ class EventSyncService:
         cancelled = event_dict.get("cancelled", False)
         hidden = event_dict.get("hidden", False)
 
+        # Extract location
+        location = event_dict.get("location", {})
+        location_address = location.get("address") if location else None
+        location_latitude = location.get("latitude") if location else None
+        location_longitude = location.get("longitude") if location else None
+
+        # Extract max participants
+        max_accepted = event_dict.get("maxAccepted", 0)
+
         # Extract responses
         responses = EventSyncService._extract_responses(event_dict.get("responses"))
 
@@ -159,10 +168,18 @@ class EventSyncService:
             existing_event.invite_time = invite_time
             existing_event.cancelled = cancelled
             existing_event.hidden = hidden
+            existing_event.location_address = location_address
+            existing_event.location_latitude = location_latitude
+            existing_event.location_longitude = location_longitude
+            existing_event.max_accepted = max_accepted
             existing_event.responses = responses
             existing_event.raw_data = event_dict
             existing_event.last_synced_at = now
             existing_event.updated_at = now
+            # Only update sync_status to 'synced' if it's not local_only
+            if existing_event.sync_status != "local_only":
+                existing_event.sync_status = "synced"
+                existing_event.sync_error = None
 
             stats["updated"] += 1
             logger.debug(f"Updated event {spond_id}: {heading}")
@@ -181,8 +198,14 @@ class EventSyncService:
                 invite_time=invite_time,
                 cancelled=cancelled,
                 hidden=hidden,
+                location_address=location_address,
+                location_latitude=location_latitude,
+                location_longitude=location_longitude,
+                max_accepted=max_accepted,
                 responses=responses,
                 raw_data=event_dict,
+                sync_status="synced",  # Events from Spond are synced by definition
+                sync_error=None,
                 last_synced_at=now,
                 created_at=now,
                 updated_at=now,
