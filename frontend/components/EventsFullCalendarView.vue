@@ -156,6 +156,8 @@ const handleDatesSet = (dateInfo: DatesSetArg) => {
 </script>
 
 <style>
+@import "tailwindcss" reference;
+
 /* FullCalendar Custom Styling for Nuxt UI Theme */
 .fullcalendar-wrapper {
   @apply relative;
