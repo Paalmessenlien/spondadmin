@@ -46,6 +46,8 @@
                 { label: 'Visible Only', value: 'false' },
                 { label: 'Hidden Only', value: 'true' },
               ]"
+              value-attribute="value"
+              option-attribute="label"
               placeholder="Filter by visibility"
             />
 
@@ -104,7 +106,7 @@
                 <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                   <tr
                     v-for="event in events"
-                    :key="event.id"
+                    :key="`event-${event.id}`"
                     class="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                     @click="navigateTo(`/dashboard/events/${event.id}`)"
                   >
@@ -130,7 +132,11 @@
                       <UBadge v-else color="green">Active</UBadge>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                      <SyncStatusBadge :status="event.sync_status || 'synced'" :error="event.sync_error" />
+                      <SyncStatusBadge
+                        v-if="event"
+                        :status="event.sync_status || 'synced'"
+                        :error="event.sync_error || null"
+                      />
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       <div class="flex space-x-2">
@@ -200,6 +206,7 @@ onMounted(() => {
 
 const loadEvents = async () => {
   loading.value = true
+  events.value = [] // Clear events before loading
   try {
     const params: any = {
       skip: filters.skip,
