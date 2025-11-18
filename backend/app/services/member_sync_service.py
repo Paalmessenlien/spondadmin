@@ -179,6 +179,7 @@ class MemberSyncService:
             except Exception:
                 logger.warning(f"Failed to parse created time: {created_time_str}")
 
+        now = datetime.utcnow()
         member_data = {
             "spond_id": spond_id,
             "group_id": group_dict.get("id") if group_dict else None,
@@ -192,17 +193,20 @@ class MemberSyncService:
             "subgroup_uids": subgroup_uids if subgroup_uids else [],
             "fields": member_dict.get("fields", {}),
             "raw_data": member_dict,
-            "last_synced_at": datetime.utcnow(),
+            "last_synced_at": now,
         }
 
         if existing_member:
             # Update existing member
             for key, value in member_data.items():
                 setattr(existing_member, key, value)
+            existing_member.updated_at = now
             stats["updated"] += 1
             logger.debug(f"Updated member: {first_name} {last_name}")
         else:
             # Create new member
+            member_data["created_at"] = now
+            member_data["updated_at"] = now
             new_member = Member(**member_data)
             db.add(new_member)
             stats["created"] += 1

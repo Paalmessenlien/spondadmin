@@ -149,6 +149,7 @@ class EventSyncService:
 
         if existing_event:
             # Update existing event
+            now = datetime.utcnow()
             existing_event.heading = heading
             existing_event.description = description
             existing_event.event_type = event_type
@@ -160,13 +161,15 @@ class EventSyncService:
             existing_event.hidden = hidden
             existing_event.responses = responses
             existing_event.raw_data = event_dict
-            existing_event.last_synced_at = datetime.utcnow()
+            existing_event.last_synced_at = now
+            existing_event.updated_at = now
 
             stats["updated"] += 1
             logger.debug(f"Updated event {spond_id}: {heading}")
 
         else:
             # Create new event
+            now = datetime.utcnow()
             new_event = Event(
                 spond_id=spond_id,
                 heading=heading,
@@ -180,7 +183,9 @@ class EventSyncService:
                 hidden=hidden,
                 responses=responses,
                 raw_data=event_dict,
-                last_synced_at=datetime.utcnow(),
+                last_synced_at=now,
+                created_at=now,
+                updated_at=now,
             )
 
             db.add(new_event)

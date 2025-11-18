@@ -123,6 +123,7 @@ class GroupSyncService:
         existing_group = result.scalar_one_or_none()
 
         # Extract group data
+        now = datetime.utcnow()
         group_data = {
             "spond_id": spond_id,
             "name": group_dict.get("name", ""),
@@ -130,17 +131,20 @@ class GroupSyncService:
             "roles": group_dict.get("roles"),
             "subgroups": group_dict.get("subGroups", []),
             "raw_data": group_dict,
-            "last_synced_at": datetime.utcnow(),
+            "last_synced_at": now,
         }
 
         if existing_group:
             # Update existing group
             for key, value in group_data.items():
                 setattr(existing_group, key, value)
+            existing_group.updated_at = now
             stats["updated"] += 1
             logger.debug(f"Updated group: {group_data['name']}")
         else:
             # Create new group
+            group_data["created_at"] = now
+            group_data["updated_at"] = now
             new_group = Group(**group_data)
             db.add(new_group)
             stats["created"] += 1

@@ -378,6 +378,52 @@ The backend provides automatic API documentation:
 
 **Testing**: Verified with Playwright MCP automated browser testing to ensure all navigation flows work correctly.
 
+### Spond Sync Fixes (2025-11-18) ✅
+
+**Problem**: Spond event synchronization was failing with database constraint errors and only syncing a limited number of events (96 instead of 481+). The sync would fail when trying to create new events with error: `NOT NULL constraint failed: events.created_at`.
+
+**Root Causes**:
+
+1. **Database Timestamp Issue**: The `TimestampMixin` uses `server_default=func.now()` which works well with PostgreSQL but has limitations with SQLite. When creating new records, the sync services weren't explicitly setting `created_at` and `updated_at` values, causing constraint violations.
+
+2. **Max Events Limit Too Low**: The default `max_events` parameter was set to only 100 events, artificially limiting sync capacity.
+
+**Solutions Applied**:
+
+1. **Fixed Timestamp Handling** (3 sync services affected):
+   - `backend/app/services/event_sync_service.py:168-191`: Added explicit `created_at` and `updated_at` timestamps for new events and `updated_at` for updates
+   - `backend/app/services/group_sync_service.py:125-151`: Added explicit timestamp handling for group sync
+   - `backend/app/services/member_sync_service.py:182-213`: Added explicit timestamp handling for member sync
+
+   ```python
+   # Example fix pattern
+   now = datetime.utcnow()
+   new_event = Event(
+       spond_id=spond_id,
+       # ... other fields ...
+       created_at=now,
+       updated_at=now,
+   )
+   ```
+
+2. **Increased Event Limit** (`backend/app/api/v1/events.py:31`):
+   - Changed default `max_events` from 100 → 500
+   - Allows syncing more events per operation
+
+**Results**:
+- ✅ **500 events** successfully fetched and synced from Spond API
+- ✅ **481 total events** now available in the database (400 created, 100 updated)
+- ✅ **0 errors** during sync operation
+- ✅ Sync works correctly from both frontend UI and direct API calls
+- ✅ All event types synced: EVENT, RECURRING, AVAILABILITY
+- ✅ Full date range from 2027 events down to historical data
+
+**Testing**:
+- Backend tested with direct API calls using Python requests
+- Frontend tested with Playwright MCP automated browser testing
+- Verified sync successfully creates new events and updates existing ones
+- Screenshot saved at `.playwright-mcp/sync-fixed-481-events.png`
+
 ## Troubleshooting
 
 ### Frontend CSS Not Loading

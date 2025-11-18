@@ -28,7 +28,7 @@ router = APIRouter()
 @router.post("/sync", response_model=EventSyncResult)
 async def sync_events(
     group_id: Optional[str] = None,
-    max_events: int = 100,
+    max_events: int = 500,
     db: AsyncSession = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
     spond_service: SpondService = Depends(get_spond_service),
@@ -38,7 +38,7 @@ async def sync_events(
 
     Args:
         group_id: Optional group ID to filter events
-        max_events: Maximum number of events to fetch (default 100)
+        max_events: Maximum number of events to fetch (default 500)
         db: Database session
         current_user: Current authenticated user
         spond_service: Spond service instance
