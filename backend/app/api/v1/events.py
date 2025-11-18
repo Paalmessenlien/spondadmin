@@ -120,6 +120,7 @@ async def list_events(
     event_type: Optional[str] = None,
     include_cancelled: bool = False,
     include_hidden: bool = False,
+    include_archived: bool = False,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     search: Optional[str] = None,
@@ -137,6 +138,7 @@ async def list_events(
         event_type: Filter by event type (AVAILABILITY, EVENT, RECURRING)
         include_cancelled: Include cancelled events
         include_hidden: Include hidden events
+        include_archived: Include archived events (where end_time has passed)
         start_date: Filter events starting after this date
         end_date: Filter events starting before this date
         search: Search in heading and description
@@ -153,6 +155,7 @@ async def list_events(
         event_type=event_type,
         include_cancelled=include_cancelled,
         include_hidden=include_hidden,
+        include_archived=include_archived,
         start_date=start_date,
         end_date=end_date,
         search=search,

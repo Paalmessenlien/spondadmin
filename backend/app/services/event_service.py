@@ -134,6 +134,10 @@ class EventService:
         if not filters.include_hidden:
             conditions.append(Event.hidden.is_(False))
 
+        # Include/exclude archived (events where end_time has passed)
+        if not filters.include_archived:
+            conditions.append(Event.end_time >= datetime.utcnow())
+
         # Filter by date range
         if filters.start_date:
             conditions.append(Event.start_time >= filters.start_date)

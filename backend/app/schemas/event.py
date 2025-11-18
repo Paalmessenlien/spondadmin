@@ -113,6 +113,7 @@ class EventFilters(BaseModel):
     event_type: Optional[Literal["AVAILABILITY", "EVENT", "RECURRING"]] = None
     include_cancelled: bool = False
     include_hidden: bool = False
+    include_archived: bool = False  # Include events where end_time has passed
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     search: Optional[str] = None  # Search in heading/description
