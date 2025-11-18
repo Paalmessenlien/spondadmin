@@ -37,15 +37,14 @@ const config = computed(() => {
 </script>
 
 <template>
-  <UTooltip :text="error || config.label">
-    <UBadge
-      :color="config.color"
-      variant="subtle"
-      size="xs"
-      class="gap-1"
-    >
-      <UIcon :name="config.icon" class="w-3 h-3" />
-      {{ config.label }}
-    </UBadge>
-  </UTooltip>
+  <UBadge
+    :color="config.color"
+    variant="subtle"
+    size="xs"
+    class="gap-1"
+    :title="error || config.label"
+  >
+    <UIcon :name="config.icon" class="w-3 h-3" />
+    {{ config.label }}
+  </UBadge>
 </template>
