@@ -383,7 +383,7 @@ const filters = reactive({
   skip: 0,
   limit: 20,
   order_by: 'start_time',
-  order_desc: true,
+  order_desc: false, // Show earliest/upcoming events first
 })
 
 // Filter options
@@ -649,14 +649,40 @@ const previousPage = () => {
 
 // Calendar view handlers
 const handleCalendarDatesChange = (dateRange: { start: string, end: string }) => {
-  // When calendar navigation changes, update filters to match
-  // This ensures events are fetched for the visible calendar range
-  // Note: We don't auto-apply this to avoid unexpected filter changes
-  // Users can still use the date filter inputs if they want specific date ranges
+  // When calendar navigation changes, update filters to fetch events for the visible range
+  if (selectedView.value === 'calendar') {
+    filters.start_date = dateRange.start.split('T')[0] // Extract date part
+    filters.end_date = dateRange.end.split('T')[0]
+    filters.limit = 500 // Increase limit to get all events in the range
+    filters.skip = 0
+    loadEvents()
+  }
 }
 
 const handleCalendarViewChange = (viewType: string) => {
   // This is already saved in the FullCalendar component
   // Just a placeholder for any additional logic if needed
 }
+
+// Watch for view changes to adjust filters
+watch(selectedView, (newView, oldView) => {
+  if (newView === 'calendar') {
+    // When switching to calendar, we'll let the calendar component trigger date changes
+    // which will update filters through handleCalendarDatesChange
+  } else if (newView === 'upcoming') {
+    // When switching to upcoming view, load more events and clear date filters
+    filters.start_date = ''
+    filters.end_date = ''
+    filters.limit = 100 // Load more events for better grouping
+    filters.skip = 0
+    loadEvents()
+  } else if (oldView === 'calendar' || oldView === 'upcoming') {
+    // When leaving calendar or upcoming view, restore normal list filters
+    filters.start_date = ''
+    filters.end_date = ''
+    filters.limit = 20
+    filters.skip = 0
+    loadEvents()
+  }
+})
 </script>
