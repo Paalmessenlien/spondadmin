@@ -127,27 +127,36 @@
           </div>
         </UCard>
 
-        <!-- Events Table -->
+        <!-- View Tabs and Content -->
         <UCard>
-          <template v-if="loading">
-            <div class="flex justify-center py-12">
-              <UIcon name="i-heroicons-arrow-path" class="animate-spin h-8 w-8" />
-            </div>
-          </template>
+          <!-- Tabs -->
+          <UTabs
+            v-model="selectedView"
+            :items="viewTabs"
+            class="mb-6"
+          />
 
-          <template v-else-if="events.length === 0">
-            <div class="text-center py-12">
-              <UIcon name="i-heroicons-calendar" class="h-12 w-12 mx-auto text-gray-400" />
-              <h3 class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
-                {{ filters.search ? 'No events found' : 'No events' }}
-              </h3>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {{ filters.search ? `No results for "${filters.search}"` : 'Sync events from Spond to get started.' }}
-              </p>
-            </div>
-          </template>
+          <!-- List View -->
+          <div v-if="selectedView === 0">
+            <template v-if="loading">
+              <div class="flex justify-center py-12">
+                <UIcon name="i-heroicons-arrow-path" class="animate-spin h-8 w-8" />
+              </div>
+            </template>
 
-          <template v-else>
+            <template v-else-if="events.length === 0">
+              <div class="text-center py-12">
+                <UIcon name="i-heroicons-calendar" class="h-12 w-12 mx-auto text-gray-400" />
+                <h3 class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
+                  {{ filters.search ? 'No events found' : 'No events' }}
+                </h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{ filters.search ? `No results for "${filters.search}"` : 'Sync events from Spond to get started.' }}
+                </p>
+              </div>
+            </template>
+
+            <template v-else>
             <div class="overflow-x-auto">
               <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
@@ -295,7 +304,27 @@
                 />
               </div>
             </div>
-          </template>
+            </template>
+          </div>
+
+          <!-- Calendar View -->
+          <div v-else-if="selectedView === 1">
+            <EventsFullCalendarView
+              :events="events"
+              :filters="filters"
+              :loading="loading"
+              @update:dates="handleCalendarDatesChange"
+              @update:calendar-view="handleCalendarViewChange"
+            />
+          </div>
+
+          <!-- Upcoming View -->
+          <div v-else-if="selectedView === 2">
+            <EventsUpcomingView
+              :events="events"
+              :loading="loading"
+            />
+          </div>
         </UCard>
   </div>
 </template>
@@ -313,6 +342,33 @@ const events = ref<any[]>([])
 const total = ref(0)
 const loading = ref(false)
 const syncing = ref(false)
+
+// View management with localStorage persistence
+const selectedView = ref(
+  process.client ? parseInt(localStorage.getItem('events-view-preference') || '0') : 0
+)
+
+const viewTabs = [
+  {
+    label: 'List',
+    icon: 'i-heroicons-list-bullet',
+  },
+  {
+    label: 'Calendar',
+    icon: 'i-heroicons-calendar-days',
+  },
+  {
+    label: 'Upcoming',
+    icon: 'i-heroicons-clock',
+  },
+]
+
+// Watch for view changes and save to localStorage
+watch(selectedView, (newView) => {
+  if (process.client) {
+    localStorage.setItem('events-view-preference', String(newView))
+  }
+})
 
 const filters = reactive({
   search: '',
@@ -586,5 +642,18 @@ const previousPage = () => {
     filters.skip = Math.max(0, filters.skip - filters.limit)
     loadEvents()
   }
+}
+
+// Calendar view handlers
+const handleCalendarDatesChange = (dateRange: { start: string, end: string }) => {
+  // When calendar navigation changes, update filters to match
+  // This ensures events are fetched for the visible calendar range
+  // Note: We don't auto-apply this to avoid unexpected filter changes
+  // Users can still use the date filter inputs if they want specific date ranges
+}
+
+const handleCalendarViewChange = (viewType: string) => {
+  // This is already saved in the FullCalendar component
+  // Just a placeholder for any additional logic if needed
 }
 </script>
