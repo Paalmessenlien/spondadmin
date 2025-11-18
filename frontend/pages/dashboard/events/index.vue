@@ -32,7 +32,7 @@
 
         <!-- Filters -->
         <UCard>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <UInput
               v-model="filters.search"
               placeholder="Search events..."
@@ -49,6 +49,18 @@
               value-attribute="value"
               option-attribute="label"
               placeholder="Filter by visibility"
+            />
+
+            <USelectMenu
+              v-model="filters.include_archived"
+              :options="[
+                { label: 'Active & Upcoming', value: 'false' },
+                { label: 'All Events', value: 'both' },
+                { label: 'Archived Only', value: 'true' },
+              ]"
+              value-attribute="value"
+              option-attribute="label"
+              placeholder="Filter by status"
             />
 
             <UButton
@@ -195,6 +207,7 @@ const syncing = ref(false)
 const filters = reactive({
   search: '',
   include_hidden: 'true',
+  include_archived: 'false',  // Default to showing only active and upcoming events
   skip: 0,
   limit: 20,
 })
@@ -210,6 +223,7 @@ const loadEvents = async () => {
       skip: filters.skip,
       limit: filters.limit,
       include_hidden: filters.include_hidden,
+      include_archived: filters.include_archived,
     }
 
     if (filters.search) {
