@@ -29,7 +29,7 @@
           <UCard>
             <div class="space-y-4">
               <div class="flex justify-between items-start">
-                <div>
+                <div class="flex-1">
                   <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                     {{ event.heading }}
                   </h1>
@@ -45,7 +45,30 @@
                     <UBadge :color="getEventTypeColor(event.event_type)">
                       {{ event.event_type || 'Event' }}
                     </UBadge>
+                    <SyncStatusBadge :status="event.sync_status || 'synced'" :error="event.sync_error" />
                   </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-2">
+                  <UButton
+                    v-if="event.sync_status === 'local_only' || event.sync_status === 'pending' || event.sync_status === 'error'"
+                    icon="i-heroicons-arrow-up-tray"
+                    color="primary"
+                    variant="soft"
+                    :loading="pushing"
+                    @click="handlePushToSpond"
+                  >
+                    Push to Spond
+                  </UButton>
+                  <UButton
+                    icon="i-heroicons-pencil-square"
+                    color="gray"
+                    variant="soft"
+                    @click="openEditModal"
+                  >
+                    Edit
+                  </UButton>
                 </div>
               </div>
 
@@ -55,14 +78,31 @@
               </div>
 
               <!-- Location -->
-              <div v-if="event.location" class="flex items-start space-x-2">
+              <div v-if="event.location_address || event.location" class="flex items-start space-x-2">
                 <UIcon name="i-heroicons-map-pin" class="mt-1 text-gray-500" />
                 <div>
                   <div class="font-semibold">Location</div>
                   <div class="text-sm text-gray-600 dark:text-gray-400">
-                    {{ event.location.feature || event.location.address }}
+                    {{ event.location_address || event.location?.feature || event.location?.address }}
                   </div>
                 </div>
+              </div>
+
+              <!-- Max Participants -->
+              <div v-if="event.max_accepted > 0" class="flex items-start space-x-2">
+                <UIcon name="i-heroicons-users" class="mt-1 text-gray-500" />
+                <div>
+                  <div class="font-semibold">Maximum Participants</div>
+                  <div class="text-sm text-gray-600 dark:text-gray-400">
+                    {{ event.max_accepted }} people
+                  </div>
+                </div>
+              </div>
+
+              <!-- Status Badges -->
+              <div class="flex items-center gap-2">
+                <UBadge v-if="event.cancelled" color="red">Cancelled</UBadge>
+                <UBadge v-if="event.hidden" color="orange">Hidden</UBadge>
               </div>
             </div>
           </UCard>
@@ -147,10 +187,138 @@
             </UTabs>
           </UCard>
         </template>
+
+        <!-- Edit Modal -->
+        <UModal v-model="isEditModalOpen">
+          <UCard>
+            <template #header>
+              <div class="flex justify-between items-center">
+                <h3 class="text-lg font-semibold">Edit Event</h3>
+                <UButton
+                  color="gray"
+                  variant="ghost"
+                  icon="i-heroicons-x-mark"
+                  @click="isEditModalOpen = false"
+                />
+              </div>
+            </template>
+
+            <UForm :schema="editSchema" :state="editState" @submit="handleEditSubmit" class="space-y-4">
+              <!-- Basic Information -->
+              <UFormGroup label="Event Title" name="heading" required>
+                <UInput
+                  v-model="editState.heading"
+                  placeholder="e.g. Training Session"
+                  :disabled="editLoading"
+                />
+              </UFormGroup>
+
+              <UFormGroup label="Description" name="description">
+                <UTextarea
+                  v-model="editState.description"
+                  placeholder="Event description..."
+                  :rows="3"
+                  :disabled="editLoading"
+                />
+              </UFormGroup>
+
+              <!-- Date and Time -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <UFormGroup label="Start Time" name="start_time" required>
+                  <UInput
+                    v-model="editState.start_time"
+                    type="datetime-local"
+                    :disabled="editLoading"
+                  />
+                </UFormGroup>
+
+                <UFormGroup label="End Time" name="end_time" required>
+                  <UInput
+                    v-model="editState.end_time"
+                    type="datetime-local"
+                    :disabled="editLoading"
+                  />
+                </UFormGroup>
+              </div>
+
+              <!-- Location -->
+              <UFormGroup label="Address" name="location_address">
+                <UInput
+                  v-model="editState.location_address"
+                  placeholder="e.g. Main Stadium, 123 Street"
+                  :disabled="editLoading"
+                />
+              </UFormGroup>
+
+              <!-- Settings -->
+              <UFormGroup label="Maximum Participants" name="max_accepted">
+                <UInput
+                  v-model.number="editState.max_accepted"
+                  type="number"
+                  min="0"
+                  placeholder="0 = unlimited"
+                  :disabled="editLoading"
+                />
+              </UFormGroup>
+
+              <UFormGroup name="cancelled">
+                <UCheckbox
+                  v-model="editState.cancelled"
+                  label="Mark as cancelled"
+                  :disabled="editLoading"
+                />
+              </UFormGroup>
+
+              <UFormGroup name="hidden">
+                <UCheckbox
+                  v-model="editState.hidden"
+                  label="Hide event"
+                  :disabled="editLoading"
+                />
+              </UFormGroup>
+
+              <UFormGroup name="sync_to_spond">
+                <UCheckbox
+                  v-model="editState.sync_to_spond"
+                  label="Sync changes to Spond immediately"
+                  :disabled="editLoading"
+                />
+                <template #help>
+                  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    If unchecked, changes will be saved locally. You can sync them to Spond later.
+                  </p>
+                </template>
+              </UFormGroup>
+
+              <!-- Actions -->
+              <div class="flex justify-end gap-3 pt-4">
+                <UButton
+                  color="gray"
+                  variant="ghost"
+                  :disabled="editLoading"
+                  @click="isEditModalOpen = false"
+                >
+                  Cancel
+                </UButton>
+                <UButton
+                  type="submit"
+                  color="primary"
+                  :loading="editLoading"
+                  :disabled="editLoading"
+                >
+                  Save Changes
+                </UButton>
+              </div>
+            </UForm>
+          </UCard>
+        </UModal>
   </div>
 </template>
 
 <script setup lang="ts">
+import { z } from 'zod'
+import type { FormSubmitEvent } from '#ui/types'
+
 definePageMeta({
   middleware: 'auth',
   layout: 'dashboard'
@@ -167,6 +335,37 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const searchQuery = ref('')
 const selectedTab = ref(0)
+const pushing = ref(false)
+const isEditModalOpen = ref(false)
+const editLoading = ref(false)
+
+// Edit form schema
+const editSchema = z.object({
+  heading: z.string().min(3, 'Heading must be at least 3 characters').optional(),
+  description: z.string().optional(),
+  start_time: z.string().optional(),
+  end_time: z.string().optional(),
+  location_address: z.string().optional(),
+  max_accepted: z.number().min(0).optional(),
+  cancelled: z.boolean().optional(),
+  hidden: z.boolean().optional(),
+  sync_to_spond: z.boolean().optional()
+})
+
+type EditSchema = z.output<typeof editSchema>
+
+// Edit form state
+const editState = reactive<EditSchema>({
+  heading: '',
+  description: '',
+  start_time: '',
+  end_time: '',
+  location_address: '',
+  max_accepted: 0,
+  cancelled: false,
+  hidden: false,
+  sync_to_spond: false
+})
 
 const tabs = [
   { label: 'All', value: 'all' },
@@ -190,6 +389,91 @@ const loadEvent = async () => {
     toast.add({ title: 'Error', description: error.value, color: 'red' })
   } finally {
     loading.value = false
+  }
+}
+
+const openEditModal = () => {
+  // Populate edit form with current event data
+  editState.heading = event.value.heading
+  editState.description = event.value.description || ''
+  editState.start_time = event.value.start_time ? new Date(event.value.start_time).toISOString().slice(0, 16) : ''
+  editState.end_time = event.value.end_time ? new Date(event.value.end_time).toISOString().slice(0, 16) : ''
+  editState.location_address = event.value.location_address || ''
+  editState.max_accepted = event.value.max_accepted || 0
+  editState.cancelled = event.value.cancelled || false
+  editState.hidden = event.value.hidden || false
+  editState.sync_to_spond = false
+  isEditModalOpen.value = true
+}
+
+const handleEditSubmit = async (submitEvent: FormSubmitEvent<EditSchema>) => {
+  editLoading.value = true
+  try {
+    const { $api } = useNuxtApp()
+
+    // Prepare update data
+    const updateData: any = {}
+
+    if (submitEvent.data.heading) updateData.heading = submitEvent.data.heading
+    if (submitEvent.data.description !== undefined) updateData.description = submitEvent.data.description
+    if (submitEvent.data.start_time) updateData.start_time = new Date(submitEvent.data.start_time).toISOString()
+    if (submitEvent.data.end_time) updateData.end_time = new Date(submitEvent.data.end_time).toISOString()
+    if (submitEvent.data.location_address !== undefined) updateData.location_address = submitEvent.data.location_address
+    if (submitEvent.data.max_accepted !== undefined) updateData.max_accepted = submitEvent.data.max_accepted
+    if (submitEvent.data.cancelled !== undefined) updateData.cancelled = submitEvent.data.cancelled
+    if (submitEvent.data.hidden !== undefined) updateData.hidden = submitEvent.data.hidden
+    if (submitEvent.data.sync_to_spond !== undefined) updateData.sync_to_spond = submitEvent.data.sync_to_spond
+
+    await $api(`/events/${eventId.value}`, {
+      method: 'PUT',
+      body: updateData
+    })
+
+    toast.add({
+      title: 'Success',
+      description: submitEvent.data.sync_to_spond
+        ? 'Event updated and synced to Spond'
+        : 'Event updated locally',
+      color: 'green'
+    })
+
+    isEditModalOpen.value = false
+    await loadEvent()
+  } catch (err: any) {
+    toast.add({
+      title: 'Error',
+      description: err.data?.detail || 'Failed to update event',
+      color: 'red'
+    })
+  } finally {
+    editLoading.value = false
+  }
+}
+
+const handlePushToSpond = async () => {
+  pushing.value = true
+  try {
+    const { $api } = useNuxtApp()
+
+    await $api(`/events/${eventId.value}/push-to-spond`, {
+      method: 'POST'
+    })
+
+    toast.add({
+      title: 'Success',
+      description: 'Event pushed to Spond successfully',
+      color: 'green'
+    })
+
+    await loadEvent()
+  } catch (err: any) {
+    toast.add({
+      title: 'Error',
+      description: err.data?.detail || 'Failed to push event to Spond',
+      color: 'red'
+    })
+  } finally {
+    pushing.value = false
   }
 }
 

@@ -9,13 +9,25 @@
             </p>
           </div>
 
-          <UButton
-            icon="i-heroicons-arrow-path"
-            :loading="syncing"
-            @click="handleSync"
-          >
-            Sync Events
-          </UButton>
+          <div class="flex gap-3">
+            <UButton
+              icon="i-heroicons-plus"
+              color="primary"
+              to="/dashboard/events/create"
+            >
+              Create Event
+            </UButton>
+
+            <UButton
+              icon="i-heroicons-arrow-path"
+              color="gray"
+              variant="soft"
+              :loading="syncing"
+              @click="handleSync"
+            >
+              Sync from Spond
+            </UButton>
+          </div>
         </div>
 
         <!-- Filters -->
@@ -82,6 +94,9 @@
                       Status
                     </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Sync
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Responses
                     </th>
                   </tr>
@@ -113,6 +128,9 @@
                       <UBadge v-if="event.cancelled" color="red">Cancelled</UBadge>
                       <UBadge v-else-if="event.hidden" color="orange">Hidden</UBadge>
                       <UBadge v-else color="green">Active</UBadge>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <SyncStatusBadge :status="event.sync_status || 'synced'" :error="event.sync_error" />
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       <div class="flex space-x-2">
