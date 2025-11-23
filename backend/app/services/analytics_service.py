@@ -29,7 +29,8 @@ class AnalyticsService:
         db: AsyncSession,
         period: str = "month",  # "week", "month", "year"
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        group_id: Optional[str] = None
     ) -> AttendanceTrendsResponse:
         """Get attendance trends over time"""
 
@@ -44,13 +45,23 @@ class AnalyticsService:
             else:  # year
                 start_date = end_date - timedelta(days=365)
 
-        # Get all events in date range
-        stmt = select(Event).where(
-            and_(
-                Event.start_time >= start_date,
-                Event.start_time <= end_date
+        # Build query conditions
+        conditions = [
+            Event.start_time >= start_date,
+            Event.start_time <= end_date
+        ]
+
+        # Add group filter if specified
+        if group_id:
+            conditions.append(
+                or_(
+                    Event.primary_group_id == group_id,
+                    Event.group_ids.contains([group_id])
+                )
             )
-        ).order_by(Event.start_time)
+
+        # Get all events in date range
+        stmt = select(Event).where(and_(*conditions)).order_by(Event.start_time)
 
         result = await db.execute(stmt)
         events = result.scalars().all()
@@ -99,18 +110,27 @@ class AnalyticsService:
         self,
         db: AsyncSession,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        group_id: Optional[str] = None
     ) -> ResponseRateData:
         """Get overall response rate statistics"""
 
-        stmt = select(Event)
+        conditions = []
         if start_date and end_date:
-            stmt = stmt.where(
-                and_(
-                    Event.start_time >= start_date,
-                    Event.start_time <= end_date
+            conditions.append(Event.start_time >= start_date)
+            conditions.append(Event.start_time <= end_date)
+
+        if group_id:
+            conditions.append(
+                or_(
+                    Event.primary_group_id == group_id,
+                    Event.group_ids.contains([group_id])
                 )
             )
+
+        stmt = select(Event)
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
 
         result = await db.execute(stmt)
         events = result.scalars().all()
@@ -154,11 +174,22 @@ class AnalyticsService:
 
     async def get_event_type_distribution(
         self,
-        db: AsyncSession
+        db: AsyncSession,
+        group_id: Optional[str] = None
     ) -> List[EventTypeDistribution]:
         """Get distribution of event types"""
 
-        stmt = select(Event.event_type, func.count(Event.id)).group_by(Event.event_type)
+        stmt = select(Event.event_type, func.count(Event.id))
+
+        if group_id:
+            stmt = stmt.where(
+                or_(
+                    Event.primary_group_id == group_id,
+                    Event.group_ids.contains([group_id])
+                )
+            )
+
+        stmt = stmt.group_by(Event.event_type)
         result = await db.execute(stmt)
         type_counts = result.all()
 
@@ -180,7 +211,8 @@ class AnalyticsService:
     async def get_member_participation(
         self,
         db: AsyncSession,
-        limit: int = 10
+        limit: int = 10,
+        group_id: Optional[str] = None
     ) -> MemberParticipationResponse:
         """Get top members by participation"""
 
@@ -189,8 +221,15 @@ class AnalyticsService:
         members_result = await db.execute(members_stmt)
         members = members_result.scalars().all()
 
-        # Get all events
+        # Get all events (with optional group filter)
         events_stmt = select(Event)
+        if group_id:
+            events_stmt = events_stmt.where(
+                or_(
+                    Event.primary_group_id == group_id,
+                    Event.group_ids.contains([group_id])
+                )
+            )
         events_result = await db.execute(events_stmt)
         events = events_result.scalars().all()
 
@@ -252,18 +291,33 @@ class AnalyticsService:
 
     async def get_analytics_summary(
         self,
-        db: AsyncSession
+        db: AsyncSession,
+        group_id: Optional[str] = None
     ) -> AnalyticsSummary:
         """Get overall analytics summary"""
 
         # Get counts
         events_stmt = select(func.count(Event.id))
+        if group_id:
+            events_stmt = events_stmt.where(
+                or_(
+                    Event.primary_group_id == group_id,
+                    Event.group_ids.contains([group_id])
+                )
+            )
         events_result = await db.execute(events_stmt)
         total_events = events_result.scalar() or 0
 
         # Upcoming events
         now = datetime.now(timezone.utc)
         upcoming_stmt = select(func.count(Event.id)).where(Event.start_time >= now)
+        if group_id:
+            upcoming_stmt = upcoming_stmt.where(
+                or_(
+                    Event.primary_group_id == group_id,
+                    Event.group_ids.contains([group_id])
+                )
+            )
         upcoming_result = await db.execute(upcoming_stmt)
         upcoming_events = upcoming_result.scalar() or 0
 
@@ -275,13 +329,13 @@ class AnalyticsService:
         total_members = members_result.scalar() or 0
 
         # Get response rates
-        response_rates = await self.get_response_rates(db)
+        response_rates = await self.get_response_rates(db, group_id=group_id)
 
         # Get event type distribution
-        event_distribution = await self.get_event_type_distribution(db)
+        event_distribution = await self.get_event_type_distribution(db, group_id=group_id)
 
         # Get most active members (top 5)
-        member_participation = await self.get_member_participation(db, limit=5)
+        member_participation = await self.get_member_participation(db, limit=5, group_id=group_id)
 
         return AnalyticsSummary(
             total_events=total_events,

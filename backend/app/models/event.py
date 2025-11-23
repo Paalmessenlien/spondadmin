@@ -42,6 +42,10 @@ class Event(Base, TimestampMixin):
     # Participants
     max_accepted: Mapped[int] = mapped_column(default=0, nullable=False)
 
+    # Group associations
+    primary_group_id: Mapped[str] = mapped_column(String(255), nullable=True, index=True)
+    group_ids: Mapped[list] = mapped_column(JSON, nullable=True)
+
     # Responses (stored as JSON)
     responses: Mapped[dict] = mapped_column(JSON, nullable=True)
 

@@ -13,7 +13,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     // Public keys (exposed to client)
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8001/api/v1'
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api/v1'
     }
   },
 

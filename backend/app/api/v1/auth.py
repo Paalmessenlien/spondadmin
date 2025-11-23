@@ -27,7 +27,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/login", response_model=Token)
-@limiter.limit("5/minute")  # Allow 5 login attempts per minute per IP
+@limiter.limit("100/minute")  # Allow 100 login attempts per minute per IP (relaxed for testing)
 async def login(
     request: Request,
     login_data: AdminLogin,

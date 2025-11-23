@@ -148,6 +148,7 @@ import EventTypeChart from '~/components/EventTypeChart.vue'
 
 const config = useRuntimeConfig()
 const authStore = useAuthStore()
+const filtersStore = useFiltersStore()
 
 const selectedPeriod = ref('month')
 const periodOptions = [
@@ -161,51 +162,71 @@ const headers = computed(() => ({
   Authorization: authStore.token ? `Bearer ${authStore.token}` : ''
 }))
 
+// Create query params with optional group_id filter
+const queryParams = computed(() => {
+  const params: Record<string, any> = {}
+  if (filtersStore.selectedGroupId) {
+    params.group_id = filtersStore.selectedGroupId
+  }
+  return params
+})
+
 // Fetch analytics summary
-const { data: summary, pending: summaryPending } = await useFetch('/analytics/summary', {
+const { data: summary, pending: summaryPending, refresh: refreshSummary } = await useFetch('/analytics/summary', {
   baseURL: config.public.apiBase,
   headers: headers.value,
+  query: queryParams.value,
   lazy: true,
-  key: 'analytics-summary',
+  key: () => `analytics-summary-${filtersStore.selectedGroupId || 'all'}`,
 })
 
 // Fetch attendance trends (reactive to selectedPeriod)
 const { data: attendanceTrends, pending: trendsPending, refresh: refreshTrends } = await useFetch(
-  () => `/analytics/attendance-trends?period=${selectedPeriod.value}`,
+  () => `/analytics/attendance-trends`,
   {
     baseURL: config.public.apiBase,
     headers: headers.value,
+    query: computed(() => ({
+      period: selectedPeriod.value,
+      ...queryParams.value
+    })),
     lazy: true,
-    key: () => `attendance-trends-${selectedPeriod.value}`,
+    key: () => `attendance-trends-${selectedPeriod.value}-${filtersStore.selectedGroupId || 'all'}`,
     watch: [selectedPeriod], // Auto-refresh when period changes
   }
 )
 
 // Fetch response rates
-const { data: responseRates, pending: ratesPending } = await useFetch('/analytics/response-rates', {
+const { data: responseRates, pending: ratesPending, refresh: refreshRates } = await useFetch('/analytics/response-rates', {
   baseURL: config.public.apiBase,
   headers: headers.value,
+  query: queryParams.value,
   lazy: true,
-  key: 'response-rates',
+  key: () => `response-rates-${filtersStore.selectedGroupId || 'all'}`,
 })
 
 // Fetch event type distribution
-const { data: eventTypes, pending: typesPending } = await useFetch<any[]>('/analytics/event-types', {
+const { data: eventTypes, pending: typesPending, refresh: refreshTypes } = await useFetch<any[]>('/analytics/event-types', {
   baseURL: config.public.apiBase,
   headers: headers.value,
+  query: queryParams.value,
   lazy: true,
-  key: 'event-types',
+  key: () => `event-types-${filtersStore.selectedGroupId || 'all'}`,
   default: () => []
 })
 
 // Fetch top members
-const { data: memberParticipation, pending: membersPending } = await useFetch(
-  '/analytics/member-participation?limit=5',
+const { data: memberParticipation, pending: membersPending, refresh: refreshMembers } = await useFetch(
+  '/analytics/member-participation',
   {
     baseURL: config.public.apiBase,
     headers: headers.value,
+    query: computed(() => ({
+      limit: 5,
+      ...queryParams.value
+    })),
     lazy: true,
-    key: 'member-participation',
+    key: () => `member-participation-${filtersStore.selectedGroupId || 'all'}`,
   }
 )
 
@@ -215,4 +236,15 @@ const topMembers = computed(() => memberParticipation.value?.members || [])
 const loadAttendanceTrends = async () => {
   await refreshTrends()
 }
+
+// Watch for group filter changes and reload all data
+watch(() => filtersStore.selectedGroupId, async () => {
+  await Promise.all([
+    refreshSummary(),
+    refreshTrends(),
+    refreshRates(),
+    refreshTypes(),
+    refreshMembers(),
+  ])
+})
 </script>

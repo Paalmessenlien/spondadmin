@@ -337,6 +337,7 @@ definePageMeta({
 
 const api = useApi()
 const toast = useToast()
+const filtersStore = useFiltersStore()
 
 const events = ref<any[]>([])
 const total = ref(0)
@@ -499,6 +500,11 @@ const loadEvents = async () => {
       order_desc: filters.order_desc,
     }
 
+    // Add group filter if a specific group is selected
+    if (filtersStore.selectedGroupId) {
+      params.group_id = filtersStore.selectedGroupId
+    }
+
     if (filters.search) {
       params.search = filters.search
     }
@@ -527,16 +533,14 @@ const loadEvents = async () => {
 }
 
 const handleSync = async () => {
-  const authStore = useAuthStore()
-
-  if (!authStore.selectedGroupId) {
+  if (!filtersStore.selectedGroupId) {
     toast.add({ title: 'Error', description: 'Please select a group first', color: 'red' })
     return
   }
 
   syncing.value = true
   try {
-    await api.syncEvents({ group_id: authStore.selectedGroupId, include_hidden: true })
+    await api.syncEvents({ group_id: filtersStore.selectedGroupId, include_hidden: true })
     toast.add({ title: 'Success', description: 'Events synced successfully', color: 'green' })
     await loadEvents()
   } catch (error) {
@@ -545,6 +549,12 @@ const handleSync = async () => {
     syncing.value = false
   }
 }
+
+// Watch for group filter changes and reload events
+watch(() => filtersStore.selectedGroupId, () => {
+  filters.skip = 0 // Reset to first page when group changes
+  loadEvents()
+})
 
 const toggleSort = (field: string) => {
   if (filters.order_by === field) {

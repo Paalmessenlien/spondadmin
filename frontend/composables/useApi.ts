@@ -64,7 +64,7 @@ export const useApi = () => {
   // Events
   const getEvents = async (params: Record<string, any> = {}) => {
     const query = new URLSearchParams(params).toString()
-    return makeRequest(`/events/?${query}`)
+    return makeRequest(`/events?${query}`)
   }
 
   const syncEvents = async (params: Record<string, any> = {}) => {
@@ -83,7 +83,7 @@ export const useApi = () => {
   // Groups
   const getGroups = async (params: Record<string, any> = {}) => {
     const query = new URLSearchParams(params).toString()
-    return makeRequest(`/groups/?${query}`)
+    return makeRequest(`/groups?${query}`)
   }
 
   const syncGroups = async () => {
@@ -101,7 +101,7 @@ export const useApi = () => {
   // Members
   const getMembers = async (params: Record<string, any> = {}) => {
     const query = new URLSearchParams(params).toString()
-    return makeRequest(`/members/?${query}`)
+    return makeRequest(`/members?${query}`)
   }
 
   const syncMembers = async () => {
@@ -117,24 +117,31 @@ export const useApi = () => {
   }
 
   // Analytics
-  const getAnalyticsSummary = async () => {
-    return makeRequest('/analytics/summary')
+  const getAnalyticsSummary = async (groupId?: string | null) => {
+    const params = groupId ? `?group_id=${groupId}` : ''
+    return makeRequest(`/analytics/summary${params}`)
   }
 
-  const getAttendanceTrends = async (period: string = 'month') => {
-    return makeRequest(`/analytics/attendance-trends?period=${period}`)
+  const getAttendanceTrends = async (period: string = 'month', groupId?: string | null) => {
+    const params = new URLSearchParams({ period })
+    if (groupId) params.append('group_id', groupId)
+    return makeRequest(`/analytics/attendance-trends?${params.toString()}`)
   }
 
-  const getResponseRates = async () => {
-    return makeRequest('/analytics/response-rates')
+  const getResponseRates = async (groupId?: string | null) => {
+    const params = groupId ? `?group_id=${groupId}` : ''
+    return makeRequest(`/analytics/response-rates${params}`)
   }
 
-  const getEventTypeDistribution = async () => {
-    return makeRequest('/analytics/event-types')
+  const getEventTypeDistribution = async (groupId?: string | null) => {
+    const params = groupId ? `?group_id=${groupId}` : ''
+    return makeRequest(`/analytics/event-types${params}`)
   }
 
-  const getMemberParticipation = async (limit: number = 10) => {
-    return makeRequest(`/analytics/member-participation?limit=${limit}`)
+  const getMemberParticipation = async (limit: number = 10, groupId?: string | null) => {
+    const params = new URLSearchParams({ limit: limit.toString() })
+    if (groupId) params.append('group_id', groupId)
+    return makeRequest(`/analytics/member-participation?${params.toString()}`)
   }
 
   return {

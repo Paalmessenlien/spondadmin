@@ -122,6 +122,16 @@ class EventService:
         """
         conditions = []
 
+        # Filter by group
+        if filters.group_id:
+            # Filter by primary_group_id OR check if group_id exists in group_ids array
+            conditions.append(
+                or_(
+                    Event.primary_group_id == filters.group_id,
+                    Event.group_ids.contains([filters.group_id])
+                )
+            )
+
         # Filter by event type
         if filters.event_type:
             conditions.append(Event.event_type == filters.event_type)

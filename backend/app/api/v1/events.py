@@ -117,6 +117,7 @@ async def create_event(
 async def list_events(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    group_id: Optional[str] = None,
     event_type: Optional[str] = None,
     include_cancelled: bool = False,
     include_hidden: bool = False,
@@ -135,6 +136,7 @@ async def list_events(
     Args:
         skip: Number of records to skip
         limit: Maximum number of records to return
+        group_id: Optional group ID to filter events
         event_type: Filter by event type (AVAILABILITY, EVENT, RECURRING)
         include_cancelled: Include cancelled events
         include_hidden: Include hidden events
@@ -152,6 +154,7 @@ async def list_events(
     """
     # Build filters
     filters = EventFilters(
+        group_id=group_id,
         event_type=event_type,
         include_cancelled=include_cancelled,
         include_hidden=include_hidden,

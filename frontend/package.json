@@ -8,7 +8,10 @@
     "dev": "nuxt dev --port 3000",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.19",
@@ -29,7 +32,9 @@
   "devDependencies": {
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/lucide": "^1.2.73",
+    "@playwright/test": "^1.56.1",
     "@types/node": "^22.10.2",
+    "@vue/test-utils": "^2.4.6",
     "tailwindcss": "^4.1.17",
     "typescript": "^5.7.2"
   }

@@ -121,6 +121,7 @@ definePageMeta({
 
 const api = useApi()
 const toast = useToast()
+const filtersStore = useFiltersStore()
 
 const groups = ref<any[]>([])
 const total = ref(0)
@@ -136,6 +137,12 @@ const loadGroups = async () => {
   loading.value = true
   try {
     const params: any = { skip: skip.value, limit: limit.value }
+
+    // Add hierarchy filter: show selected group and its subgroups
+    if (filtersStore.selectedGroupId) {
+      params.parent_id = filtersStore.selectedGroupId
+    }
+
     if (searchQuery.value) params.search = searchQuery.value
 
     const response = await api.getGroups(params)
@@ -207,4 +214,10 @@ const handleLimitChange = () => {
   skip.value = 0 // Reset to first page when changing page size
   loadGroups()
 }
+
+// Watch for group filter changes and reload groups (hierarchy view)
+watch(() => filtersStore.selectedGroupId, () => {
+  skip.value = 0 // Reset to first page when group changes
+  loadGroups()
+})
 </script>

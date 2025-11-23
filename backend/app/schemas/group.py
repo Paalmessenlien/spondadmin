@@ -91,6 +91,7 @@ class GroupStats(BaseModel):
 
 class GroupFilters(BaseModel):
     """Schema for filtering groups"""
+    parent_id: Optional[str] = Field(None, description="Filter by parent group ID (for hierarchy view)")
     search: Optional[str] = Field(None, description="Search in name and description")
     has_subgroups: Optional[bool] = Field(None, description="Filter by presence of subgroups")
     min_members: Optional[int] = Field(None, description="Minimum number of members")

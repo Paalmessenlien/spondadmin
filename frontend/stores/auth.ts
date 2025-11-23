@@ -18,13 +18,11 @@ export const useAuthStore = defineStore('auth', {
     token: null as string | null,
     user: null as User | null,
     loading: false,
-    selectedGroupId: null as string | null,
   }),
 
   getters: {
     isAuthenticated: (state) => !!state.token,
     isLoading: (state) => state.loading,
-    hasSelectedGroup: (state) => !!state.selectedGroupId,
   },
 
   actions: {
@@ -66,40 +64,21 @@ export const useAuthStore = defineStore('auth', {
     logout() {
       this.token = null
       this.user = null
-      this.selectedGroupId = null
 
       if (import.meta.client) {
         localStorage.removeItem('auth_token')
-        localStorage.removeItem('selected_group_id')
       }
 
       navigateTo('/login')
     },
 
-    setSelectedGroup(groupId: string | null) {
-      this.selectedGroupId = groupId
-
-      if (import.meta.client) {
-        if (groupId) {
-          localStorage.setItem('selected_group_id', groupId)
-        } else {
-          localStorage.removeItem('selected_group_id')
-        }
-      }
-    },
-
     async initAuth() {
-      // Try to restore token and selected group from localStorage
+      // Try to restore token from localStorage
       if (import.meta.client) {
         const token = localStorage.getItem('auth_token')
         if (token) {
           this.token = token
           await this.fetchUser()
-        }
-
-        const selectedGroupId = localStorage.getItem('selected_group_id')
-        if (selectedGroupId) {
-          this.selectedGroupId = selectedGroupId
         }
       }
     },

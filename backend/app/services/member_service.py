@@ -68,6 +68,10 @@ class MemberService:
             else:
                 conditions.append(Member.profile.is_(None))
 
+        # Filter by group
+        if filters.group_id:
+            conditions.append(Member.group_id == filters.group_id)
+
         # Apply all conditions
         if conditions:
             query = query.where(*conditions)

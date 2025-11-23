@@ -156,6 +156,10 @@ class EventSyncService:
         # Extract responses
         responses = EventSyncService._extract_responses(event_dict.get("responses"))
 
+        # Extract group associations
+        group_ids = EventSyncService._extract_group_ids(event_dict)
+        primary_group_id = group_ids[0] if group_ids else None
+
         if existing_event:
             # Update existing event
             now = datetime.utcnow()
@@ -173,6 +177,8 @@ class EventSyncService:
             existing_event.location_longitude = location_longitude
             existing_event.max_accepted = max_accepted
             existing_event.responses = responses
+            existing_event.primary_group_id = primary_group_id
+            existing_event.group_ids = group_ids
             existing_event.raw_data = event_dict
             existing_event.last_synced_at = now
             existing_event.updated_at = now
@@ -203,6 +209,8 @@ class EventSyncService:
                 location_longitude=location_longitude,
                 max_accepted=max_accepted,
                 responses=responses,
+                primary_group_id=primary_group_id,
+                group_ids=group_ids,
                 raw_data=event_dict,
                 sync_status="synced",  # Events from Spond are synced by definition
                 sync_error=None,
@@ -262,3 +270,33 @@ class EventSyncService:
             "waiting_list_uids": responses_dict.get("waitinglistIds", []) or [],
             "unconfirmed_uids": responses_dict.get("unconfirmedIds", []) or [],
         }
+
+    @staticmethod
+    def _extract_group_ids(event_dict: Dict[str, Any]) -> list:
+        """
+        Extract group IDs from event data
+
+        Args:
+            event_dict: Event data from Spond API
+
+        Returns:
+            List of unique group IDs
+        """
+        if not event_dict:
+            return []
+
+        group_ids = []
+
+        # Get recipients from event data
+        recipients = event_dict.get("recipients")
+        if not recipients or not isinstance(recipients, dict):
+            return []
+
+        # Extract group ID from recipients dict
+        group = recipients.get("group")
+        if group and isinstance(group, dict):
+            group_id = group.get("id")
+            if group_id:
+                group_ids.append(group_id)
+
+        return group_ids

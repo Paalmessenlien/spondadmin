@@ -38,6 +38,32 @@ class GroupService:
         # Apply filters
         conditions = []
 
+        # Filter by parent group for hierarchy view (show parent + all subgroups)
+        if filters.parent_id:
+            # Get the parent group to extract subgroup IDs
+            parent_result = await db.execute(
+                select(Group).where(Group.spond_id == filters.parent_id)
+            )
+            parent_group = parent_result.scalar_one_or_none()
+
+            if parent_group:
+                # Start with the parent group ID
+                group_ids = [filters.parent_id]
+
+                # Add all subgroup IDs from the parent's subgroups array
+                if parent_group.subgroups:
+                    for subgroup in parent_group.subgroups:
+                        if isinstance(subgroup, dict) and "id" in subgroup:
+                            subgroup_id = subgroup["id"]
+                            if subgroup_id not in group_ids:
+                                group_ids.append(subgroup_id)
+
+                # Filter to include parent + all subgroups
+                conditions.append(Group.spond_id.in_(group_ids))
+            else:
+                # Parent group not found, return empty result
+                conditions.append(Group.spond_id == "__NONEXISTENT__")
+
         if filters.search:
             search_term = f"%{filters.search}%"
             conditions.append(

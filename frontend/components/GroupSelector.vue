@@ -18,6 +18,7 @@
 
 <script setup lang="ts">
 const authStore = useAuthStore()
+const filtersStore = useFiltersStore()
 const toast = useToast()
 const config = useRuntimeConfig()
 
@@ -26,11 +27,20 @@ const groups = ref<any[]>([])
 const loading = ref(false)
 
 // Map groups to items with label property for USelectMenu
+// Add "All Groups" option at the top
 const groupItems = computed(() => {
-  return groups.value.map(group => ({
+  const allGroupsOption = {
+    id: null,
+    name: 'All Groups',
+    label: 'All Groups',
+  }
+
+  const mappedGroups = groups.value.map(group => ({
     ...group,
     label: group.name
   }))
+
+  return [allGroupsOption, ...mappedGroups]
 })
 
 // Load groups function
@@ -60,12 +70,16 @@ const loadGroups = async () => {
       console.log('[GroupSelector] Loaded', groups.value.length, 'groups')
 
       // Set selected group if one was previously selected
-      if (authStore.selectedGroupId && groups.value.length > 0) {
-        const found = groupItems.value.find((g: any) => g.id === authStore.selectedGroupId)
+      if (filtersStore.selectedGroupId && groups.value.length > 0) {
+        const found = groupItems.value.find((g: any) => g.id === filtersStore.selectedGroupId)
         if (found) {
           selectedGroup.value = found
           console.log('[GroupSelector] Restored selected group:', found.label)
         }
+      } else if (filtersStore.selectedGroupId === null) {
+        // "All Groups" is selected
+        selectedGroup.value = groupItems.value[0] // First item is "All Groups"
+        console.log('[GroupSelector] Restored "All Groups" selection')
       }
     } else {
       console.error('[GroupSelector] Unexpected response format:', response)
@@ -86,6 +100,9 @@ const loadGroups = async () => {
 // Initialize on mount
 onMounted(async () => {
   console.log('[GroupSelector] Component mounted')
+
+  // Initialize filters from localStorage
+  filtersStore.initFilters()
 
   // Initialize auth if needed
   if (!authStore.token) {
@@ -114,14 +131,18 @@ const handleGroupChange = (group: any) => {
   console.log('[GroupSelector] Group changed:', group)
 
   if (group) {
-    authStore.setSelectedGroup(group.id)
+    filtersStore.setSelectedGroup(group.id)
+
+    const groupName = group.label || group.name
     toast.add({
       title: 'Group selected',
-      description: `Selected group: ${group.label || group.name}`,
+      description: groupName === 'All Groups'
+        ? 'Showing data from all groups'
+        : `Selected group: ${groupName}`,
       color: 'green',
     })
   } else {
-    authStore.setSelectedGroup(null)
+    filtersStore.setSelectedGroup(null)
   }
 }
 </script>

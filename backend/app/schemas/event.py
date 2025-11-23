@@ -50,6 +50,8 @@ class EventResponse(EventBase):
     """
     id: int
     responses: Optional[EventResponses] = None
+    primary_group_id: Optional[str] = None  # Primary group for fast filtering
+    group_ids: Optional[List[str]] = None  # All groups this event belongs to
     sync_status: str  # synced, pending, local_only, error
     sync_error: Optional[str] = None
     last_synced_at: datetime

@@ -68,3 +68,11 @@ test-results/
 # Logs
 logs/
 *.log
+
+# Debug and temporary files
+*-debug.png
+stack.txt
+*.bat
+*.exe
+*.dll
+*.zip

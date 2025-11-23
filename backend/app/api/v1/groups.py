@@ -58,6 +58,7 @@ async def sync_groups(
 
 @router.get("/", response_model=GroupListResponse)
 async def list_groups(
+    parent_id: str | None = Query(None, description="Filter by parent group ID (for hierarchy view)"),
     search: str | None = Query(None, description="Search in name and description"),
     has_subgroups: bool | None = Query(None, description="Filter by presence of subgroups"),
     skip: int = Query(0, ge=0),
@@ -69,6 +70,7 @@ async def list_groups(
     Get all groups with optional filtering
     """
     filters = GroupFilters(
+        parent_id=parent_id,
         search=search,
         has_subgroups=has_subgroups,
         skip=skip,

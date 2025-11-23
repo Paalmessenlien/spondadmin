@@ -144,6 +144,7 @@ definePageMeta({
 
 const api = useApi()
 const toast = useToast()
+const filtersStore = useFiltersStore()
 
 const members = ref<any[]>([])
 const total = ref(0)
@@ -160,6 +161,12 @@ const loadMembers = async () => {
   loading.value = true
   try {
     const params: any = { skip: skip.value, limit: limit.value }
+
+    // Add group filter if a specific group is selected
+    if (filtersStore.selectedGroupId) {
+      params.group_id = filtersStore.selectedGroupId
+    }
+
     if (searchQuery.value) params.search = searchQuery.value
     if (emailFilter.value) params.email = emailFilter.value
 
@@ -233,4 +240,10 @@ const handleLimitChange = () => {
   skip.value = 0 // Reset to first page when changing page size
   loadMembers()
 }
+
+// Watch for group filter changes and reload members
+watch(() => filtersStore.selectedGroupId, () => {
+  skip.value = 0 // Reset to first page when group changes
+  loadMembers()
+})
 </script>
