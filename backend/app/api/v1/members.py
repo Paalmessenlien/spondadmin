@@ -63,7 +63,7 @@ async def sync_members(
 @router.get("/", response_model=MemberListResponse)
 async def list_members(
     search: str | None = Query(None, description="Search in name and email"),
-    group_id: int | None = Query(None, description="Filter by group ID"),
+    group_id: str | None = Query(None, description="Filter by group spond_id"),
     has_email: bool | None = Query(None, description="Filter by presence of email"),
     has_phone: bool | None = Query(None, description="Filter by presence of phone"),
     has_guardians: bool | None = Query(None, description="Filter by presence of guardians"),
@@ -97,13 +97,14 @@ async def list_members(
 
 @router.get("/stats", response_model=MemberStats)
 async def get_member_statistics(
+    group_id: str | None = Query(None, description="Filter by group spond_id"),
     current_user: Admin = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get member statistics
     """
-    stats = await MemberService.get_statistics(db)
+    stats = await MemberService.get_statistics(db, group_id=group_id)
     return MemberStats(**stats)
 
 

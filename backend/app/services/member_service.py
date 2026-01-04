@@ -68,6 +68,10 @@ class MemberService:
             else:
                 conditions.append(Member.profile.is_(None))
 
+        # Filter by group_id (stored as spond_id string)
+        if filters.group_id:
+            conditions.append(Member.group_id == filters.group_id)
+
         # Apply all conditions
         if conditions:
             query = query.where(*conditions)
@@ -154,36 +158,46 @@ class MemberService:
         return member
 
     @staticmethod
-    async def get_statistics(db: AsyncSession) -> Dict[str, Any]:
+    async def get_statistics(db: AsyncSession, group_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Get member statistics
 
         Args:
             db: Database session
+            group_id: Optional group spond_id to filter by
 
         Returns:
             Dictionary with statistics
         """
+        # Base condition for group filtering
+        group_condition = Member.group_id == group_id if group_id else True
+
         # Total members
-        total_result = await db.execute(select(func.count(Member.id)))
+        total_query = select(func.count(Member.id))
+        if group_id:
+            total_query = total_query.where(Member.group_id == group_id)
+        total_result = await db.execute(total_query)
         total_members = total_result.scalar() or 0
 
         # Members with email
-        with_email_result = await db.execute(
-            select(func.count(Member.id)).where(Member.email.isnot(None))
-        )
+        with_email_query = select(func.count(Member.id)).where(Member.email.isnot(None))
+        if group_id:
+            with_email_query = with_email_query.where(Member.group_id == group_id)
+        with_email_result = await db.execute(with_email_query)
         members_with_email = with_email_result.scalar() or 0
 
         # Members with phone
-        with_phone_result = await db.execute(
-            select(func.count(Member.id)).where(Member.phone_number.isnot(None))
-        )
+        with_phone_query = select(func.count(Member.id)).where(Member.phone_number.isnot(None))
+        if group_id:
+            with_phone_query = with_phone_query.where(Member.group_id == group_id)
+        with_phone_result = await db.execute(with_phone_query)
         members_with_phone = with_phone_result.scalar() or 0
 
         # Members with profile
-        with_profile_result = await db.execute(
-            select(func.count(Member.id)).where(Member.profile.isnot(None))
-        )
+        with_profile_query = select(func.count(Member.id)).where(Member.profile.isnot(None))
+        if group_id:
+            with_profile_query = with_profile_query.where(Member.group_id == group_id)
+        with_profile_result = await db.execute(with_profile_query)
         members_with_profile = with_profile_result.scalar() or 0
 
         return {

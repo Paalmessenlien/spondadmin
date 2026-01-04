@@ -244,21 +244,20 @@ class EventSyncService:
     @staticmethod
     def _extract_responses(responses_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """
-        Extract and normalize responses data
+        Preserve complete Spond API response structure
+
+        The Spond API returns both ID arrays AND a detailed responses array.
+        We preserve everything to support analytics.
 
         Args:
             responses_dict: Responses dictionary from Spond API
 
         Returns:
-            Normalized responses dictionary
+            Complete responses dictionary from Spond API
         """
         if not responses_dict:
             return None
 
-        return {
-            "accepted_uids": responses_dict.get("acceptedIds", []) or [],
-            "declined_uids": responses_dict.get("declinedIds", []) or [],
-            "unanswered_uids": responses_dict.get("unansweredIds", []) or [],
-            "waiting_list_uids": responses_dict.get("waitinglistIds", []) or [],
-            "unconfirmed_uids": responses_dict.get("unconfirmedIds", []) or [],
-        }
+        # Return the complete response object from Spond
+        # This includes both 'responses' array and ID arrays (acceptedIds, declinedIds, etc.)
+        return responses_dict

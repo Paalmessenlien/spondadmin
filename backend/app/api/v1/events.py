@@ -117,6 +117,7 @@ async def create_event(
 async def list_events(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    group_id: Optional[str] = Query(None, description="Filter by group spond_id"),
     event_type: Optional[str] = None,
     include_cancelled: bool = False,
     include_hidden: bool = False,
@@ -135,6 +136,7 @@ async def list_events(
     Args:
         skip: Number of records to skip
         limit: Maximum number of records to return
+        group_id: Filter by group spond_id
         event_type: Filter by event type (AVAILABILITY, EVENT, RECURRING)
         include_cancelled: Include cancelled events
         include_hidden: Include hidden events
@@ -152,6 +154,7 @@ async def list_events(
     """
     # Build filters
     filters = EventFilters(
+        group_id=group_id,
         event_type=event_type,
         include_cancelled=include_cancelled,
         include_hidden=include_hidden,
@@ -181,6 +184,7 @@ async def list_events(
 
 @router.get("/stats", response_model=EventStats)
 async def get_event_statistics(
+    group_id: Optional[str] = Query(None, description="Filter by group spond_id"),
     event_type: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
@@ -191,6 +195,7 @@ async def get_event_statistics(
     Get event statistics
 
     Args:
+        group_id: Filter by group spond_id
         event_type: Filter by event type
         start_date: Filter events starting after this date
         end_date: Filter events starting before this date
@@ -202,6 +207,7 @@ async def get_event_statistics(
     """
     # Build filters
     filters = EventFilters(
+        group_id=group_id,
         event_type=event_type,
         start_date=start_date,
         end_date=end_date,
@@ -227,12 +233,12 @@ async def get_event(
         current_user: Current authenticated user
 
     Returns:
-        Event details
+        Event details with enriched member profile data in responses
 
     Raises:
         HTTPException: If event not found
     """
-    event = await EventService.get_by_id(db, event_id)
+    event = await EventService.get_by_id(db, event_id, enrich_responses=True)
 
     if not event:
         raise HTTPException(

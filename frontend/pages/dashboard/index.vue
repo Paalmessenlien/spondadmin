@@ -161,12 +161,22 @@ const headers = computed(() => ({
   Authorization: authStore.token ? `Bearer ${authStore.token}` : ''
 }))
 
-// Fetch stats using useFetch
+// Build query params for group filtering
+const statsQuery = computed(() => {
+  if (authStore.selectedGroupId) {
+    return { group_id: authStore.selectedGroupId }
+  }
+  return {}
+})
+
+// Fetch stats using useFetch with group filter
 const { data: eventStats, refresh: refreshEventStats } = await useFetch('/events/stats', {
   baseURL: config.public.apiBase,
   headers: headers.value,
+  query: statsQuery,
   lazy: true,
   key: 'event-stats',
+  watch: [() => authStore.selectedGroupId],
 })
 
 const { data: groupStats, refresh: refreshGroupStats } = await useFetch('/groups/stats', {
@@ -179,8 +189,10 @@ const { data: groupStats, refresh: refreshGroupStats } = await useFetch('/groups
 const { data: memberStats, refresh: refreshMemberStats } = await useFetch('/members/stats', {
   baseURL: config.public.apiBase,
   headers: headers.value,
+  query: statsQuery,
   lazy: true,
   key: 'member-stats',
+  watch: [() => authStore.selectedGroupId],
 })
 
 const syncEvents = async () => {

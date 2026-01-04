@@ -5,10 +5,11 @@ from typing import Optional, List, Tuple
 from datetime import datetime, timezone
 import logging
 
-from sqlalchemy import select, func, or_, and_
+from sqlalchemy import select, func, or_, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event import Event
+from app.models.member import Member
 from app.schemas.event import EventCreate, EventUpdate, EventFilters
 from app.services.spond_service import SpondService
 import uuid
@@ -22,13 +23,14 @@ class EventService:
     """
 
     @staticmethod
-    async def get_by_id(db: AsyncSession, event_id: int) -> Optional[Event]:
+    async def get_by_id(db: AsyncSession, event_id: int, enrich_responses: bool = False) -> Optional[Event]:
         """
         Get event by database ID
 
         Args:
             db: Database session
             event_id: Event ID
+            enrich_responses: If True, enrich responses with member profile data
 
         Returns:
             Event or None
@@ -36,7 +38,74 @@ class EventService:
         result = await db.execute(
             select(Event).where(Event.id == event_id)
         )
-        return result.scalar_one_or_none()
+        event = result.scalar_one_or_none()
+
+        if event and enrich_responses:
+            event = await EventService._enrich_event_responses(db, event)
+
+        return event
+
+    @staticmethod
+    async def _enrich_event_responses(db: AsyncSession, event: Event) -> Event:
+        """
+        Enrich event responses with member profile data from the members table.
+
+        Args:
+            db: Database session
+            event: Event to enrich
+
+        Returns:
+            Event with enriched responses
+        """
+        if not event.responses:
+            return event
+
+        # Collect all member IDs from responses
+        member_ids = set()
+        responses_array = event.responses.get("responses", [])
+
+        for response in responses_array:
+            profile = response.get("profile", {})
+            if profile and profile.get("id"):
+                member_ids.add(profile["id"])
+
+        if not member_ids:
+            return event
+
+        # Fetch member data from database
+        result = await db.execute(
+            select(Member).where(Member.spond_id.in_(member_ids))
+        )
+        members = {m.spond_id: m for m in result.scalars().all()}
+
+        # Enrich responses with member data
+        enriched_responses = []
+        for response in responses_array:
+            profile = response.get("profile", {})
+            member_id = profile.get("id") if profile else None
+
+            if member_id and member_id in members:
+                member = members[member_id]
+                enriched_profile = {
+                    "id": member_id,
+                    "firstName": member.first_name,
+                    "lastName": member.last_name,
+                    "email": member.email,
+                }
+            else:
+                enriched_profile = profile
+
+            enriched_responses.append({
+                "answer": response.get("answer"),
+                "profile": enriched_profile,
+            })
+
+        # Create enriched responses dict
+        enriched = dict(event.responses)
+        enriched["responses"] = enriched_responses
+        event.responses = enriched
+
+        return event
 
     @staticmethod
     async def get_by_spond_id(db: AsyncSession, spond_id: str) -> Optional[Event]:
@@ -153,6 +222,12 @@ class EventService:
                     Event.heading.ilike(search_term),
                     Event.description.ilike(search_term)
                 )
+            )
+
+        # Filter by group_id (stored in raw_data JSON as recipients.group.id)
+        if filters.group_id:
+            conditions.append(
+                text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=filters.group_id)
             )
 
         return conditions
@@ -325,6 +400,17 @@ class EventService:
                 sync_status = "error"
                 # Continue with local creation
 
+        # Build raw_data with group info if provided
+        raw_data = None
+        if create_data.group_id:
+            raw_data = {
+                "recipients": {
+                    "group": {
+                        "id": create_data.group_id
+                    }
+                }
+            }
+
         # Create local event record
         event = Event(
             spond_id=spond_id,
@@ -346,6 +432,7 @@ class EventService:
             last_synced_at=now,
             created_at=now,
             updated_at=now,
+            raw_data=raw_data,
         )
 
         db.add(event)
@@ -381,13 +468,22 @@ class EventService:
             raise ValueError(f"Event {event_id} not found")
 
         try:
-            # Prepare event data for Spond API
+            # Prepare event data for Spond API with correct field names
+            # Timestamps must be ISO 8601 format with Z suffix for UTC
+            start_ts = event.start_time.isoformat()
+            if not start_ts.endswith("Z"):
+                start_ts += "Z"
+            end_ts = event.end_time.isoformat()
+            if not end_ts.endswith("Z"):
+                end_ts += "Z"
+
             spond_data = {
                 "heading": event.heading,
                 "description": event.description or "",
                 "spondType": event.event_type,
-                "startTimestamp": event.start_time.isoformat(),
-                "endTimestamp": event.end_time.isoformat(),
+                "startTimestamp": start_ts,
+                "endTimestamp": end_ts,
+                "maxAccepted": event.max_accepted,
             }
 
             # Add location if provided
@@ -398,15 +494,31 @@ class EventService:
                     "longitude": event.location_longitude,
                 }
 
-            # Add max participants if set
-            if event.max_accepted > 0:
-                spond_data["maxAccepted"] = event.max_accepted
+            # Extract group_id from raw_data if available
+            group_id = None
+            if event.raw_data and isinstance(event.raw_data, dict):
+                recipients = event.raw_data.get("recipients", {})
+                if isinstance(recipients, dict):
+                    group = recipients.get("group", {})
+                    if isinstance(group, dict):
+                        group_id = group.get("id")
 
             # Create or update in Spond
-            if event.sync_status == "local_only" or event.spond_id.startswith("local_"):
+            is_local = event.sync_status == "local_only" or (
+                event.spond_id and event.spond_id.startswith("local_")
+            )
+            if is_local:
                 # Create new event in Spond
-                result = await spond_service.create_event(spond_data)
-                event.spond_id = result.get("id")
+                if not group_id:
+                    raise ValueError(
+                        "Cannot push event to Spond without a group. "
+                        "Please select a group when creating the event."
+                    )
+                result = await spond_service.create_event(spond_data, group_id=group_id)
+                new_spond_id = result.get("id") if result else None
+                if not new_spond_id:
+                    raise ValueError("Spond API did not return an event ID")
+                event.spond_id = new_spond_id
                 logger.info(f"Created event in Spond: {event.spond_id}")
             else:
                 # Update existing event in Spond

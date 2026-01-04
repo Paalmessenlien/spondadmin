@@ -144,6 +144,7 @@ definePageMeta({
 
 const api = useApi()
 const toast = useToast()
+const authStore = useAuthStore()
 
 const members = ref<any[]>([])
 const total = ref(0)
@@ -155,6 +156,12 @@ const searchQuery = ref('')
 const emailFilter = ref('')
 
 onMounted(() => loadMembers())
+
+// Watch for group changes and reload members
+watch(() => authStore.selectedGroupId, () => {
+  skip.value = 0 // Reset to first page on group change
+  loadMembers()
+})
 
 const loadMembers = async () => {
   loading.value = true

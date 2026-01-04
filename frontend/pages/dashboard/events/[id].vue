@@ -51,6 +51,7 @@
 
                 <!-- Action Buttons -->
                 <div class="flex gap-2">
+                  <!-- Push to Spond - works for local_only, pending, or error status events -->
                   <UButton
                     v-if="event.sync_status === 'local_only' || event.sync_status === 'pending' || event.sync_status === 'error'"
                     icon="i-heroicons-arrow-up-tray"
@@ -59,7 +60,7 @@
                     :loading="pushing"
                     @click="handlePushToSpond"
                   >
-                    Push to Spond
+                    {{ event.sync_status === 'local_only' ? 'Push to Spond' : 'Sync to Spond' }}
                   </UButton>
                   <UButton
                     icon="i-heroicons-pencil-square"
@@ -154,8 +155,8 @@
               :items="tabs"
               v-model="selectedTab"
             >
-              <template #item="{ item }">
-                <div class="space-y-2">
+              <template #content="{ item }">
+                <div class="space-y-2 mt-4">
                   <div v-if="filteredAttendees(item.value).length === 0" class="text-center py-8 text-gray-500">
                     No attendees in this category
                   </div>
@@ -205,53 +206,53 @@
 
             <UForm :schema="editSchema" :state="editState" @submit="handleEditSubmit" class="space-y-4">
               <!-- Basic Information -->
-              <UFormGroup label="Event Title" name="heading" required>
+              <UFormField label="Event Title" name="heading" required>
                 <UInput
                   v-model="editState.heading"
                   placeholder="e.g. Training Session"
                   :disabled="editLoading"
                 />
-              </UFormGroup>
+              </UFormField>
 
-              <UFormGroup label="Description" name="description">
+              <UFormField label="Description" name="description">
                 <UTextarea
                   v-model="editState.description"
                   placeholder="Event description..."
                   :rows="3"
                   :disabled="editLoading"
                 />
-              </UFormGroup>
+              </UFormField>
 
               <!-- Date and Time -->
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <UFormGroup label="Start Time" name="start_time" required>
+                <UFormField label="Start Time" name="start_time" required>
                   <UInput
                     v-model="editState.start_time"
                     type="datetime-local"
                     :disabled="editLoading"
                   />
-                </UFormGroup>
+                </UFormField>
 
-                <UFormGroup label="End Time" name="end_time" required>
+                <UFormField label="End Time" name="end_time" required>
                   <UInput
                     v-model="editState.end_time"
                     type="datetime-local"
                     :disabled="editLoading"
                   />
-                </UFormGroup>
+                </UFormField>
               </div>
 
               <!-- Location -->
-              <UFormGroup label="Address" name="location_address">
+              <UFormField label="Address" name="location_address">
                 <UInput
                   v-model="editState.location_address"
                   placeholder="e.g. Main Stadium, 123 Street"
                   :disabled="editLoading"
                 />
-              </UFormGroup>
+              </UFormField>
 
               <!-- Settings -->
-              <UFormGroup label="Maximum Participants" name="max_accepted">
+              <UFormField label="Maximum Participants" name="max_accepted">
                 <UInput
                   v-model.number="editState.max_accepted"
                   type="number"
@@ -259,25 +260,25 @@
                   placeholder="0 = unlimited"
                   :disabled="editLoading"
                 />
-              </UFormGroup>
+              </UFormField>
 
-              <UFormGroup name="cancelled">
+              <UFormField name="cancelled">
                 <UCheckbox
                   v-model="editState.cancelled"
                   label="Mark as cancelled"
                   :disabled="editLoading"
                 />
-              </UFormGroup>
+              </UFormField>
 
-              <UFormGroup name="hidden">
+              <UFormField name="hidden">
                 <UCheckbox
                   v-model="editState.hidden"
                   label="Hide event"
                   :disabled="editLoading"
                 />
-              </UFormGroup>
+              </UFormField>
 
-              <UFormGroup name="sync_to_spond">
+              <UFormField name="sync_to_spond">
                 <UCheckbox
                   v-model="editState.sync_to_spond"
                   label="Sync changes to Spond immediately"
@@ -288,7 +289,7 @@
                     If unchecked, changes will be saved locally. You can sync them to Spond later.
                   </p>
                 </template>
-              </UFormGroup>
+              </UFormField>
 
               <!-- Actions -->
               <div class="flex justify-end gap-3 pt-4">
@@ -409,8 +410,6 @@ const openEditModal = () => {
 const handleEditSubmit = async (submitEvent: FormSubmitEvent<EditSchema>) => {
   editLoading.value = true
   try {
-    const { $api } = useNuxtApp()
-
     // Prepare update data
     const updateData: any = {}
 
@@ -424,10 +423,7 @@ const handleEditSubmit = async (submitEvent: FormSubmitEvent<EditSchema>) => {
     if (submitEvent.data.hidden !== undefined) updateData.hidden = submitEvent.data.hidden
     if (submitEvent.data.sync_to_spond !== undefined) updateData.sync_to_spond = submitEvent.data.sync_to_spond
 
-    await $api(`/events/${eventId.value}`, {
-      method: 'PUT',
-      body: updateData
-    })
+    await api.updateEvent(Number(eventId.value), updateData)
 
     toast.add({
       title: 'Success',
@@ -453,11 +449,7 @@ const handleEditSubmit = async (submitEvent: FormSubmitEvent<EditSchema>) => {
 const handlePushToSpond = async () => {
   pushing.value = true
   try {
-    const { $api } = useNuxtApp()
-
-    await $api(`/events/${eventId.value}/push-to-spond`, {
-      method: 'POST'
-    })
+    await api.pushEventToSpond(Number(eventId.value))
 
     toast.add({
       title: 'Success',

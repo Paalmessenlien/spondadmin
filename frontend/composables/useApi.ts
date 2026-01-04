@@ -16,6 +16,14 @@ export const useApi = () => {
   const config = useRuntimeConfig()
   const authStore = useAuthStore()
 
+  // Helper to inject group_id from auth store into params
+  const withGroupFilter = (params: Record<string, any> = {}): Record<string, any> => {
+    if (authStore.selectedGroupId && !params.group_id) {
+      return { ...params, group_id: authStore.selectedGroupId }
+    }
+    return params
+  }
+
   const makeRequest = async <T>(endpoint: string, options: ApiOptions = {}): Promise<T> => {
     const { method = 'GET', body, headers = {} } = options
 
@@ -63,7 +71,8 @@ export const useApi = () => {
 
   // Events
   const getEvents = async (params: Record<string, any> = {}) => {
-    const query = new URLSearchParams(params).toString()
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
     return makeRequest(`/events/?${query}`)
   }
 
@@ -72,12 +81,34 @@ export const useApi = () => {
     return makeRequest(`/events/sync?${query}`, { method: 'POST' })
   }
 
-  const getEventStats = async () => {
-    return makeRequest('/events/stats')
+  const getEventStats = async (params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/events/stats?${query}`)
   }
 
   const getEvent = async (id: number) => {
     return makeRequest(`/events/${id}`)
+  }
+
+  const createEvent = async (data: any) => {
+    return makeRequest<any>('/events/', {
+      method: 'POST',
+      body: data,
+    })
+  }
+
+  const updateEvent = async (id: number, data: any) => {
+    return makeRequest<any>(`/events/${id}`, {
+      method: 'PUT',
+      body: data,
+    })
+  }
+
+  const pushEventToSpond = async (id: number) => {
+    return makeRequest<any>(`/events/${id}/push-to-spond`, {
+      method: 'POST',
+    })
   }
 
   // Groups
@@ -100,7 +131,8 @@ export const useApi = () => {
 
   // Members
   const getMembers = async (params: Record<string, any> = {}) => {
-    const query = new URLSearchParams(params).toString()
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
     return makeRequest(`/members/?${query}`)
   }
 
@@ -108,8 +140,10 @@ export const useApi = () => {
     return makeRequest('/members/sync', { method: 'POST' })
   }
 
-  const getMemberStats = async () => {
-    return makeRequest('/members/stats')
+  const getMemberStats = async (params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/members/stats?${query}`)
   }
 
   const getMember = async (id: number) => {
@@ -117,24 +151,34 @@ export const useApi = () => {
   }
 
   // Analytics
-  const getAnalyticsSummary = async () => {
-    return makeRequest('/analytics/summary')
+  const getAnalyticsSummary = async (params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/analytics/summary?${query}`)
   }
 
-  const getAttendanceTrends = async (period: string = 'month') => {
-    return makeRequest(`/analytics/attendance-trends?period=${period}`)
+  const getAttendanceTrends = async (period: string = 'month', params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter({ ...params, period })
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/analytics/attendance-trends?${query}`)
   }
 
-  const getResponseRates = async () => {
-    return makeRequest('/analytics/response-rates')
+  const getResponseRates = async (params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/analytics/response-rates?${query}`)
   }
 
-  const getEventTypeDistribution = async () => {
-    return makeRequest('/analytics/event-types')
+  const getEventTypeDistribution = async (params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/analytics/event-types?${query}`)
   }
 
-  const getMemberParticipation = async (limit: number = 10) => {
-    return makeRequest(`/analytics/member-participation?limit=${limit}`)
+  const getMemberParticipation = async (limit: number = 10, params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter({ ...params, limit: limit.toString() })
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/analytics/member-participation?${query}`)
   }
 
   return {
@@ -146,6 +190,9 @@ export const useApi = () => {
     syncEvents,
     getEventStats,
     getEvent,
+    createEvent,
+    updateEvent,
+    pushEventToSpond,
     // Groups
     getGroups,
     syncGroups,

@@ -7,9 +7,10 @@ definePageMeta({
   layout: 'dashboard'
 })
 
-const { $api } = useNuxtApp()
+const api = useApi()
 const toast = useToast()
 const router = useRouter()
+const authStore = useAuthStore()
 
 // Form schema
 const schema = z.object({
@@ -68,13 +69,11 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   loading.value = true
 
   try {
-    const response = await $api('/events', {
-      method: 'POST',
-      body: {
-        ...event.data,
-        start_time: new Date(event.data.start_time).toISOString(),
-        end_time: new Date(event.data.end_time).toISOString()
-      }
+    const response = await api.createEvent({
+      ...event.data,
+      start_time: new Date(event.data.start_time).toISOString(),
+      end_time: new Date(event.data.end_time).toISOString(),
+      group_id: authStore.selectedGroupId || undefined
     })
 
     toast.add({
@@ -124,24 +123,24 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
             Basic Information
           </h3>
 
-          <UFormGroup label="Event Title" name="heading" required>
+          <UFormField label="Event Title" name="heading" required>
             <UInput
               v-model="state.heading"
               placeholder="e.g. Training Session"
               :disabled="loading"
             />
-          </UFormGroup>
+          </UFormField>
 
-          <UFormGroup label="Description" name="description">
+          <UFormField label="Description" name="description">
             <UTextarea
               v-model="state.description"
               placeholder="Event description..."
               :rows="3"
               :disabled="loading"
             />
-          </UFormGroup>
+          </UFormField>
 
-          <UFormGroup label="Event Type" name="event_type" required>
+          <UFormField label="Event Type" name="event_type" required>
             <USelectMenu
               v-model="state.event_type"
               :options="eventTypeOptions"
@@ -149,7 +148,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
               option-attribute="label"
               :disabled="loading"
             />
-          </UFormGroup>
+          </UFormField>
         </div>
 
         <!-- Date and Time -->
@@ -159,21 +158,21 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
           </h3>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <UFormGroup label="Start Time" name="start_time" required>
+            <UFormField label="Start Time" name="start_time" required>
               <UInput
                 v-model="state.start_time"
                 type="datetime-local"
                 :disabled="loading"
               />
-            </UFormGroup>
+            </UFormField>
 
-            <UFormGroup label="End Time" name="end_time" required>
+            <UFormField label="End Time" name="end_time" required>
               <UInput
                 v-model="state.end_time"
                 type="datetime-local"
                 :disabled="loading"
               />
-            </UFormGroup>
+            </UFormField>
           </div>
         </div>
 
@@ -183,13 +182,13 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
             Location
           </h3>
 
-          <UFormGroup label="Address" name="location_address">
+          <UFormField label="Address" name="location_address">
             <UInput
               v-model="state.location_address"
               placeholder="e.g. Main Stadium, 123 Street"
               :disabled="loading"
             />
-          </UFormGroup>
+          </UFormField>
         </div>
 
         <!-- Settings -->
@@ -198,7 +197,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
             Settings
           </h3>
 
-          <UFormGroup label="Maximum Participants" name="max_accepted">
+          <UFormField label="Maximum Participants" name="max_accepted">
             <UInput
               v-model.number="state.max_accepted"
               type="number"
@@ -206,25 +205,25 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
               placeholder="0 = unlimited"
               :disabled="loading"
             />
-          </UFormGroup>
+          </UFormField>
 
-          <UFormGroup name="cancelled">
+          <UFormField name="cancelled">
             <UCheckbox
               v-model="state.cancelled"
               label="Mark as cancelled"
               :disabled="loading"
             />
-          </UFormGroup>
+          </UFormField>
 
-          <UFormGroup name="hidden">
+          <UFormField name="hidden">
             <UCheckbox
               v-model="state.hidden"
               label="Hide event"
               :disabled="loading"
             />
-          </UFormGroup>
+          </UFormField>
 
-          <UFormGroup name="sync_to_spond">
+          <UFormField name="sync_to_spond">
             <UCheckbox
               v-model="state.sync_to_spond"
               label="Sync to Spond immediately"
@@ -235,7 +234,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
                 If unchecked, event will be created locally only. You can sync it to Spond later.
               </p>
             </template>
-          </UFormGroup>
+          </UFormField>
         </div>
 
         <!-- Actions -->

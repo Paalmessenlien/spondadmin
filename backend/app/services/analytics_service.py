@@ -4,7 +4,7 @@ Provides analytics and reporting data
 """
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from collections import defaultdict, Counter
 
@@ -24,12 +24,57 @@ from app.schemas.analytics import (
 class AnalyticsService:
     """Service for analytics operations"""
 
+    @staticmethod
+    def _apply_event_group_filter(stmt, group_id: Optional[str]):
+        """Apply group filter to event query using JSON extraction from raw_data"""
+        if group_id:
+            stmt = stmt.where(
+                text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
+            )
+        return stmt
+
+    @staticmethod
+    def _get_responses_array(event: Event) -> List[Dict[str, Any]]:
+        """
+        Safely extract responses array from event, supporting both formats
+
+        New format: event.responses = {"responses": [...], ...}
+        Old format: event.responses = {"accepted_uids": [...], ...}
+
+        Returns:
+            List of response dictionaries with 'answer' and 'profile' keys
+        """
+        if not event.responses:
+            return []
+
+        # New format: has responses array
+        if "responses" in event.responses:
+            return event.responses["responses"]
+
+        # Old format fallback: construct from UID arrays
+        responses_array = []
+
+        for uid in event.responses.get("accepted_uids", []):
+            responses_array.append({"answer": "accepted", "profile": {"id": uid}})
+
+        for uid in event.responses.get("declined_uids", []):
+            responses_array.append({"answer": "declined", "profile": {"id": uid}})
+
+        for uid in event.responses.get("unanswered_uids", []):
+            responses_array.append({"answer": "unanswered", "profile": {"id": uid}})
+
+        for uid in event.responses.get("waiting_list_uids", []):
+            responses_array.append({"answer": "waitinglistavailable", "profile": {"id": uid}})
+
+        return responses_array
+
     async def get_attendance_trends(
         self,
         db: AsyncSession,
         period: str = "month",  # "week", "month", "year"
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        group_id: Optional[str] = None
     ) -> AttendanceTrendsResponse:
         """Get attendance trends over time"""
 
@@ -51,6 +96,9 @@ class AnalyticsService:
                 Event.start_time <= end_date
             )
         ).order_by(Event.start_time)
+
+        # Apply group filter
+        stmt = self._apply_event_group_filter(stmt, group_id)
 
         result = await db.execute(stmt)
         events = result.scalars().all()
@@ -79,16 +127,15 @@ class AnalyticsService:
 
             trends[period_key].total_events += 1
 
-            # Count responses
-            if event.responses:
-                for response in event.responses.get("responses", []):
-                    answer = response.get("answer", "").lower()
-                    if answer == "accepted":
-                        trends[period_key].accepted += 1
-                    elif answer == "declined":
-                        trends[period_key].declined += 1
-                    elif answer in ["unanswered", "waitinglistavailable", "waiting"]:
-                        trends[period_key].unanswered += 1
+            # Count responses using helper (supports both old and new formats)
+            for response in self._get_responses_array(event):
+                answer = response.get("answer", "").lower()
+                if answer == "accepted":
+                    trends[period_key].accepted += 1
+                elif answer == "declined":
+                    trends[period_key].declined += 1
+                elif answer in ["unanswered", "waitinglistavailable", "waiting"]:
+                    trends[period_key].unanswered += 1
 
         return AttendanceTrendsResponse(
             period=period,
@@ -99,7 +146,8 @@ class AnalyticsService:
         self,
         db: AsyncSession,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        group_id: Optional[str] = None
     ) -> ResponseRateData:
         """Get overall response rate statistics"""
 
@@ -112,6 +160,9 @@ class AnalyticsService:
                 )
             )
 
+        # Apply group filter
+        stmt = self._apply_event_group_filter(stmt, group_id)
+
         result = await db.execute(stmt)
         events = result.scalars().all()
 
@@ -122,19 +173,19 @@ class AnalyticsService:
         no_answer = 0
 
         for event in events:
-            if event.responses and "responses" in event.responses:
-                for response in event.responses["responses"]:
-                    total_responses += 1
-                    answer = response.get("answer", "").lower()
+            # Use helper to support both old and new response formats
+            for response in self._get_responses_array(event):
+                total_responses += 1
+                answer = response.get("answer", "").lower()
 
-                    if answer == "accepted":
-                        accepted += 1
-                    elif answer == "declined":
-                        declined += 1
-                    elif answer in ["unanswered", "waitinglistavailable", "waiting"]:
-                        unanswered += 1
-                    else:
-                        no_answer += 1
+                if answer == "accepted":
+                    accepted += 1
+                elif answer == "declined":
+                    declined += 1
+                elif answer in ["unanswered", "waitinglistavailable", "waiting"]:
+                    unanswered += 1
+                else:
+                    no_answer += 1
 
         # Calculate percentages
         accepted_percentage = (accepted / total_responses * 100) if total_responses > 0 else 0
@@ -154,11 +205,19 @@ class AnalyticsService:
 
     async def get_event_type_distribution(
         self,
-        db: AsyncSession
+        db: AsyncSession,
+        group_id: Optional[str] = None
     ) -> List[EventTypeDistribution]:
         """Get distribution of event types"""
 
         stmt = select(Event.event_type, func.count(Event.id)).group_by(Event.event_type)
+
+        # Apply group filter
+        if group_id:
+            stmt = stmt.where(
+                text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
+            )
+
         result = await db.execute(stmt)
         type_counts = result.all()
 
@@ -180,17 +239,21 @@ class AnalyticsService:
     async def get_member_participation(
         self,
         db: AsyncSession,
-        limit: int = 10
+        limit: int = 10,
+        group_id: Optional[str] = None
     ) -> MemberParticipationResponse:
         """Get top members by participation"""
 
-        # Get all members
+        # Get all members (filtered by group if specified)
         members_stmt = select(Member)
+        if group_id:
+            members_stmt = members_stmt.where(Member.group_id == group_id)
         members_result = await db.execute(members_stmt)
         members = members_result.scalars().all()
 
-        # Get all events
+        # Get all events (filtered by group if specified)
         events_stmt = select(Event)
+        events_stmt = self._apply_event_group_filter(events_stmt, group_id)
         events_result = await db.execute(events_stmt)
         events = events_result.scalars().all()
 
@@ -208,22 +271,21 @@ class AnalyticsService:
                 "no_response": 0
             }
 
-        # Count responses for each member
+        # Count responses for each member using helper (supports both old and new formats)
         for event in events:
-            if event.responses and "responses" in event.responses:
-                for response in event.responses["responses"]:
-                    profile_id = response.get("profile", {}).get("id")
+            for response in self._get_responses_array(event):
+                profile_id = response.get("profile", {}).get("id")
 
-                    if profile_id in member_stats:
-                        member_stats[profile_id]["total_events"] += 1
+                if profile_id in member_stats:
+                    member_stats[profile_id]["total_events"] += 1
 
-                        answer = response.get("answer", "").lower()
-                        if answer == "accepted":
-                            member_stats[profile_id]["attended"] += 1
-                        elif answer == "declined":
-                            member_stats[profile_id]["declined"] += 1
-                        else:
-                            member_stats[profile_id]["no_response"] += 1
+                    answer = response.get("answer", "").lower()
+                    if answer == "accepted":
+                        member_stats[profile_id]["attended"] += 1
+                    elif answer == "declined":
+                        member_stats[profile_id]["declined"] += 1
+                    else:
+                        member_stats[profile_id]["no_response"] += 1
 
         # Create participation stats
         participation_stats = []
@@ -252,36 +314,47 @@ class AnalyticsService:
 
     async def get_analytics_summary(
         self,
-        db: AsyncSession
+        db: AsyncSession,
+        group_id: Optional[str] = None
     ) -> AnalyticsSummary:
         """Get overall analytics summary"""
 
-        # Get counts
+        # Get counts (with group filter if specified)
         events_stmt = select(func.count(Event.id))
+        if group_id:
+            events_stmt = events_stmt.where(
+                text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
+            )
         events_result = await db.execute(events_stmt)
         total_events = events_result.scalar() or 0
 
         # Upcoming events
         now = datetime.now(timezone.utc)
         upcoming_stmt = select(func.count(Event.id)).where(Event.start_time >= now)
+        if group_id:
+            upcoming_stmt = upcoming_stmt.where(
+                text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
+            )
         upcoming_result = await db.execute(upcoming_stmt)
         upcoming_events = upcoming_result.scalar() or 0
 
         past_events = total_events - upcoming_events
 
-        # Total members
+        # Total members (filtered by group if specified)
         members_stmt = select(func.count(Member.id))
+        if group_id:
+            members_stmt = members_stmt.where(Member.group_id == group_id)
         members_result = await db.execute(members_stmt)
         total_members = members_result.scalar() or 0
 
-        # Get response rates
-        response_rates = await self.get_response_rates(db)
+        # Get response rates (with group filter)
+        response_rates = await self.get_response_rates(db, group_id=group_id)
 
-        # Get event type distribution
-        event_distribution = await self.get_event_type_distribution(db)
+        # Get event type distribution (with group filter)
+        event_distribution = await self.get_event_type_distribution(db, group_id=group_id)
 
-        # Get most active members (top 5)
-        member_participation = await self.get_member_participation(db, limit=5)
+        # Get most active members (top 5, with group filter)
+        member_participation = await self.get_member_participation(db, limit=5, group_id=group_id)
 
         return AnalyticsSummary(
             total_events=total_events,

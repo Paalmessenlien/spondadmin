@@ -139,31 +139,107 @@ class SpondService:
         Create a new event in Spond
 
         Args:
-            event_data: Dictionary with event fields
+            event_data: Dictionary with Spond field names:
+                - heading: Event title
+                - description: Event description
+                - spondType: "EVENT", "RECURRING", or "AVAILABILITY"
+                - startTimestamp: ISO 8601 timestamp (e.g., "2024-01-15T10:00:00Z")
+                - endTimestamp: ISO 8601 timestamp
+                - maxAccepted: Max participants (0 = unlimited)
+                - location: Optional dict with address, latitude, longitude
             group_id: Optional group ID to associate event with
 
         Returns:
-            Created event dictionary
+            Created event dictionary with 'id' field
+
+        Raises:
+            Exception: If Spond API returns an error
         """
         client = await self._get_client()
 
         try:
+            # Ensure the client is authenticated before making the POST request
+            # The Spond library uses a decorator that auto-authenticates for its methods,
+            # but since we're making a direct API call, we need to ensure authentication
+            if not client.token:
+                logger.info("Authenticating Spond client before event creation...")
+                await client.login()
+                logger.info("Spond client authenticated successfully")
+
             # Use the event template as base
             from spond.spond import Spond
-            event_payload = Spond._EVENT_TEMPLATE.copy()
+            import copy
+            event_payload = copy.deepcopy(Spond._EVENT_TEMPLATE)
 
-            # Update with provided data
-            for key, value in event_data.items():
-                if key in event_payload:
-                    event_payload[key] = value
+            # Direct field updates (these field names match the template)
+            direct_fields = [
+                "heading", "description", "spondType",
+                "startTimestamp", "endTimestamp", "maxAccepted",
+                "commentsDisabled", "autoAccept", "visibility"
+            ]
+            for field in direct_fields:
+                if field in event_data and event_data[field] is not None:
+                    event_payload[field] = event_data[field]
+
+            # Handle location separately (it's a nested object)
+            if event_data.get("location"):
+                loc = event_data["location"]
+                event_payload["location"] = {
+                    "id": None,
+                    "feature": loc.get("feature") or loc.get("address"),
+                    "address": loc.get("address"),
+                    "latitude": loc.get("latitude"),
+                    "longitude": loc.get("longitude"),
+                }
+
+            # Set recipients with group - required for the event to appear in a group
+            if group_id:
+                # Fetch group members to get their IDs
+                group_data = await client.get_group(group_id)
+                member_ids = []
+                if group_data and "members" in group_data:
+                    for member in group_data["members"]:
+                        if "id" in member:
+                            member_ids.append(member["id"])
+
+                logger.info(f"Found {len(member_ids)} members in group {group_id}")
+
+                event_payload["recipients"] = {
+                    "group": {"id": group_id},
+                    "groupMembers": member_ids  # Array of member IDs
+                }
+
+            # Remove optional fields that may cause validation errors if empty
+            # The tasks field in the template has a "name": None which causes errors
+            if "tasks" in event_payload:
+                del event_payload["tasks"]
+
+            # Remove owners if None - it's not required for event creation
+            if "owners" in event_payload and event_payload["owners"] == [{"id": None}]:
+                del event_payload["owners"]
+
+            # Remove id if None - it will be assigned by the API
+            if "id" in event_payload and event_payload["id"] is None:
+                del event_payload["id"]
+
+            # Log the payload for debugging
+            logger.info(f"Creating event with payload: heading={event_payload.get('heading')}, "
+                       f"start={event_payload.get('startTimestamp')}, group={group_id}")
 
             # POST to create new event
             url = f"{client.api_url}sponds"
             async with client.clientsession.post(
                 url, json=event_payload, headers=client.auth_headers
             ) as r:
-                result = await r.json()
-                logger.info(f"Created event: {result.get('id')}")
+                response_text = await r.text()
+
+                if r.status >= 400:
+                    logger.error(f"Spond API error {r.status}: {response_text}")
+                    raise Exception(f"Spond API error {r.status}: {response_text}")
+
+                import json
+                result = json.loads(response_text)
+                logger.info(f"Created event in Spond: {result.get('id')}")
                 return result
 
         except Exception as e:

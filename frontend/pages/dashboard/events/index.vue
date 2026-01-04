@@ -337,6 +337,7 @@ definePageMeta({
 
 const api = useApi()
 const toast = useToast()
+const authStore = useAuthStore()
 
 const events = ref<any[]>([])
 const total = ref(0)
@@ -490,6 +491,12 @@ onMounted(() => {
   loadEvents()
 })
 
+// Watch for group changes and reload events
+watch(() => authStore.selectedGroupId, () => {
+  filters.skip = 0 // Reset to first page on group change
+  loadEvents()
+})
+
 const loadEvents = async () => {
   loading.value = true
   try {
@@ -530,8 +537,6 @@ const loadEvents = async () => {
 }
 
 const handleSync = async () => {
-  const authStore = useAuthStore()
-
   if (!authStore.selectedGroupId) {
     toast.add({ title: 'Error', description: 'Please select a group first', color: 'red' })
     return

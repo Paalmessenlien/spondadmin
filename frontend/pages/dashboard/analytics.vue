@@ -1,12 +1,30 @@
 <template>
   <div class="space-y-6">
         <!-- Header -->
-        <div>
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Analytics</h1>
-          <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Insights and trends from your Spond data
-          </p>
+        <div class="flex justify-between items-start">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Analytics</h1>
+            <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              Insights and trends from your Spond data
+            </p>
+          </div>
+          <UButton
+            icon="i-heroicons-arrow-path"
+            label="Refresh Data"
+            @click="refreshAllAnalytics"
+            :loading="isRefreshing"
+            color="primary"
+          />
         </div>
+
+        <!-- Warning Banner for Empty Data -->
+        <UAlert
+          v-if="summary && summary.total_responses === 0 && summary.total_events > 0"
+          color="yellow"
+          icon="i-heroicons-exclamation-triangle"
+          title="No Analytics Data Available"
+          description="Events exist but analytics data is missing. Try refreshing or re-syncing from the Events page."
+        />
 
         <!-- Summary Stats -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -161,55 +179,101 @@ const headers = computed(() => ({
   Authorization: authStore.token ? `Bearer ${authStore.token}` : ''
 }))
 
-// Fetch analytics summary
-const { data: summary, pending: summaryPending } = await useFetch('/analytics/summary', {
-  baseURL: config.public.apiBase,
-  headers: headers.value,
-  lazy: true,
-  key: 'analytics-summary',
+// Build query params for group filtering
+const groupQuery = computed(() => {
+  if (authStore.selectedGroupId) {
+    return { group_id: authStore.selectedGroupId }
+  }
+  return {}
 })
 
-// Fetch attendance trends (reactive to selectedPeriod)
+// Fetch analytics summary
+const { data: summary, pending: summaryPending, refresh: refreshSummary } = await useFetch('/analytics/summary', {
+  baseURL: config.public.apiBase,
+  headers: headers.value,
+  query: groupQuery,
+  lazy: true,
+  key: 'analytics-summary',
+  watch: [() => authStore.selectedGroupId],
+})
+
+// Fetch attendance trends (reactive to selectedPeriod and group)
+const trendsQuery = computed(() => ({
+  period: selectedPeriod.value,
+  ...groupQuery.value
+}))
+
 const { data: attendanceTrends, pending: trendsPending, refresh: refreshTrends } = await useFetch(
-  () => `/analytics/attendance-trends?period=${selectedPeriod.value}`,
+  '/analytics/attendance-trends',
   {
     baseURL: config.public.apiBase,
     headers: headers.value,
+    query: trendsQuery,
     lazy: true,
-    key: () => `attendance-trends-${selectedPeriod.value}`,
-    watch: [selectedPeriod], // Auto-refresh when period changes
+    key: 'attendance-trends',
+    watch: [selectedPeriod, () => authStore.selectedGroupId],
   }
 )
 
 // Fetch response rates
-const { data: responseRates, pending: ratesPending } = await useFetch('/analytics/response-rates', {
+const { data: responseRates, pending: ratesPending, refresh: refreshRates } = await useFetch('/analytics/response-rates', {
   baseURL: config.public.apiBase,
   headers: headers.value,
+  query: groupQuery,
   lazy: true,
   key: 'response-rates',
+  watch: [() => authStore.selectedGroupId],
 })
 
 // Fetch event type distribution
-const { data: eventTypes, pending: typesPending } = await useFetch<any[]>('/analytics/event-types', {
+const { data: eventTypes, pending: typesPending, refresh: refreshEventTypes } = await useFetch<any[]>('/analytics/event-types', {
   baseURL: config.public.apiBase,
   headers: headers.value,
+  query: groupQuery,
   lazy: true,
   key: 'event-types',
-  default: () => []
+  default: () => [],
+  watch: [() => authStore.selectedGroupId],
 })
 
 // Fetch top members
-const { data: memberParticipation, pending: membersPending } = await useFetch(
-  '/analytics/member-participation?limit=5',
+const membersQuery = computed(() => ({
+  limit: 5,
+  ...groupQuery.value
+}))
+
+const { data: memberParticipation, pending: membersPending, refresh: refreshMembers } = await useFetch(
+  '/analytics/member-participation',
   {
     baseURL: config.public.apiBase,
     headers: headers.value,
+    query: membersQuery,
     lazy: true,
     key: 'member-participation',
+    watch: [() => authStore.selectedGroupId],
   }
 )
 
 const topMembers = computed(() => memberParticipation.value?.members || [])
+
+// Refresh state
+const isRefreshing = ref(false)
+
+// Refresh all analytics data
+const refreshAllAnalytics = async () => {
+  isRefreshing.value = true
+  try {
+    await Promise.all([
+      refreshSummary(),
+      refreshTrends(),
+      refreshRates(),
+      refreshEventTypes(),
+      refreshMembers()
+    ])
+  } finally {
+    isRefreshing.value = false
+  }
+}
 
 // Manual refresh function for attendance trends when period changes
 const loadAttendanceTrends = async () => {

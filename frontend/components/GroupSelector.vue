@@ -25,12 +25,22 @@ const selectedGroup = ref<any>(null)
 const groups = ref<any[]>([])
 const loading = ref(false)
 
+// Special "All Groups" option
+const allGroupsOption = {
+  id: null,
+  spond_id: null,
+  name: 'All Groups',
+  label: 'All Groups'
+}
+
 // Map groups to items with label property for USelectMenu
 const groupItems = computed(() => {
-  return groups.value.map(group => ({
+  const items = groups.value.map(group => ({
     ...group,
     label: group.name
   }))
+  // Add "All Groups" as first option
+  return [allGroupsOption, ...items]
 })
 
 // Load groups function
@@ -61,11 +71,15 @@ const loadGroups = async () => {
 
       // Set selected group if one was previously selected
       if (authStore.selectedGroupId && groups.value.length > 0) {
-        const found = groupItems.value.find((g: any) => g.id === authStore.selectedGroupId)
+        const found = groupItems.value.find((g: any) => g.spond_id === authStore.selectedGroupId)
         if (found) {
           selectedGroup.value = found
           console.log('[GroupSelector] Restored selected group:', found.label)
         }
+      } else if (!authStore.selectedGroupId) {
+        // No group selected means "All Groups"
+        selectedGroup.value = allGroupsOption
+        console.log('[GroupSelector] Set to All Groups')
       }
     } else {
       console.error('[GroupSelector] Unexpected response format:', response)
@@ -113,15 +127,22 @@ watch(() => authStore.token, (newToken, oldToken) => {
 const handleGroupChange = (group: any) => {
   console.log('[GroupSelector] Group changed:', group)
 
-  if (group) {
-    authStore.setSelectedGroup(group.id)
+  if (group && group.spond_id) {
+    // Specific group selected - use spond_id (string) not id (number)
+    authStore.setSelectedGroup(group.spond_id)
     toast.add({
       title: 'Group selected',
-      description: `Selected group: ${group.label || group.name}`,
+      description: `Filtering by: ${group.label || group.name}`,
       color: 'green',
     })
   } else {
+    // "All Groups" selected or cleared
     authStore.setSelectedGroup(null)
+    toast.add({
+      title: 'All Groups',
+      description: 'Showing data from all groups',
+      color: 'blue',
+    })
   }
 }
 </script>

@@ -103,7 +103,7 @@ class MemberStats(BaseModel):
 class MemberFilters(BaseModel):
     """Schema for filtering members"""
     search: Optional[str] = Field(None, description="Search in name and email")
-    group_id: Optional[int] = Field(None, description="Filter by group ID")
+    group_id: Optional[str] = Field(None, description="Filter by group spond_id")
     has_email: Optional[bool] = Field(None, description="Filter by presence of email")
     has_phone: Optional[bool] = Field(None, description="Filter by presence of phone")
     has_guardians: Optional[bool] = Field(None, description="Filter by presence of guardians")

@@ -6,15 +6,32 @@ from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
 
+class EventResponseProfile(BaseModel):
+    """Profile data within a response"""
+    id: str
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
+    email: Optional[str] = None
+
+
+class EventResponseItem(BaseModel):
+    """Single response item with answer and profile"""
+    answer: str
+    profile: Optional[EventResponseProfile] = None
+
+
 class EventResponses(BaseModel):
     """
-    Event responses schema
+    Event responses schema - supports both UID arrays and detailed responses
     """
     accepted_uids: List[str] = Field(default_factory=list)
     declined_uids: List[str] = Field(default_factory=list)
     unanswered_uids: List[str] = Field(default_factory=list)
     waiting_list_uids: List[str] = Field(default_factory=list)
     unconfirmed_uids: List[str] = Field(default_factory=list)
+    responses: List[EventResponseItem] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra='allow')
 
 
 class EventLocation(BaseModel):
@@ -85,6 +102,7 @@ class EventCreate(BaseModel):
     cancelled: bool = False
     hidden: bool = False
     sync_to_spond: bool = False  # Whether to immediately sync to Spond
+    group_id: Optional[str] = None  # Group spond_id to associate event with
 
 
 class EventUpdate(BaseModel):
