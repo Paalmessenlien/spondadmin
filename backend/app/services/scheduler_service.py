@@ -98,7 +98,7 @@ class SchedulerService:
         logger.info("Starting scheduled events sync")
         try:
             async with AsyncSessionLocal() as db:
-                spond_service = get_spond_service()
+                spond_service = await get_spond_service()
                 stats = await EventSyncService.sync_events(
                     db,
                     spond_service,
@@ -118,7 +118,7 @@ class SchedulerService:
         logger.info("Starting scheduled groups sync")
         try:
             async with AsyncSessionLocal() as db:
-                spond_service = get_spond_service()
+                spond_service = await get_spond_service()
                 stats = await GroupSyncService.sync_groups(db, spond_service)
                 await db.commit()
                 logger.info(
@@ -134,7 +134,7 @@ class SchedulerService:
         logger.info("Starting scheduled members sync")
         try:
             async with AsyncSessionLocal() as db:
-                spond_service = get_spond_service()
+                spond_service = await get_spond_service()
                 stats = await MemberSyncService.sync_members(db, spond_service)
                 await db.commit()
                 logger.info(

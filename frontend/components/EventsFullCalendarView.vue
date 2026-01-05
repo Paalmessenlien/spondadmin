@@ -58,9 +58,9 @@ const calendarEvents = computed((): EventInput[] => {
     }
 
     // Build title with responses
-    const accepted = event.responses?.accepted_uids?.length || 0
-    const declined = event.responses?.declined_uids?.length || 0
-    const unanswered = event.responses?.unanswered_uids?.length || 0
+    const accepted = event.responses?.acceptedIds?.length || 0
+    const declined = event.responses?.declinedIds?.length || 0
+    const unanswered = event.responses?.unansweredIds?.length || 0
     const responseText = ` (✓${accepted} ✗${declined} ?${unanswered})`
 
     return {

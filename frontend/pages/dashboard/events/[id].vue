@@ -56,7 +56,6 @@
                     v-if="event.sync_status === 'local_only' || event.sync_status === 'pending' || event.sync_status === 'error'"
                     icon="i-heroicons-arrow-up-tray"
                     color="primary"
-                    variant="soft"
                     :loading="pushing"
                     @click="handlePushToSpond"
                   >
@@ -64,8 +63,8 @@
                   </UButton>
                   <UButton
                     icon="i-heroicons-pencil-square"
-                    color="gray"
-                    variant="soft"
+                    color="neutral"
+                    variant="outline"
                     @click="openEditModal"
                   >
                     Edit
@@ -278,6 +277,42 @@
                 />
               </UFormField>
 
+              <!-- Attendees & Owners (only show if event has a group) -->
+              <div v-if="eventGroupId" class="space-y-4 border-t pt-4">
+                <h4 class="font-semibold text-gray-900 dark:text-white">
+                  Attendees & Responsible Persons
+                </h4>
+
+                <UFormField label="Invited Members" name="invited_member_ids">
+                  <MemberSelect
+                    v-model="editInvitedMemberIds"
+                    :group-id="eventGroupId"
+                    placeholder="Select members to invite..."
+                    :disabled="editLoading"
+                  />
+                  <template #help>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Update which members are invited to this event.
+                    </p>
+                  </template>
+                </UFormField>
+
+                <UFormField label="Responsible Persons" name="owner_ids">
+                  <MemberSelect
+                    v-model="editOwnerIds"
+                    :group-id="eventGroupId"
+                    :use-profile-id="true"
+                    placeholder="Select responsible persons..."
+                    :disabled="editLoading"
+                  />
+                  <template #help>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Update who is responsible for this event.
+                    </p>
+                  </template>
+                </UFormField>
+              </div>
+
               <UFormField name="sync_to_spond">
                 <UCheckbox
                   v-model="editState.sync_to_spond"
@@ -287,6 +322,9 @@
                 <template #help>
                   <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     If unchecked, changes will be saved locally. You can sync them to Spond later.
+                    <span v-if="eventGroupId" class="block mt-1 text-amber-600 dark:text-amber-400">
+                      Note: Attendee and owner changes are only synced when this is checked.
+                    </span>
                   </p>
                 </template>
               </UFormField>
@@ -294,8 +332,8 @@
               <!-- Actions -->
               <div class="flex justify-end gap-3 pt-4">
                 <UButton
-                  color="gray"
-                  variant="ghost"
+                  color="neutral"
+                  variant="outline"
                   :disabled="editLoading"
                   @click="isEditModalOpen = false"
                 >
@@ -350,7 +388,9 @@ const editSchema = z.object({
   max_accepted: z.number().min(0).optional(),
   cancelled: z.boolean().optional(),
   hidden: z.boolean().optional(),
-  sync_to_spond: z.boolean().optional()
+  sync_to_spond: z.boolean().optional(),
+  invited_member_ids: z.array(z.string()).optional(),
+  owner_ids: z.array(z.string()).optional()
 })
 
 type EditSchema = z.output<typeof editSchema>
@@ -365,7 +405,22 @@ const editState = reactive<EditSchema>({
   max_accepted: 0,
   cancelled: false,
   hidden: false,
-  sync_to_spond: false
+  sync_to_spond: false,
+  invited_member_ids: undefined,
+  owner_ids: undefined
+})
+
+// Member selection state for edit modal
+const editInvitedMemberIds = ref<string[]>([])
+const editOwnerIds = ref<string[]>([])
+
+// Get group_id from event (prefer direct group_id, fallback to raw_data)
+const eventGroupId = computed(() => {
+  // First try the direct group_id field
+  if (event.value?.group_id) return event.value.group_id
+  // Fallback to raw_data.recipients.group.id for backward compatibility
+  if (event.value?.raw_data?.recipients?.group?.id) return event.value.raw_data.recipients.group.id
+  return null
 })
 
 const tabs = [
@@ -404,6 +459,23 @@ const openEditModal = () => {
   editState.cancelled = event.value.cancelled || false
   editState.hidden = event.value.hidden || false
   editState.sync_to_spond = false
+
+  // Populate member selections from raw_data
+  // Extract current invited members (groupMembers from recipients)
+  const rawData = event.value.raw_data
+  if (rawData?.recipients?.groupMembers && Array.isArray(rawData.recipients.groupMembers)) {
+    editInvitedMemberIds.value = [...rawData.recipients.groupMembers]
+  } else {
+    editInvitedMemberIds.value = []
+  }
+
+  // Extract current owners
+  if (rawData?.owners && Array.isArray(rawData.owners)) {
+    editOwnerIds.value = rawData.owners.map((o: any) => o.id).filter((id: any) => id)
+  } else {
+    editOwnerIds.value = []
+  }
+
   isEditModalOpen.value = true
 }
 
@@ -422,6 +494,17 @@ const handleEditSubmit = async (submitEvent: FormSubmitEvent<EditSchema>) => {
     if (submitEvent.data.cancelled !== undefined) updateData.cancelled = submitEvent.data.cancelled
     if (submitEvent.data.hidden !== undefined) updateData.hidden = submitEvent.data.hidden
     if (submitEvent.data.sync_to_spond !== undefined) updateData.sync_to_spond = submitEvent.data.sync_to_spond
+
+    // Include member selections if syncing to Spond
+    if (submitEvent.data.sync_to_spond) {
+      // Only include if there are values (empty array means no one invited)
+      if (editInvitedMemberIds.value.length > 0) {
+        updateData.invited_member_ids = editInvitedMemberIds.value
+      }
+      if (editOwnerIds.value.length > 0) {
+        updateData.owner_ids = editOwnerIds.value
+      }
+    }
 
     await api.updateEvent(Number(eventId.value), updateData)
 

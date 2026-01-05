@@ -57,6 +57,34 @@ class EventSyncService:
         }
 
         try:
+            # Fetch group data to get member profiles for enriching responses
+            member_lookup: Dict[str, Dict[str, Any]] = {}
+            if group_id:
+                try:
+                    logger.info(f"Fetching group data for member profiles (group_id={group_id})")
+                    group_data = await spond_service.get_group(group_id)
+                    if group_data and "members" in group_data:
+                        for member in group_data["members"]:
+                            member_id = member.get("id")
+                            if member_id:
+                                # Build profile data from member info
+                                profile = member.get("profile", {})
+                                member_lookup[member_id] = {
+                                    "id": member_id,
+                                    "profile": {
+                                        "id": profile.get("id"),
+                                        "firstName": member.get("firstName") or profile.get("firstName"),
+                                        "lastName": member.get("lastName") or profile.get("lastName"),
+                                        "email": member.get("email") or profile.get("email"),
+                                    },
+                                    "firstName": member.get("firstName"),
+                                    "lastName": member.get("lastName"),
+                                    "email": member.get("email"),
+                                }
+                        logger.info(f"Built member lookup with {len(member_lookup)} members")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch group data for member profiles: {e}")
+
             # Fetch events from Spond API
             logger.info(f"Fetching events from Spond API (group_id={group_id})")
             events_data = await spond_service.get_events(
@@ -70,7 +98,7 @@ class EventSyncService:
             # Process each event
             for event_dict in events_data:
                 try:
-                    await EventSyncService._sync_single_event(db, event_dict, stats)
+                    await EventSyncService._sync_single_event(db, event_dict, stats, member_lookup)
                 except Exception as e:
                     logger.error(f"Error syncing event {event_dict.get('id')}: {e}")
                     stats["errors"] += 1
@@ -108,7 +136,8 @@ class EventSyncService:
     async def _sync_single_event(
         db: AsyncSession,
         event_dict: Dict[str, Any],
-        stats: Dict[str, int]
+        stats: Dict[str, int],
+        member_lookup: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> None:
         """
         Sync a single event to the database
@@ -117,6 +146,7 @@ class EventSyncService:
             db: Database session
             event_dict: Event data from Spond API
             stats: Statistics dictionary to update
+            member_lookup: Optional dictionary mapping member IDs to profile data
         """
         spond_id = event_dict.get("id")
         if not spond_id:
@@ -153,8 +183,13 @@ class EventSyncService:
         # Extract max participants
         max_accepted = event_dict.get("maxAccepted", 0)
 
-        # Extract responses
-        responses = EventSyncService._extract_responses(event_dict.get("responses"))
+        # Extract group_id from recipients
+        recipients = event_dict.get("recipients", {})
+        group_data = recipients.get("group", {}) if recipients else {}
+        group_id = group_data.get("id") if group_data else None
+
+        # Extract responses and enrich with member profile data
+        responses = EventSyncService._extract_responses(event_dict.get("responses"), member_lookup)
 
         if existing_event:
             # Update existing event
@@ -172,6 +207,7 @@ class EventSyncService:
             existing_event.location_latitude = location_latitude
             existing_event.location_longitude = location_longitude
             existing_event.max_accepted = max_accepted
+            existing_event.group_id = group_id
             existing_event.responses = responses
             existing_event.raw_data = event_dict
             existing_event.last_synced_at = now
@@ -202,6 +238,7 @@ class EventSyncService:
                 location_latitude=location_latitude,
                 location_longitude=location_longitude,
                 max_accepted=max_accepted,
+                group_id=group_id,
                 responses=responses,
                 raw_data=event_dict,
                 sync_status="synced",  # Events from Spond are synced by definition
@@ -242,22 +279,101 @@ class EventSyncService:
             return None
 
     @staticmethod
-    def _extract_responses(responses_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _extract_responses(
+        responses_dict: Optional[Dict[str, Any]],
+        member_lookup: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> Optional[Dict[str, Any]]:
         """
-        Preserve complete Spond API response structure
+        Extract and enrich response data from Spond API
 
-        The Spond API returns both ID arrays AND a detailed responses array.
-        We preserve everything to support analytics.
+        The Spond bulk events API returns ID arrays (acceptedIds, declinedIds, etc.)
+        but not detailed profile info. This method builds a detailed 'responses' array
+        by matching member IDs to their profile data from the group.
 
         Args:
-            responses_dict: Responses dictionary from Spond API
+            responses_dict: Responses dictionary from Spond API (contains ID arrays)
+            member_lookup: Dictionary mapping member IDs to profile data
 
         Returns:
-            Complete responses dictionary from Spond API
+            Enriched responses dictionary with detailed 'responses' array
         """
         if not responses_dict:
             return None
 
-        # Return the complete response object from Spond
-        # This includes both 'responses' array and ID arrays (acceptedIds, declinedIds, etc.)
-        return responses_dict
+        # Start with the original response data (preserves ID arrays)
+        result = dict(responses_dict)
+
+        # Build detailed responses array if we have member lookup data
+        if member_lookup:
+            detailed_responses = []
+
+            # Process accepted members
+            for member_id in responses_dict.get("acceptedIds", []):
+                member_data = member_lookup.get(member_id)
+                if member_data:
+                    detailed_responses.append({
+                        "id": member_id,
+                        "answer": "accepted",
+                        "profile": member_data.get("profile", {}),
+                        "firstName": member_data.get("firstName"),
+                        "lastName": member_data.get("lastName"),
+                        "email": member_data.get("email"),
+                    })
+
+            # Process declined members
+            for member_id in responses_dict.get("declinedIds", []):
+                member_data = member_lookup.get(member_id)
+                if member_data:
+                    detailed_responses.append({
+                        "id": member_id,
+                        "answer": "declined",
+                        "profile": member_data.get("profile", {}),
+                        "firstName": member_data.get("firstName"),
+                        "lastName": member_data.get("lastName"),
+                        "email": member_data.get("email"),
+                    })
+
+            # Process unanswered members
+            for member_id in responses_dict.get("unansweredIds", []):
+                member_data = member_lookup.get(member_id)
+                if member_data:
+                    detailed_responses.append({
+                        "id": member_id,
+                        "answer": "unanswered",
+                        "profile": member_data.get("profile", {}),
+                        "firstName": member_data.get("firstName"),
+                        "lastName": member_data.get("lastName"),
+                        "email": member_data.get("email"),
+                    })
+
+            # Process waitinglist members
+            for member_id in responses_dict.get("waitinglistIds", []):
+                member_data = member_lookup.get(member_id)
+                if member_data:
+                    detailed_responses.append({
+                        "id": member_id,
+                        "answer": "waitinglist",
+                        "profile": member_data.get("profile", {}),
+                        "firstName": member_data.get("firstName"),
+                        "lastName": member_data.get("lastName"),
+                        "email": member_data.get("email"),
+                    })
+
+            # Process unconfirmed members
+            for member_id in responses_dict.get("unconfirmedIds", []):
+                member_data = member_lookup.get(member_id)
+                if member_data:
+                    detailed_responses.append({
+                        "id": member_id,
+                        "answer": "unconfirmed",
+                        "profile": member_data.get("profile", {}),
+                        "firstName": member_data.get("firstName"),
+                        "lastName": member_data.get("lastName"),
+                        "email": member_data.get("email"),
+                    })
+
+            # Add the detailed responses array
+            result["responses"] = detailed_responses
+            logger.debug(f"Built {len(detailed_responses)} detailed response entries")
+
+        return result

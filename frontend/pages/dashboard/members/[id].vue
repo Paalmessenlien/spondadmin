@@ -157,7 +157,8 @@
                 <div class="flex items-center space-x-2">
                   <UButton
                     size="sm"
-                    variant="soft"
+                    color="neutral"
+                    variant="outline"
                     :disabled="historySkip === 0"
                     @click="historyPreviousPage"
                   >
@@ -168,7 +169,8 @@
                   </span>
                   <UButton
                     size="sm"
-                    variant="soft"
+                    color="neutral"
+                    variant="outline"
                     :disabled="historySkip + historyPageSize >= filteredHistory.length"
                     @click="historyNextPage"
                   >

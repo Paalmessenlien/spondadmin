@@ -133,7 +133,9 @@ class SpondService:
     async def create_event(
         self,
         event_data: Dict[str, Any],
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
+        invited_member_ids: Optional[List[str]] = None,
+        owner_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Create a new event in Spond
@@ -148,6 +150,8 @@ class SpondService:
                 - maxAccepted: Max participants (0 = unlimited)
                 - location: Optional dict with address, latitude, longitude
             group_id: Optional group ID to associate event with
+            invited_member_ids: Optional list of member IDs to invite (None = all group members)
+            owner_ids: Optional list of profile IDs for responsible persons
 
         Returns:
             Created event dictionary with 'id' field
@@ -194,29 +198,39 @@ class SpondService:
 
             # Set recipients with group - required for the event to appear in a group
             if group_id:
-                # Fetch group members to get their IDs
-                group_data = await client.get_group(group_id)
-                member_ids = []
-                if group_data and "members" in group_data:
-                    for member in group_data["members"]:
-                        if "id" in member:
-                            member_ids.append(member["id"])
-
-                logger.info(f"Found {len(member_ids)} members in group {group_id}")
+                # Use provided member IDs or fetch all group members
+                if invited_member_ids is not None:
+                    # Use the specific members that were selected
+                    member_ids = invited_member_ids
+                    logger.info(f"Using {len(member_ids)} selected members for invitation")
+                else:
+                    # Fetch all group members (default behavior)
+                    group_data = await client.get_group(group_id)
+                    member_ids = []
+                    if group_data and "members" in group_data:
+                        for member in group_data["members"]:
+                            if "id" in member:
+                                member_ids.append(member["id"])
+                    logger.info(f"Found {len(member_ids)} members in group {group_id} (inviting all)")
 
                 event_payload["recipients"] = {
                     "group": {"id": group_id},
                     "groupMembers": member_ids  # Array of member IDs
                 }
 
+            # Set owners (responsible persons) if provided
+            if owner_ids:
+                event_payload["owners"] = [{"id": owner_id} for owner_id in owner_ids]
+                logger.info(f"Setting {len(owner_ids)} responsible persons for event")
+            else:
+                # Remove owners if None - it's not required for event creation
+                if "owners" in event_payload and event_payload["owners"] == [{"id": None}]:
+                    del event_payload["owners"]
+
             # Remove optional fields that may cause validation errors if empty
             # The tasks field in the template has a "name": None which causes errors
             if "tasks" in event_payload:
                 del event_payload["tasks"]
-
-            # Remove owners if None - it's not required for event creation
-            if "owners" in event_payload and event_payload["owners"] == [{"id": None}]:
-                del event_payload["owners"]
 
             # Remove id if None - it will be assigned by the API
             if "id" in event_payload and event_payload["id"] is None:
@@ -322,6 +336,69 @@ class SpondService:
 
         except Exception as e:
             logger.error(f"Error generating attendance XLSX: {e}")
+            raise
+
+    async def update_event_attendees(
+        self,
+        event_id: str,
+        member_ids: List[str],
+        group_id: str
+    ) -> Dict[str, Any]:
+        """
+        Update which members are invited to an event
+
+        Args:
+            event_id: Spond event ID
+            member_ids: List of member IDs to invite
+            group_id: Group ID the event belongs to
+
+        Returns:
+            Updated event dictionary
+        """
+        client = await self._get_client()
+
+        try:
+            updates = {
+                "recipients": {
+                    "group": {"id": group_id},
+                    "groupMembers": member_ids
+                }
+            }
+            result = await client.update_event(event_id, updates)
+            logger.info(f"Updated attendees for event {event_id}: {len(member_ids)} members")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error updating event attendees: {e}")
+            raise
+
+    async def update_event_owners(
+        self,
+        event_id: str,
+        owner_ids: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Update responsible persons (owners) for an event
+
+        Args:
+            event_id: Spond event ID
+            owner_ids: List of profile IDs for responsible persons
+
+        Returns:
+            Updated event dictionary
+        """
+        client = await self._get_client()
+
+        try:
+            updates = {
+                "owners": [{"id": owner_id} for owner_id in owner_ids]
+            }
+            result = await client.update_event(event_id, updates)
+            logger.info(f"Updated owners for event {event_id}: {len(owner_ids)} persons")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error updating event owners: {e}")
             raise
 
     # ============================================================

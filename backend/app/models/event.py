@@ -19,6 +19,9 @@ class Event(Base, TimestampMixin):
     # Spond event ID
     spond_id: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
 
+    # Group association (spond_id of the group this event belongs to)
+    group_id: Mapped[str] = mapped_column(String(255), nullable=True, index=True)
+
     # Event details
     heading: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=True)

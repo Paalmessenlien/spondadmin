@@ -20,8 +20,8 @@
 
             <UButton
               icon="i-heroicons-arrow-path"
-              color="gray"
-              variant="soft"
+              color="neutral"
+              variant="outline"
               :loading="syncing"
               @click="handleSync"
             >
@@ -79,8 +79,8 @@
 
               <UButton
                 v-if="hasActiveFilters"
-                color="gray"
-                variant="soft"
+                color="neutral"
+                variant="outline"
                 icon="i-heroicons-x-circle"
                 @click="clearFilters"
               >
@@ -150,7 +150,7 @@
                 <h3 class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
                   {{ filters.search ? 'No events found' : 'No events' }}
                 </h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
                   {{ filters.search ? `No results for "${filters.search}"` : 'Sync events from Spond to get started.' }}
                 </p>
               </div>
@@ -244,9 +244,9 @@
                         class="flex space-x-2"
                         :title="getResponsesTooltip(event.responses)"
                       >
-                        <span class="text-green-600">✓ {{ event.responses?.accepted_uids?.length || 0 }}</span>
-                        <span class="text-red-600">✗ {{ event.responses?.declined_uids?.length || 0 }}</span>
-                        <span class="text-gray-600">? {{ event.responses?.unanswered_uids?.length || 0 }}</span>
+                        <span class="text-green-600">✓ {{ event.responses?.acceptedIds?.length || 0 }}</span>
+                        <span class="text-red-600">✗ {{ event.responses?.declinedIds?.length || 0 }}</span>
+                        <span class="text-gray-600">? {{ event.responses?.unansweredIds?.length || 0 }}</span>
                       </div>
                     </td>
                   </tr>
@@ -273,14 +273,16 @@
               <div class="flex items-center gap-2">
                 <UButton
                   size="sm"
-                  variant="soft"
+                  color="neutral"
+                  variant="outline"
                   icon="i-heroicons-chevron-double-left"
                   :disabled="currentPage === 1"
                   @click="goToFirstPage"
                 />
                 <UButton
                   size="sm"
-                  variant="soft"
+                  color="neutral"
+                  variant="outline"
                   icon="i-heroicons-chevron-left"
                   :disabled="currentPage === 1"
                   @click="previousPage"
@@ -290,14 +292,16 @@
                 </div>
                 <UButton
                   size="sm"
-                  variant="soft"
+                  color="neutral"
+                  variant="outline"
                   icon="i-heroicons-chevron-right"
                   :disabled="currentPage === totalPages"
                   @click="nextPage"
                 />
                 <UButton
                   size="sm"
-                  variant="soft"
+                  color="neutral"
+                  variant="outline"
                   icon="i-heroicons-chevron-double-right"
                   :disabled="currentPage === totalPages"
                   @click="goToLastPage"
@@ -620,9 +624,9 @@ const getEventTypeColor = (type: string) => {
 const getResponsesTooltip = (responses: any) => {
   if (!responses) return 'No responses yet'
 
-  const accepted = responses.accepted_uids?.length || 0
-  const declined = responses.declined_uids?.length || 0
-  const unanswered = responses.unanswered_uids?.length || 0
+  const accepted = responses.acceptedIds?.length || 0
+  const declined = responses.declinedIds?.length || 0
+  const unanswered = responses.unansweredIds?.length || 0
 
   return `${accepted} accepted, ${declined} declined, ${unanswered} unanswered`
 }

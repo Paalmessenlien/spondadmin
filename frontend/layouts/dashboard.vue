@@ -89,7 +89,7 @@
             </div>
             <UButton
               color="red"
-              variant="soft"
+              variant="outline"
               icon="i-heroicons-arrow-right-on-rectangle"
               aria-label="Logout"
               @click="handleLogout"
@@ -218,7 +218,7 @@
                   <div class="font-medium text-gray-900 dark:text-white">
                     {{ authStore.user?.full_name || authStore.user?.username }}
                   </div>
-                  <div class="text-sm text-gray-500 dark:text-gray-400">
+                  <div class="text-sm text-gray-600 dark:text-gray-400">
                     {{ authStore.user?.email || '' }}
                   </div>
                 </div>
@@ -236,7 +236,7 @@
             <UButton
               block
               color="red"
-              variant="soft"
+              variant="outline"
               icon="i-heroicons-arrow-right-on-rectangle"
               @click="handleLogout"
             >

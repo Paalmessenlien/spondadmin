@@ -3,7 +3,7 @@
         <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
             <h1 class="text-2xl font-bold">Members</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
               Manage and view all club members
             </p>
           </div>
@@ -31,8 +31,8 @@
             />
             <UButton
               v-if="searchQuery || emailFilter"
-              color="gray"
-              variant="soft"
+              color="neutral"
+              variant="outline"
               icon="i-heroicons-x-mark"
               @click="clearFilters"
             >
@@ -114,19 +114,19 @@
                 </select>
               </div>
               <div class="flex items-center space-x-2">
-                <UButton size="sm" variant="soft" :disabled="skip === 0" aria-label="First page" @click="firstPage">
+                <UButton size="sm" color="neutral" variant="outline" :disabled="skip === 0" aria-label="First page" @click="firstPage">
                   First
                 </UButton>
-                <UButton size="sm" variant="soft" :disabled="skip === 0" aria-label="Previous page" @click="previousPage">
+                <UButton size="sm" color="neutral" variant="outline" :disabled="skip === 0" aria-label="Previous page" @click="previousPage">
                   Previous
                 </UButton>
                 <span class="text-sm text-gray-700 dark:text-gray-300">
                   Page {{ currentPage }} of {{ totalPages }}
                 </span>
-                <UButton size="sm" variant="soft" :disabled="skip + limit >= total" aria-label="Next page" @click="nextPage">
+                <UButton size="sm" color="neutral" variant="outline" :disabled="skip + limit >= total" aria-label="Next page" @click="nextPage">
                   Next
                 </UButton>
-                <UButton size="sm" variant="soft" :disabled="skip + limit >= total" aria-label="Last page" @click="lastPage">
+                <UButton size="sm" color="neutral" variant="outline" :disabled="skip + limit >= total" aria-label="Last page" @click="lastPage">
                   Last
                 </UButton>
               </div>

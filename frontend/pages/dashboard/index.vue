@@ -31,7 +31,7 @@
             </div>
 
             <template #footer>
-              <UButton to="/dashboard/events" block variant="soft">
+              <UButton to="/dashboard/events" block color="neutral" variant="outline">
                 View Events
               </UButton>
             </template>
@@ -58,7 +58,7 @@
             </div>
 
             <template #footer>
-              <UButton to="/dashboard/groups" block variant="soft">
+              <UButton to="/dashboard/groups" block color="neutral" variant="outline">
                 View Groups
               </UButton>
             </template>
@@ -85,7 +85,7 @@
             </div>
 
             <template #footer>
-              <UButton to="/dashboard/members" block variant="soft">
+              <UButton to="/dashboard/members" block color="neutral" variant="outline">
                 View Members
               </UButton>
             </template>
@@ -102,8 +102,7 @@
             <UButton
               icon="i-heroicons-arrow-path"
               size="lg"
-              color="blue"
-              variant="soft"
+              color="primary"
               block
               :loading="syncing.events"
               @click="syncEvents"
@@ -114,8 +113,7 @@
             <UButton
               icon="i-heroicons-arrow-path"
               size="lg"
-              color="purple"
-              variant="soft"
+              color="primary"
               block
               :loading="syncing.groups"
               @click="syncGroups"
@@ -126,8 +124,7 @@
             <UButton
               icon="i-heroicons-arrow-path"
               size="lg"
-              color="orange"
-              variant="soft"
+              color="primary"
               block
               :loading="syncing.members"
               @click="syncMembers"

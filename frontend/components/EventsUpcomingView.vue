@@ -105,15 +105,15 @@
                   >
                     <div class="flex items-center gap-1">
                       <UIcon name="i-heroicons-check-circle" class="w-4 h-4 text-green-600 dark:text-green-400" />
-                      <span class="text-green-600 dark:text-green-400">{{ event.responses.accepted_uids?.length || 0 }}</span>
+                      <span class="text-green-600 dark:text-green-400">{{ event.responses.acceptedIds?.length || 0 }}</span>
                     </div>
                     <div class="flex items-center gap-1">
                       <UIcon name="i-heroicons-x-circle" class="w-4 h-4 text-red-600 dark:text-red-400" />
-                      <span class="text-red-600 dark:text-red-400">{{ event.responses.declined_uids?.length || 0 }}</span>
+                      <span class="text-red-600 dark:text-red-400">{{ event.responses.declinedIds?.length || 0 }}</span>
                     </div>
                     <div class="flex items-center gap-1">
                       <UIcon name="i-heroicons-question-mark-circle" class="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                      <span class="text-gray-600 dark:text-gray-400">{{ event.responses.unanswered_uids?.length || 0 }}</span>
+                      <span class="text-gray-600 dark:text-gray-400">{{ event.responses.unansweredIds?.length || 0 }}</span>
                     </div>
                   </div>
                 </div>
@@ -237,9 +237,9 @@ const getEventTypeColor = (type: string) => {
 const getResponsesTooltip = (responses: any) => {
   if (!responses) return 'No responses yet'
 
-  const accepted = responses.accepted_uids?.length || 0
-  const declined = responses.declined_uids?.length || 0
-  const unanswered = responses.unanswered_uids?.length || 0
+  const accepted = responses.acceptedIds?.length || 0
+  const declined = responses.declinedIds?.length || 0
+  const unanswered = responses.unansweredIds?.length || 0
 
   return `${accepted} accepted, ${declined} declined, ${unanswered} unanswered`
 }

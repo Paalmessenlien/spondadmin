@@ -299,6 +299,49 @@ class EventService:
             event.hidden = update_data.hidden
             has_changes = True
 
+        # Handle attendees and owners updates if syncing to Spond
+        if update_data.sync_to_spond and spond_service and event.sync_status != "local_only":
+            # Update attendees if provided
+            if update_data.invited_member_ids is not None:
+                try:
+                    # Get group_id from raw_data
+                    group_id = None
+                    if event.raw_data and isinstance(event.raw_data, dict):
+                        recipients = event.raw_data.get("recipients", {})
+                        if isinstance(recipients, dict):
+                            group = recipients.get("group", {})
+                            if isinstance(group, dict):
+                                group_id = group.get("id")
+
+                    if group_id:
+                        await spond_service.update_event_attendees(
+                            event.spond_id,
+                            update_data.invited_member_ids,
+                            group_id
+                        )
+                        has_changes = True
+                        logger.info(f"Updated attendees for event {event.spond_id}")
+                    else:
+                        logger.warning(f"Cannot update attendees: no group_id found for event {event.spond_id}")
+                except Exception as e:
+                    logger.error(f"Failed to update attendees: {e}")
+                    event.sync_status = "error"
+                    event.sync_error = str(e)
+
+            # Update owners if provided
+            if update_data.owner_ids is not None:
+                try:
+                    await spond_service.update_event_owners(
+                        event.spond_id,
+                        update_data.owner_ids
+                    )
+                    has_changes = True
+                    logger.info(f"Updated owners for event {event.spond_id}")
+                except Exception as e:
+                    logger.error(f"Failed to update owners: {e}")
+                    event.sync_status = "error"
+                    event.sync_error = str(e)
+
         # Update sync status
         if has_changes:
             if update_data.sync_to_spond and spond_service and event.sync_status != "local_only":
@@ -389,8 +432,13 @@ class EventService:
                 if create_data.max_accepted > 0:
                     spond_data["maxAccepted"] = create_data.max_accepted
 
-                # Create in Spond
-                result = await spond_service.create_event(spond_data)
+                # Create in Spond with optional attendee and owner selection
+                result = await spond_service.create_event(
+                    spond_data,
+                    group_id=create_data.group_id,
+                    invited_member_ids=create_data.invited_member_ids,
+                    owner_ids=create_data.owner_ids
+                )
                 spond_id = result.get("id", temp_spond_id)
                 sync_status = "synced"
                 logger.info(f"Created event in Spond: {spond_id}")
@@ -427,6 +475,7 @@ class EventService:
             max_accepted=create_data.max_accepted,
             cancelled=create_data.cancelled,
             hidden=create_data.hidden,
+            group_id=create_data.group_id,
             sync_status=sync_status,
             sync_error=None,
             last_synced_at=now,
@@ -503,6 +552,20 @@ class EventService:
                     if isinstance(group, dict):
                         group_id = group.get("id")
 
+            # Extract invited_member_ids and owner_ids from raw_data if available
+            invited_member_ids = None
+            owner_ids = None
+            if event.raw_data and isinstance(event.raw_data, dict):
+                recipients = event.raw_data.get("recipients", {})
+                if isinstance(recipients, dict):
+                    group_members = recipients.get("groupMembers")
+                    if group_members:
+                        invited_member_ids = group_members
+
+                owners = event.raw_data.get("owners", [])
+                if owners:
+                    owner_ids = [o.get("id") for o in owners if o.get("id")]
+
             # Create or update in Spond
             is_local = event.sync_status == "local_only" or (
                 event.spond_id and event.spond_id.startswith("local_")
@@ -514,7 +577,12 @@ class EventService:
                         "Cannot push event to Spond without a group. "
                         "Please select a group when creating the event."
                     )
-                result = await spond_service.create_event(spond_data, group_id=group_id)
+                result = await spond_service.create_event(
+                    spond_data,
+                    group_id=group_id,
+                    invited_member_ids=invited_member_ids,
+                    owner_ids=owner_ids
+                )
                 new_spond_id = result.get("id") if result else None
                 if not new_spond_id:
                     raise ValueError("Spond API did not return an event ID")

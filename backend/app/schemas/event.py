@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class EventResponseProfile(BaseModel):
     """Profile data within a response"""
-    id: str
+    id: Optional[str] = None
     firstName: Optional[str] = None
     lastName: Optional[str] = None
     email: Optional[str] = None
@@ -66,7 +66,9 @@ class EventResponse(EventBase):
     Event response schema (from database)
     """
     id: int
+    group_id: Optional[str] = None  # Group spond_id this event belongs to
     responses: Optional[EventResponses] = None
+    raw_data: Optional[dict] = None  # Raw data from Spond API
     sync_status: str  # synced, pending, local_only, error
     sync_error: Optional[str] = None
     last_synced_at: datetime
@@ -103,6 +105,9 @@ class EventCreate(BaseModel):
     hidden: bool = False
     sync_to_spond: bool = False  # Whether to immediately sync to Spond
     group_id: Optional[str] = None  # Group spond_id to associate event with
+    # Attendee and owner management
+    invited_member_ids: Optional[List[str]] = None  # Spond member IDs to invite (None = all group members)
+    owner_ids: Optional[List[str]] = None  # Profile IDs for responsible persons
 
 
 class EventUpdate(BaseModel):
@@ -120,6 +125,9 @@ class EventUpdate(BaseModel):
     cancelled: Optional[bool] = None
     hidden: Optional[bool] = None
     sync_to_spond: bool = False  # Whether to immediately sync changes to Spond
+    # Attendee and owner management
+    invited_member_ids: Optional[List[str]] = None  # Spond member IDs to invite
+    owner_ids: Optional[List[str]] = None  # Profile IDs for responsible persons
 
 
 class EventFilters(BaseModel):

@@ -25,7 +25,9 @@ const schema = z.object({
   max_accepted: z.number().min(0).default(0),
   cancelled: z.boolean().default(false),
   hidden: z.boolean().default(false),
-  sync_to_spond: z.boolean().default(false)
+  sync_to_spond: z.boolean().default(false),
+  invited_member_ids: z.array(z.string()).optional(),
+  owner_ids: z.array(z.string()).optional()
 })
 
 type Schema = z.output<typeof schema>
@@ -42,8 +44,14 @@ const state = reactive<Schema>({
   max_accepted: 0,
   cancelled: false,
   hidden: false,
-  sync_to_spond: false
+  sync_to_spond: false,
+  invited_member_ids: undefined,
+  owner_ids: undefined
 })
+
+// Member selection state (separate from form state for v-model binding)
+const invitedMemberIds = ref<string[]>([])
+const ownerIds = ref<string[]>([])
 
 // Event type options
 const eventTypeOptions = [
@@ -69,12 +77,25 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   loading.value = true
 
   try {
-    const response = await api.createEvent({
+    // Include member selections only if they have values
+    const payload: any = {
       ...event.data,
       start_time: new Date(event.data.start_time).toISOString(),
       end_time: new Date(event.data.end_time).toISOString(),
       group_id: authStore.selectedGroupId || undefined
-    })
+    }
+
+    // Add invited members if any selected (empty array or non-empty)
+    if (invitedMemberIds.value.length > 0) {
+      payload.invited_member_ids = invitedMemberIds.value
+    }
+
+    // Add owners if any selected
+    if (ownerIds.value.length > 0) {
+      payload.owner_ids = ownerIds.value
+    }
+
+    const response = await api.createEvent(payload)
 
     toast.add({
       title: 'Event created',
@@ -102,7 +123,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
   <div>
     <!-- Header -->
     <div class="mb-6">
-      <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-2">
+      <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
         <NuxtLink to="/dashboard/events" class="hover:text-gray-700 dark:hover:text-gray-200">
           Events
         </NuxtLink>
@@ -191,6 +212,51 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
           </UFormField>
         </div>
 
+        <!-- Attendees & Owners -->
+        <div v-if="authStore.selectedGroupId" class="space-y-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            Attendees & Responsible Persons
+          </h3>
+
+          <UFormField label="Invite Members" name="invited_member_ids">
+            <MemberSelect
+              v-model="invitedMemberIds"
+              :group-id="authStore.selectedGroupId"
+              placeholder="Select members to invite (leave empty for all)..."
+              :disabled="loading"
+            />
+            <template #help>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Leave empty to invite all group members. Only applies when syncing to Spond.
+              </p>
+            </template>
+          </UFormField>
+
+          <UFormField label="Responsible Persons" name="owner_ids">
+            <MemberSelect
+              v-model="ownerIds"
+              :group-id="authStore.selectedGroupId"
+              :use-profile-id="true"
+              placeholder="Select responsible persons..."
+              :disabled="loading"
+            />
+            <template #help>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Select members who will be responsible for this event.
+              </p>
+            </template>
+          </UFormField>
+        </div>
+
+        <div v-else class="space-y-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            Attendees & Responsible Persons
+          </h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400">
+            Select a group from the header to enable attendee and owner selection.
+          </p>
+        </div>
+
         <!-- Settings -->
         <div class="space-y-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -250,8 +316,8 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
           </UButton>
 
           <UButton
-            color="gray"
-            variant="ghost"
+            color="neutral"
+            variant="outline"
             :to="'/dashboard/events'"
             :disabled="loading"
           >
