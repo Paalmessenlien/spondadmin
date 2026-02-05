@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from collections import defaultdict, Counter
 
 from app.models.event import Event
+from app.models.event_category import EventCategory
 from app.models.member import Member
 from app.schemas.analytics import (
     AttendanceTrendPoint,
@@ -17,7 +18,11 @@ from app.schemas.analytics import (
     EventTypeDistribution,
     MemberParticipationStat,
     MemberParticipationResponse,
-    AnalyticsSummary
+    AnalyticsSummary,
+    CategoryTrendPoint,
+    CategoryTrendsResponse,
+    CategoryAttendanceComparison,
+    CategoryResponseRateStats
 )
 
 
@@ -365,4 +370,352 @@ class AnalyticsService:
             average_attendance_rate=response_rates.accepted_percentage,
             most_active_members=member_participation.members,
             event_type_distribution=event_distribution
+        )
+
+    async def get_category_distribution(
+        self,
+        db: AsyncSession,
+        group_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get event distribution by category
+
+        Returns:
+            List of dictionaries with category stats
+        """
+        # Build query
+        query = select(
+            EventCategory.id,
+            EventCategory.name,
+            EventCategory.color,
+            EventCategory.icon,
+            func.count(Event.id).label("event_count")
+        ).outerjoin(
+            Event, Event.category_id == EventCategory.id
+        )
+
+        # Apply filters
+        conditions = []
+        if start_date:
+            conditions.append(Event.start_time >= start_date)
+        if end_date:
+            conditions.append(Event.start_time <= end_date)
+
+        if conditions:
+            query = query.where(and_(*conditions))
+
+        # Apply group filter if needed
+        if group_id:
+            query = self._apply_event_group_filter(query, group_id)
+
+        # Group by category
+        query = query.group_by(
+            EventCategory.id,
+            EventCategory.name,
+            EventCategory.color,
+            EventCategory.icon
+        ).order_by(func.count(Event.id).desc())
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        # Calculate percentages
+        total = sum(row.event_count for row in rows)
+
+        return [
+            {
+                "category_id": row.id,
+                "category_name": row.name,
+                "color": row.color,
+                "icon": row.icon,
+                "event_count": row.event_count,
+                "percentage": round((row.event_count / total * 100) if total > 0 else 0, 2)
+            }
+            for row in rows
+        ]
+
+    async def get_category_attendance_comparison(
+        self,
+        db: AsyncSession,
+        group_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        category_ids: Optional[List[int]] = None
+    ) -> List[CategoryAttendanceComparison]:
+        """
+        Compare attendance rates across categories
+
+        Returns:
+            List of CategoryAttendanceComparison objects
+        """
+        # Build base query
+        stmt = select(Event).join(
+            EventCategory, Event.category_id == EventCategory.id
+        )
+
+        # Apply filters
+        conditions = []
+        if start_date:
+            conditions.append(Event.start_time >= start_date)
+        if end_date:
+            conditions.append(Event.start_time <= end_date)
+        if category_ids:
+            conditions.append(Event.category_id.in_(category_ids))
+
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
+
+        # Apply group filter
+        if group_id:
+            stmt = self._apply_event_group_filter(stmt, group_id)
+
+        result = await db.execute(stmt)
+        events = result.scalars().all()
+
+        # Group events by category
+        category_data = defaultdict(lambda: {
+            "total_events": 0,
+            "total_accepted": 0,
+            "total_declined": 0,
+            "total_responses": 0,
+            "category_name": "",
+            "color": "",
+            "icon": ""
+        })
+
+        for event in events:
+            if not event.category:
+                continue
+
+            cat_id = event.category_id
+            responses = self._get_responses_array(event)
+
+            accepted = sum(1 for r in responses if r.get("answer") == "accepted")
+            declined = sum(1 for r in responses if r.get("answer") == "declined")
+            total_resp = len(responses)
+
+            category_data[cat_id]["total_events"] += 1
+            category_data[cat_id]["total_accepted"] += accepted
+            category_data[cat_id]["total_declined"] += declined
+            category_data[cat_id]["total_responses"] += total_resp
+            category_data[cat_id]["category_name"] = event.category.name
+            category_data[cat_id]["color"] = event.category.color
+            category_data[cat_id]["icon"] = event.category.icon
+
+        # Build response objects
+        results = []
+        for cat_id, data in category_data.items():
+            avg_attendance = (
+                (data["total_accepted"] / data["total_responses"] * 100)
+                if data["total_responses"] > 0
+                else 0
+            )
+
+            results.append(CategoryAttendanceComparison(
+                category_id=cat_id,
+                category_name=data["category_name"],
+                color=data["color"],
+                icon=data["icon"],
+                total_events=data["total_events"],
+                avg_attendance_rate=round(avg_attendance, 2),
+                total_responses=data["total_responses"],
+                accepted=data["total_accepted"],
+                declined=data["total_declined"]
+            ))
+
+        # Sort by attendance rate descending
+        results.sort(key=lambda x: x.avg_attendance_rate, reverse=True)
+
+        return results
+
+    async def get_category_trends(
+        self,
+        db: AsyncSession,
+        period: str = "month",
+        group_id: Optional[str] = None,
+        category_ids: Optional[List[int]] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> CategoryTrendsResponse:
+        """
+        Get attendance trends broken down by category
+
+        Returns:
+            CategoryTrendsResponse with multi-series data
+        """
+        # Default date range
+        if not end_date:
+            end_date = datetime.now(timezone.utc)
+        if not start_date:
+            if period == "week":
+                start_date = end_date - timedelta(weeks=12)
+            elif period == "month":
+                start_date = end_date - timedelta(days=90)
+            else:  # year
+                start_date = end_date - timedelta(days=365)
+
+        # Get events
+        stmt = select(Event).join(
+            EventCategory, Event.category_id == EventCategory.id
+        ).where(
+            and_(
+                Event.start_time >= start_date,
+                Event.start_time <= end_date
+            )
+        ).order_by(Event.start_time)
+
+        if category_ids:
+            stmt = stmt.where(Event.category_id.in_(category_ids))
+
+        if group_id:
+            stmt = self._apply_event_group_filter(stmt, group_id)
+
+        result = await db.execute(stmt)
+        events = result.scalars().all()
+
+        # Group by category and period
+        trend_data = defaultdict(lambda: defaultdict(lambda: {
+            "total_events": 0,
+            "accepted": 0,
+            "total_responses": 0
+        }))
+
+        category_names = {}
+        category_colors = {}
+
+        for event in events:
+            if not event.category:
+                continue
+
+            # Determine period key
+            if period == "week":
+                period_key = event.start_time.strftime("%Y-W%U")
+            elif period == "month":
+                period_key = event.start_time.strftime("%Y-%m")
+            else:  # year
+                period_key = event.start_time.strftime("%Y")
+
+            cat_id = event.category_id
+            responses = self._get_responses_array(event)
+            accepted = sum(1 for r in responses if r.get("answer") == "accepted")
+
+            trend_data[cat_id][period_key]["total_events"] += 1
+            trend_data[cat_id][period_key]["accepted"] += accepted
+            trend_data[cat_id][period_key]["total_responses"] += len(responses)
+
+            category_names[cat_id] = event.category.name
+            category_colors[cat_id] = event.category.color
+
+        # Build trend points
+        trend_points = []
+        for cat_id, periods in trend_data.items():
+            for period_key, data in sorted(periods.items()):
+                attendance_rate = (
+                    (data["accepted"] / data["total_responses"] * 100)
+                    if data["total_responses"] > 0
+                    else 0
+                )
+
+                trend_points.append(CategoryTrendPoint(
+                    date=period_key,
+                    category_id=cat_id,
+                    category_name=category_names[cat_id],
+                    color=category_colors[cat_id],
+                    total_events=data["total_events"],
+                    accepted=data["accepted"],
+                    attendance_rate=round(attendance_rate, 2)
+                ))
+
+        return CategoryTrendsResponse(
+            period=period,
+            categories=list(category_names.values()),
+            data=trend_points
+        )
+
+    async def get_category_response_rates(
+        self,
+        db: AsyncSession,
+        category_id: int,
+        group_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> CategoryResponseRateStats:
+        """
+        Get response rate statistics for a specific category
+
+        Returns:
+            CategoryResponseRateStats object
+        """
+        # Get category
+        cat_result = await db.execute(
+            select(EventCategory).where(EventCategory.id == category_id)
+        )
+        category = cat_result.scalar_one_or_none()
+
+        if not category:
+            raise ValueError(f"Category {category_id} not found")
+
+        # Get events for this category
+        stmt = select(Event).where(Event.category_id == category_id)
+
+        conditions = []
+        if start_date:
+            conditions.append(Event.start_time >= start_date)
+        if end_date:
+            conditions.append(Event.start_time <= end_date)
+
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
+
+        if group_id:
+            stmt = self._apply_event_group_filter(stmt, group_id)
+
+        result = await db.execute(stmt)
+        events = result.scalars().all()
+
+        # Calculate response rates
+        total_responses = 0
+        accepted = 0
+        declined = 0
+        unanswered = 0
+        no_answer = 0
+
+        for event in events:
+            responses = self._get_responses_array(event)
+            total_responses += len(responses)
+
+            for resp in responses:
+                answer = resp.get("answer", "").lower()
+                if answer == "accepted":
+                    accepted += 1
+                elif answer == "declined":
+                    declined += 1
+                elif answer == "unanswered":
+                    unanswered += 1
+                else:
+                    no_answer += 1
+
+        # Calculate percentages
+        accepted_pct = (accepted / total_responses * 100) if total_responses > 0 else 0
+        declined_pct = (declined / total_responses * 100) if total_responses > 0 else 0
+        response_rate = ((accepted + declined) / total_responses * 100) if total_responses > 0 else 0
+
+        response_data = ResponseRateData(
+            total_responses=total_responses,
+            accepted=accepted,
+            declined=declined,
+            unanswered=unanswered,
+            no_answer=no_answer,
+            accepted_percentage=round(accepted_pct, 2),
+            declined_percentage=round(declined_pct, 2),
+            response_rate=round(response_rate, 2)
+        )
+
+        return CategoryResponseRateStats(
+            category_id=category_id,
+            category_name=category.name,
+            color=category.color,
+            response_rate_data=response_data
         )

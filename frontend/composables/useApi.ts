@@ -181,6 +181,122 @@ export const useApi = () => {
     return makeRequest(`/analytics/member-participation?${query}`)
   }
 
+  // Categories
+  const getCategories = async (activeOnly: boolean = true) => {
+    const query = new URLSearchParams({ active_only: activeOnly.toString() }).toString()
+    return makeRequest(`/categories/?${query}`)
+  }
+
+  const getCategory = async (id: number) => {
+    return makeRequest(`/categories/${id}`)
+  }
+
+  const createCategory = async (data: any) => {
+    return makeRequest('/categories/', {
+      method: 'POST',
+      body: data,
+    })
+  }
+
+  const updateCategory = async (id: number, data: any) => {
+    return makeRequest(`/categories/${id}`, {
+      method: 'PUT',
+      body: data,
+    })
+  }
+
+  const deleteCategory = async (id: number) => {
+    return makeRequest(`/categories/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  const bulkCategorizeEvents = async (payload: { event_ids?: number[], force_recategorize?: boolean }) => {
+    return makeRequest('/categories/bulk-categorize', {
+      method: 'POST',
+      body: payload,
+    })
+  }
+
+  const getCategoryStatistics = async (params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/categories/statistics/distribution?${query}`)
+  }
+
+  // Reports
+  const getReports = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(params).toString()
+    return makeRequest(`/reports/?${query}`)
+  }
+
+  const getReport = async (id: number) => {
+    return makeRequest(`/reports/${id}`)
+  }
+
+  const createReport = async (data: any) => {
+    return makeRequest('/reports/', {
+      method: 'POST',
+      body: data,
+    })
+  }
+
+  const updateReport = async (id: number, data: any) => {
+    return makeRequest(`/reports/${id}`, {
+      method: 'PUT',
+      body: data,
+    })
+  }
+
+  const deleteReport = async (id: number) => {
+    return makeRequest(`/reports/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  const generateReport = async (id: number) => {
+    return makeRequest(`/reports/${id}/generate`, {
+      method: 'POST',
+    })
+  }
+
+  const exportReport = async (id: number, format: string = 'csv') => {
+    const query = new URLSearchParams({ format }).toString()
+    // Return the full URL for download
+    return `${config.public.apiBase}/reports/${id}/export?${query}`
+  }
+
+  const toggleReportFavorite = async (id: number) => {
+    return makeRequest(`/reports/${id}/favorite`, {
+      method: 'POST',
+    })
+  }
+
+  // Category Analytics
+  const getCategoryDistribution = async (params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/analytics/categories/distribution?${query}`)
+  }
+
+  const getCategoryAttendanceComparison = async (params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/analytics/categories/attendance?${query}`)
+  }
+
+  const getCategoryTrends = async (period: string = 'month', params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter({ ...params, period })
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/analytics/categories/trends?${query}`)
+  }
+
+  const getCategoryResponseRates = async (categoryId: number, params: Record<string, any> = {}) => {
+    const filteredParams = withGroupFilter(params)
+    const query = new URLSearchParams(filteredParams).toString()
+    return makeRequest(`/analytics/categories/${categoryId}/response-rates?${query}`)
+  }
+
   return {
     // Auth
     login,
@@ -209,5 +325,27 @@ export const useApi = () => {
     getResponseRates,
     getEventTypeDistribution,
     getMemberParticipation,
+    // Categories
+    getCategories,
+    getCategory,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    bulkCategorizeEvents,
+    getCategoryStatistics,
+    // Reports
+    getReports,
+    getReport,
+    createReport,
+    updateReport,
+    deleteReport,
+    generateReport,
+    exportReport,
+    toggleReportFavorite,
+    // Category Analytics
+    getCategoryDistribution,
+    getCategoryAttendanceComparison,
+    getCategoryTrends,
+    getCategoryResponseRates,
   }
 }

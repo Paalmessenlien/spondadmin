@@ -2,8 +2,8 @@
 Event model for caching Spond events
 """
 from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, Text, JSON, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Boolean, DateTime, Text, JSON, func, ForeignKey, Integer
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
 
@@ -21,6 +21,10 @@ class Event(Base, TimestampMixin):
 
     # Group association (spond_id of the group this event belongs to)
     group_id: Mapped[str] = mapped_column(String(255), nullable=True, index=True)
+
+    # Category association
+    category_id: Mapped[int] = mapped_column(Integer, ForeignKey("event_categories.id"), nullable=True, index=True)
+    category_override: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # Manual assignment flag
 
     # Event details
     heading: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -64,6 +68,9 @@ class Event(Base, TimestampMixin):
         server_default=func.now(),
         nullable=False
     )
+
+    # Relationships
+    category = relationship("EventCategory", back_populates="events")
 
     def __repr__(self) -> str:
         return f"<Event {self.spond_id}: {self.heading}>"

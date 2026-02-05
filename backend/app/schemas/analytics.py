@@ -67,3 +67,43 @@ class AnalyticsSummary(BaseModel):
     average_attendance_rate: float
     most_active_members: List[MemberParticipationStat]
     event_type_distribution: List[EventTypeDistribution]
+
+
+# Category-based analytics schemas
+class CategoryTrendPoint(BaseModel):
+    """Single point in category-based trend"""
+    date: str  # ISO format date
+    category_id: int
+    category_name: str
+    color: str
+    total_events: int
+    accepted: int
+    attendance_rate: float
+
+
+class CategoryTrendsResponse(BaseModel):
+    """Response for category trends over time"""
+    period: str  # "week", "month", "year"
+    categories: List[str]  # Category names
+    data: List[CategoryTrendPoint]
+
+
+class CategoryAttendanceComparison(BaseModel):
+    """Attendance comparison across categories"""
+    category_id: int
+    category_name: str
+    color: str
+    icon: str
+    total_events: int
+    avg_attendance_rate: float
+    total_responses: int
+    accepted: int
+    declined: int
+
+
+class CategoryResponseRateStats(BaseModel):
+    """Response rate statistics for a specific category"""
+    category_id: int
+    category_name: str
+    color: str
+    response_rate_data: ResponseRateData

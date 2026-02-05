@@ -22,8 +22,10 @@ from app.db.base import Base
 from app.models import (  # noqa: F401
     Admin,
     Event,
+    EventCategory,
     Group,
     Member,
+    Report,
     SyncHistory,
     AuditLog,
 )

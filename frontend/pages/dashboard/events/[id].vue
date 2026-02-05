@@ -45,6 +45,7 @@
                     <UBadge :color="getEventTypeColor(event.event_type)">
                       {{ event.event_type || 'Event' }}
                     </UBadge>
+                    <CategoryBadge v-if="event.category_id" :category-id="event.category_id" size="sm" />
                     <SyncStatusBadge :status="event.sync_status" :error="event.sync_error" />
                   </div>
                 </div>

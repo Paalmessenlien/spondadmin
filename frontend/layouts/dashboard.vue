@@ -77,6 +77,24 @@
             >
               Members
             </UButton>
+            <UButton
+              to="/dashboard/categories"
+              color="gray"
+              variant="ghost"
+              icon="i-heroicons-tag"
+              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
+            >
+              Categories
+            </UButton>
+            <UButton
+              to="/dashboard/reports"
+              color="gray"
+              variant="ghost"
+              icon="i-heroicons-document-chart-bar"
+              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
+            >
+              Reports
+            </UButton>
           </nav>
 
           <!-- Group Selector and User Menu - Desktop -->
@@ -185,6 +203,28 @@
               @click="mobileMenuOpen = false"
             >
               Members
+            </UButton>
+            <UButton
+              to="/dashboard/categories"
+              block
+              color="gray"
+              variant="ghost"
+              icon="i-heroicons-tag"
+              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
+              @click="mobileMenuOpen = false"
+            >
+              Categories
+            </UButton>
+            <UButton
+              to="/dashboard/reports"
+              block
+              color="gray"
+              variant="ghost"
+              icon="i-heroicons-document-chart-bar"
+              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
+              @click="mobileMenuOpen = false"
+            >
+              Reports
             </UButton>
           </nav>
         </div>

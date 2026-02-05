@@ -219,6 +219,9 @@
                       >
                         {{ event.description }}
                       </div>
+                      <div v-if="event.category_id" class="mt-1">
+                        <CategoryBadge :category-id="event.category_id" size="xs" />
+                      </div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {{ formatDate(event.start_time) }}

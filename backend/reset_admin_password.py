@@ -14,10 +14,22 @@ from app.schemas.admin import AdminUpdate
 
 
 def generate_secure_password(length: int = 16) -> str:
-    """Generate a secure random password"""
+    """Generate a secure random password with at least one digit"""
+    # Ensure password has at least: 1 lowercase, 1 uppercase, 1 digit, 1 special char
+    password_chars = [
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.digits),
+        secrets.choice("!@#$%^&*")
+    ]
+
+    # Fill the rest randomly
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    password = ''.join(secrets.choice(alphabet) for _ in range(length))
-    return password
+    password_chars.extend(secrets.choice(alphabet) for _ in range(length - 4))
+
+    # Shuffle to avoid predictable positions
+    secrets.SystemRandom().shuffle(password_chars)
+    return ''.join(password_chars)
 
 
 async def reset_password():

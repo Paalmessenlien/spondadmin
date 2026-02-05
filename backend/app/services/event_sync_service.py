@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.event import Event
 from app.models.sync_history import SyncHistory
 from app.services.spond_service import SpondService
+from app.services.category_service import CategoryService
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +192,15 @@ class EventSyncService:
         # Extract responses and enrich with member profile data
         responses = EventSyncService._extract_responses(event_dict.get("responses"), member_lookup)
 
+        # Auto-categorize event if not manually overridden
+        category_id = None
+        if existing_event and not existing_event.category_override:
+            # Re-categorize existing event if not manually set
+            category_id = await CategoryService.match_event_to_category(db, heading)
+        elif not existing_event:
+            # Auto-categorize new event
+            category_id = await CategoryService.match_event_to_category(db, heading)
+
         if existing_event:
             # Update existing event
             now = datetime.utcnow()
@@ -212,6 +222,9 @@ class EventSyncService:
             existing_event.raw_data = event_dict
             existing_event.last_synced_at = now
             existing_event.updated_at = now
+            # Update category if auto-categorized
+            if category_id is not None and not existing_event.category_override:
+                existing_event.category_id = category_id
             # Only update sync_status to 'synced' if it's not local_only
             if existing_event.sync_status != "local_only":
                 existing_event.sync_status = "synced"
@@ -239,6 +252,8 @@ class EventSyncService:
                 location_longitude=location_longitude,
                 max_accepted=max_accepted,
                 group_id=group_id,
+                category_id=category_id,  # Auto-categorize new event
+                category_override=False,  # Not manually set
                 responses=responses,
                 raw_data=event_dict,
                 sync_status="synced",  # Events from Spond are synced by definition

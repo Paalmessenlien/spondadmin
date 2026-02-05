@@ -142,11 +142,13 @@ async def root():
 
 
 # Include API routers
-from app.api.v1 import auth, events, groups, members, analytics, scheduler
+from app.api.v1 import auth, events, groups, members, analytics, scheduler, categories, reports
 
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(events.router, prefix=f"{settings.API_V1_PREFIX}/events", tags=["events"])
 app.include_router(groups.router, prefix=f"{settings.API_V1_PREFIX}/groups", tags=["groups"])
 app.include_router(members.router, prefix=f"{settings.API_V1_PREFIX}/members", tags=["members"])
 app.include_router(analytics.router, prefix=f"{settings.API_V1_PREFIX}/analytics", tags=["analytics"])
+app.include_router(categories.router, prefix=f"{settings.API_V1_PREFIX}/categories", tags=["categories"])
+app.include_router(reports.router, prefix=f"{settings.API_V1_PREFIX}/reports", tags=["reports"])
 app.include_router(scheduler.router, prefix=f"{settings.API_V1_PREFIX}/scheduler", tags=["scheduler"])
