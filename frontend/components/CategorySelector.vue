@@ -50,10 +50,8 @@ const categoryItems = computed(() => {
   console.log('CategorySelector - store.categories.length:', categoryStore.categories.length)
 
   const items = categories.map(cat => ({
-    id: cat.id,
+    ...cat,
     label: cat.name,
-    icon: cat.icon,
-    color: cat.color,
     value: cat.id
   }))
 
@@ -61,22 +59,29 @@ const categoryItems = computed(() => {
   return items
 })
 
-// Selected categories for display
+// Selected categories for display (now working with IDs directly)
 const selected = computed({
   get: () => {
     if (!props.multiple) {
-      const id = props.modelValue[0]
-      return categoryItems.value.find(item => item.id === id) || null
+      return props.modelValue[0] || null
     }
-    return categoryItems.value.filter(item => props.modelValue.includes(item.id))
+    return props.modelValue
   },
   set: (value) => {
     if (!props.multiple) {
-      emit('update:modelValue', value ? [value.id] : [])
+      emit('update:modelValue', value ? [value] : [])
     } else {
-      emit('update:modelValue', Array.isArray(value) ? value.map((v: any) => v.id) : [])
+      emit('update:modelValue', Array.isArray(value) ? value : [])
     }
   }
+})
+
+// Get selected category objects for display
+const selectedCategories = computed(() => {
+  if (!props.multiple && selected.value) {
+    return categoryItems.value.find(item => item.id === selected.value) || null
+  }
+  return categoryItems.value.filter(item => props.modelValue.includes(item.id))
 })
 
 // Color helper for badges
@@ -90,24 +95,25 @@ const getCategoryColor = (categoryId: number) => {
   <div class="w-full">
     <USelectMenu
       v-model="selected"
-      by="id"
       :options="categoryItems"
       :loading="categoryStore.loading"
       :placeholder="placeholder"
       :multiple="multiple"
+      option-attribute="label"
+      value-attribute="id"
       aria-label="Select categories"
       :ui="{
         width: 'w-full'
       }"
     >
       <template #label>
-        <span v-if="!multiple && selected" class="flex items-center gap-2">
-          <UIcon :name="(selected as any).icon" class="w-4 h-4" :style="{ color: (selected as any).color }" />
-          <span>{{ (selected as any).label }}</span>
+        <span v-if="!multiple && selectedCategories" class="flex items-center gap-2">
+          <UIcon :name="selectedCategories.icon" class="w-4 h-4" :style="{ color: selectedCategories.color }" />
+          <span>{{ selectedCategories.label }}</span>
         </span>
-        <div v-else-if="multiple && Array.isArray(selected) && selected.length > 0" class="flex items-center gap-1 flex-wrap">
+        <div v-else-if="multiple && Array.isArray(selectedCategories) && selectedCategories.length > 0" class="flex items-center gap-1 flex-wrap">
           <span
-            v-for="cat in selected.slice(0, 3)"
+            v-for="cat in selectedCategories.slice(0, 3)"
             :key="cat.id"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
             :style="{
@@ -120,8 +126,8 @@ const getCategoryColor = (categoryId: number) => {
             <UIcon :name="cat.icon" class="w-3 h-3" />
             {{ cat.label }}
           </span>
-          <span v-if="selected.length > 3" class="text-xs text-gray-500">
-            +{{ selected.length - 3 }} more
+          <span v-if="selectedCategories.length > 3" class="text-xs text-gray-500">
+            +{{ selectedCategories.length - 3 }} more
           </span>
         </div>
         <span v-else class="text-gray-500 dark:text-gray-400">{{ placeholder }}</span>
