@@ -42,39 +42,42 @@ const categoryItems = computed(() => {
     ? categoryStore.activeCategories
     : categoryStore.categories
 
+  console.log('[CategorySelector] categoryItems computed running')
+  console.log('[CategorySelector] categories length:', categories.length)
+  console.log('[CategorySelector] categories:', categories)
+
   // Simple format: label and value for USelectMenu, plus icon/color for templates
-  return categories.map(cat => ({
+  const items = categories.map(cat => ({
     label: cat.name,
     value: cat.id,
     icon: cat.icon,
     color: cat.color,
     id: cat.id
   }))
+
+  console.log('[CategorySelector] mapped items:', items)
+  console.log('[CategorySelector] items length:', items.length)
+
+  return items
 })
 
-// Selected categories for display (now working with IDs directly)
+// Selected categories - v-model works with full objects
 const selected = computed({
   get: () => {
     if (!props.multiple) {
-      return props.modelValue[0] || null
+      const id = props.modelValue[0]
+      return categoryItems.value.find(item => item.value === id) || null
     }
-    return props.modelValue
+    // For multiple, return array of full objects
+    return categoryItems.value.filter(item => props.modelValue.includes(item.value))
   },
   set: (value) => {
     if (!props.multiple) {
-      emit('update:modelValue', value ? [value] : [])
+      emit('update:modelValue', value ? [value.value] : [])
     } else {
-      emit('update:modelValue', Array.isArray(value) ? value : [])
+      emit('update:modelValue', Array.isArray(value) ? value.map((v: any) => v.value) : [])
     }
   }
-})
-
-// Get selected category objects for display
-const selectedCategories = computed(() => {
-  if (!props.multiple && selected.value) {
-    return categoryItems.value.find(item => item.value === selected.value) || null
-  }
-  return categoryItems.value.filter(item => props.modelValue.includes(item.value))
 })
 
 // Color helper for badges
@@ -86,26 +89,25 @@ const getCategoryColor = (categoryId: number) => {
 
 <template>
   <div class="w-full">
+    <!-- Debug info -->
+    <div class="text-xs text-gray-500 mb-2">
+      Debug: {{ categoryItems.length }} items, loading: {{ categoryStore.loading }}
+    </div>
     <USelectMenu
       v-model="selected"
       :options="categoryItems"
-      value-attribute="value"
-      :loading="categoryStore.loading"
-      :placeholder="placeholder"
       :multiple="multiple"
-      aria-label="Select categories"
-      :ui="{
-        width: 'w-full'
-      }"
+      :placeholder="placeholder"
+      :loading="categoryStore.loading"
     >
       <template #label>
-        <span v-if="!multiple && selectedCategories" class="flex items-center gap-2">
-          <UIcon :name="selectedCategories.icon" class="w-4 h-4" :style="{ color: selectedCategories.color }" />
-          <span>{{ selectedCategories.label }}</span>
+        <span v-if="!multiple && selected" class="flex items-center gap-2">
+          <UIcon :name="(selected as any).icon" class="w-4 h-4" :style="{ color: (selected as any).color }" />
+          <span>{{ (selected as any).label }}</span>
         </span>
-        <div v-else-if="multiple && Array.isArray(selectedCategories) && selectedCategories.length > 0" class="flex items-center gap-1 flex-wrap">
+        <div v-else-if="multiple && Array.isArray(selected) && selected.length > 0" class="flex items-center gap-1 flex-wrap">
           <span
-            v-for="cat in selectedCategories.slice(0, 3)"
+            v-for="cat in (selected as any[]).slice(0, 3)"
             :key="cat.id"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
             :style="{
@@ -118,8 +120,8 @@ const getCategoryColor = (categoryId: number) => {
             <UIcon :name="cat.icon" class="w-3 h-3" />
             {{ cat.label }}
           </span>
-          <span v-if="selectedCategories.length > 3" class="text-xs text-gray-500">
-            +{{ selectedCategories.length - 3 }} more
+          <span v-if="(selected as any[]).length > 3" class="text-xs text-gray-500">
+            +{{ (selected as any[]).length - 3 }} more
           </span>
         </div>
         <span v-else class="text-gray-500 dark:text-gray-400">{{ placeholder }}</span>
