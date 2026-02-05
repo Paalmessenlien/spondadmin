@@ -23,18 +23,34 @@ interface CategoryDistribution {
 }
 
 const props = defineProps<{
-  data: CategoryDistribution[]
+  data: CategoryDistribution[] | any
 }>()
 
 const chartData = computed(() => {
-  if (!props.data || props.data.length === 0) return null
+  // Handle array or object with array
+  const dataArray = Array.isArray(props.data) ? props.data : []
+
+  if (!dataArray || dataArray.length === 0) {
+    console.log('CategoryDistributionChart: No data or empty array', props.data)
+    return null
+  }
+
+  // Filter out categories with 0 events
+  const filteredData = dataArray.filter(item => item.event_count > 0)
+
+  if (filteredData.length === 0) {
+    console.log('CategoryDistributionChart: All categories have 0 events')
+    return null
+  }
+
+  console.log('CategoryDistributionChart: Rendering chart with data', filteredData)
 
   return {
-    labels: props.data.map(item => item.category_name),
+    labels: filteredData.map(item => item.category_name),
     datasets: [
       {
-        data: props.data.map(item => item.event_count),
-        backgroundColor: props.data.map(item => item.color),
+        data: filteredData.map(item => item.event_count),
+        backgroundColor: filteredData.map(item => item.color),
         borderWidth: 2,
         borderColor: '#fff'
       }
@@ -70,7 +86,10 @@ const chartOptions = {
     <div v-else class="flex items-center justify-center h-full text-gray-500">
       <div class="text-center">
         <UIcon name="i-heroicons-chart-pie" class="h-12 w-12 mx-auto mb-2 opacity-50" />
-        <p class="text-sm">No category data available</p>
+        <p class="text-sm font-medium">No category data available</p>
+        <p class="text-xs mt-1">
+          {{ Array.isArray(data) ? `Received ${data.length} categories` : 'Invalid data format' }}
+        </p>
       </div>
     </div>
   </div>
