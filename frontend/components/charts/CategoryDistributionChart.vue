@@ -82,15 +82,22 @@ const chartOptions = {
 
 <template>
   <div class="relative h-64">
-    <Doughnut v-if="chartData" :data="chartData" :options="chartOptions" />
-    <div v-else class="flex items-center justify-center h-full text-gray-500">
-      <div class="text-center">
-        <UIcon name="i-heroicons-chart-pie" class="h-12 w-12 mx-auto mb-2 opacity-50" />
-        <p class="text-sm font-medium">No category data available</p>
-        <p class="text-xs mt-1">
-          {{ Array.isArray(data) ? `Received ${data.length} categories` : 'Invalid data format' }}
-        </p>
+    <ClientOnly>
+      <Doughnut v-if="chartData" :data="chartData" :options="chartOptions" />
+      <div v-else class="flex items-center justify-center h-full text-gray-500">
+        <div class="text-center">
+          <UIcon name="i-heroicons-chart-pie" class="h-12 w-12 mx-auto mb-2 opacity-50" />
+          <p class="text-sm font-medium">No category data available</p>
+          <p class="text-xs mt-1">
+            {{ Array.isArray(data) ? `Received ${data.length} categories` : 'Invalid data format' }}
+          </p>
+        </div>
       </div>
-    </div>
+      <template #fallback>
+        <div class="flex items-center justify-center h-full">
+          <UIcon name="i-heroicons-arrow-path" class="animate-spin h-6 w-6 text-gray-400" />
+        </div>
+      </template>
+    </ClientOnly>
   </div>
 </template>
