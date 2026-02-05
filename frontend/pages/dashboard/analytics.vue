@@ -8,14 +8,47 @@
               Insights and trends from your Spond data
             </p>
           </div>
-          <UButton
-            icon="i-heroicons-arrow-path"
-            label="Refresh Data"
-            @click="refreshAllAnalytics"
-            :loading="isRefreshing"
-            color="primary"
-          />
+          <div class="flex gap-2">
+            <UButton
+              icon="i-heroicons-document-chart-bar"
+              label="View Reports"
+              to="/dashboard/reports"
+              variant="soft"
+            />
+            <UButton
+              icon="i-heroicons-arrow-path"
+              label="Refresh Data"
+              @click="refreshAllAnalytics"
+              :loading="isRefreshing"
+              color="primary"
+            />
+          </div>
         </div>
+
+        <!-- Category Filter -->
+        <UCard>
+          <div class="flex items-center gap-4">
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Filter by Categories
+              </label>
+              <CategorySelector
+                v-model="selectedCategories"
+                :multiple="true"
+                placeholder="All categories (no filter)"
+              />
+            </div>
+            <div v-if="selectedCategories.length > 0" class="pt-6">
+              <UButton
+                icon="i-heroicons-x-mark"
+                label="Clear Filter"
+                variant="soft"
+                color="gray"
+                @click="selectedCategories = []"
+              />
+            </div>
+          </div>
+        </UCard>
 
         <!-- Warning Banner for Empty Data -->
         <UAlert
@@ -56,6 +89,25 @@
               <span class="text-sm text-gray-600 dark:text-gray-400">Total Responses</span>
               <span class="text-2xl font-bold mt-1">{{ summary?.total_responses || 0 }}</span>
             </div>
+          </UCard>
+        </div>
+
+        <!-- Category Analytics -->
+        <div v-if="categoryDistribution && categoryDistribution.length > 0" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Category Distribution -->
+          <UCard>
+            <template #header>
+              <h3 class="text-lg font-semibold">Category Distribution</h3>
+            </template>
+            <CategoryDistributionChart :data="categoryDistribution" />
+          </UCard>
+
+          <!-- Category Comparison -->
+          <UCard>
+            <template #header>
+              <h3 class="text-lg font-semibold">Category Comparison</h3>
+            </template>
+            <CategoryComparisonChart :data="categoryComparison" />
           </UCard>
         </div>
 
@@ -163,9 +215,13 @@ definePageMeta({
 import AttendanceTrendChart from '~/components/AttendanceTrendChart.vue'
 import ResponseRateChart from '~/components/ResponseRateChart.vue'
 import EventTypeChart from '~/components/EventTypeChart.vue'
+import CategoryDistributionChart from '~/components/charts/CategoryDistributionChart.vue'
+import CategoryComparisonChart from '~/components/charts/CategoryComparisonChart.vue'
+import CategorySelector from '~/components/CategorySelector.vue'
 
 const config = useRuntimeConfig()
 const authStore = useAuthStore()
+const categoryStore = useCategoryStore()
 
 const selectedPeriod = ref('month')
 const periodOptions = [
@@ -174,17 +230,35 @@ const periodOptions = [
   { label: 'Yearly', value: 'year' }
 ]
 
+const selectedCategories = ref<number[]>([])
+
+// Load categories on mount
+onMounted(async () => {
+  if (categoryStore.categories.length === 0) {
+    await categoryStore.fetchCategories()
+  }
+})
+
 // Create headers with auth token
 const headers = computed(() => ({
   Authorization: authStore.token ? `Bearer ${authStore.token}` : ''
 }))
 
-// Build query params for group filtering
+// Build query params for group and category filtering
 const groupQuery = computed(() => {
   if (authStore.selectedGroupId) {
     return { group_id: authStore.selectedGroupId }
   }
   return {}
+})
+
+// Build query params including category filter
+const analyticsQuery = computed(() => {
+  const query: Record<string, any> = { ...groupQuery.value }
+  if (selectedCategories.value.length > 0) {
+    query.category_ids = selectedCategories.value.join(',')
+  }
+  return query
 })
 
 // Fetch analytics summary
@@ -256,6 +330,32 @@ const { data: memberParticipation, pending: membersPending, refresh: refreshMemb
 
 const topMembers = computed(() => memberParticipation.value?.members || [])
 
+// Fetch category distribution
+const { data: categoryDistribution, pending: categoryDistPending, refresh: refreshCategoryDist } = await useFetch(
+  '/analytics/categories/distribution',
+  {
+    baseURL: config.public.apiBase,
+    headers: headers.value,
+    query: analyticsQuery,
+    lazy: true,
+    key: 'category-distribution',
+    watch: [() => authStore.selectedGroupId, selectedCategories],
+  }
+)
+
+// Fetch category attendance comparison
+const { data: categoryComparison, pending: categoryCompPending, refresh: refreshCategoryComp } = await useFetch(
+  '/analytics/categories/attendance',
+  {
+    baseURL: config.public.apiBase,
+    headers: headers.value,
+    query: analyticsQuery,
+    lazy: true,
+    key: 'category-comparison',
+    watch: [() => authStore.selectedGroupId, selectedCategories],
+  }
+)
+
 // Refresh state
 const isRefreshing = ref(false)
 
@@ -268,7 +368,9 @@ const refreshAllAnalytics = async () => {
       refreshTrends(),
       refreshRates(),
       refreshEventTypes(),
-      refreshMembers()
+      refreshMembers(),
+      refreshCategoryDist(),
+      refreshCategoryComp()
     ])
   } finally {
     isRefreshing.value = false
