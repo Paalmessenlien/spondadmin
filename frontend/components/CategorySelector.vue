@@ -80,12 +80,11 @@ const getCategoryColor = (categoryId: number) => {
   <div class="w-full">
     <USelectMenu
       v-model="selected"
+      by="id"
       :options="categoryItems"
       :loading="categoryStore.loading"
       :placeholder="placeholder"
       :multiple="multiple"
-      value-attribute="id"
-      option-attribute="label"
       aria-label="Select categories"
       :ui="{
         width: 'w-full'
