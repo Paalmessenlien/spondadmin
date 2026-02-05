@@ -73,7 +73,13 @@ if (!localValue.value.configuration) {
       start: threeMonthsAgo,
       end: today
     },
+    category_ids: [],
     metrics: ['summary']
+  }
+} else {
+  // Ensure category_ids is always an array
+  if (!localValue.value.configuration.category_ids) {
+    localValue.value.configuration.category_ids = []
   }
 }
 
