@@ -31,32 +31,25 @@ const categoryStore = useCategoryStore()
 
 // Load categories on mount
 onMounted(async () => {
-  console.log('CategorySelector - onMounted, categories.length:', categoryStore.categories.length)
   if (categoryStore.categories.length === 0) {
-    console.log('CategorySelector - fetching categories...')
     await categoryStore.fetchCategories(props.activeOnly)
-    console.log('CategorySelector - after fetch, categories.length:', categoryStore.categories.length)
   }
 })
 
-// Map categories to USelectMenu items
+// Map categories to USelectMenu items (match working pattern from analytics.vue)
 const categoryItems = computed(() => {
   const categories = props.activeOnly
     ? categoryStore.activeCategories
     : categoryStore.categories
 
-  console.log('CategorySelector - categories from store:', categories)
-  console.log('CategorySelector - activeOnly:', props.activeOnly)
-  console.log('CategorySelector - store.categories.length:', categoryStore.categories.length)
-
-  const items = categories.map(cat => ({
-    ...cat,
+  // Simple format: label and value for USelectMenu, plus icon/color for templates
+  return categories.map(cat => ({
     label: cat.name,
-    value: cat.id
+    value: cat.id,
+    icon: cat.icon,
+    color: cat.color,
+    id: cat.id
   }))
-
-  console.log('CategorySelector - mapped items:', items)
-  return items
 })
 
 // Selected categories for display (now working with IDs directly)
@@ -79,9 +72,9 @@ const selected = computed({
 // Get selected category objects for display
 const selectedCategories = computed(() => {
   if (!props.multiple && selected.value) {
-    return categoryItems.value.find(item => item.id === selected.value) || null
+    return categoryItems.value.find(item => item.value === selected.value) || null
   }
-  return categoryItems.value.filter(item => props.modelValue.includes(item.id))
+  return categoryItems.value.filter(item => props.modelValue.includes(item.value))
 })
 
 // Color helper for badges
@@ -96,11 +89,10 @@ const getCategoryColor = (categoryId: number) => {
     <USelectMenu
       v-model="selected"
       :options="categoryItems"
+      value-attribute="value"
       :loading="categoryStore.loading"
       :placeholder="placeholder"
       :multiple="multiple"
-      option-attribute="label"
-      value-attribute="id"
       aria-label="Select categories"
       :ui="{
         width: 'w-full'
