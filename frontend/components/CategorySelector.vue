@@ -31,8 +31,11 @@ const categoryStore = useCategoryStore()
 
 // Load categories on mount
 onMounted(async () => {
+  console.log('CategorySelector - onMounted, categories.length:', categoryStore.categories.length)
   if (categoryStore.categories.length === 0) {
+    console.log('CategorySelector - fetching categories...')
     await categoryStore.fetchCategories(props.activeOnly)
+    console.log('CategorySelector - after fetch, categories.length:', categoryStore.categories.length)
   }
 })
 
@@ -42,13 +45,20 @@ const categoryItems = computed(() => {
     ? categoryStore.activeCategories
     : categoryStore.categories
 
-  return categories.map(cat => ({
+  console.log('CategorySelector - categories from store:', categories)
+  console.log('CategorySelector - activeOnly:', props.activeOnly)
+  console.log('CategorySelector - store.categories.length:', categoryStore.categories.length)
+
+  const items = categories.map(cat => ({
     id: cat.id,
     label: cat.name,
     icon: cat.icon,
     color: cat.color,
     value: cat.id
   }))
+
+  console.log('CategorySelector - mapped items:', items)
+  return items
 })
 
 // Selected categories for display
