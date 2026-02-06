@@ -35,7 +35,7 @@ def generate_secure_password(length: int = 16) -> str:
 async def reset_password():
     """Reset admin password to a new secure random password"""
 
-    username = "testadmin"
+    username = "admin"
 
     # Generate a secure random password
     new_password = generate_secure_password(16)

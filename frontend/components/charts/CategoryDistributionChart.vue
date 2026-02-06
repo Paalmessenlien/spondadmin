@@ -31,7 +31,6 @@ const chartData = computed(() => {
   const dataArray = Array.isArray(props.data) ? props.data : []
 
   if (!dataArray || dataArray.length === 0) {
-    console.log('CategoryDistributionChart: No data or empty array', props.data)
     return null
   }
 
@@ -39,11 +38,8 @@ const chartData = computed(() => {
   const filteredData = dataArray.filter(item => item.event_count > 0)
 
   if (filteredData.length === 0) {
-    console.log('CategoryDistributionChart: All categories have 0 events')
     return null
   }
-
-  console.log('CategoryDistributionChart: Rendering chart with data', filteredData)
 
   return {
     labels: filteredData.map(item => item.category_name),

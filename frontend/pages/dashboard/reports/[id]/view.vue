@@ -1,6 +1,13 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth', layout: 'dashboard' })
 
+import CategoryDistributionChart from '~/components/charts/CategoryDistributionChart.vue'
+import CategoryComparisonChart from '~/components/charts/CategoryComparisonChart.vue'
+import AttendanceTrendChart from '~/components/AttendanceTrendChart.vue'
+import ResponseRateChart from '~/components/ResponseRateChart.vue'
+import Breadcrumb from '~/components/Breadcrumb.vue'
+import ReportExportButton from '~/components/ReportExportButton.vue'
+
 const route = useRoute()
 const reportStore = useReportStore()
 const toast = useToast()
