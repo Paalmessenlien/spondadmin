@@ -120,7 +120,7 @@
                 <h3 class="text-lg font-semibold">Attendance Trends</h3>
                 <USelectMenu
                   v-model="selectedPeriod"
-                  :options="periodOptions"
+                  :items="periodOptions"
                   value-attribute="value"
                   @update:model-value="loadAttendanceTrends"
                 />

@@ -36,29 +36,22 @@ onMounted(async () => {
   }
 })
 
-// Map categories to USelectMenu items (match working pattern from analytics.vue)
+// Map categories to USelectMenu items
 const categoryItems = computed(() => {
   const categories = props.activeOnly
     ? categoryStore.activeCategories
     : categoryStore.categories
 
-  console.log('[CategorySelector] categoryItems computed running')
-  console.log('[CategorySelector] categories length:', categories.length)
-  console.log('[CategorySelector] categories:', categories)
-
-  // Simple format: label and value for USelectMenu, plus icon/color for templates
-  const items = categories.map(cat => ({
-    label: cat.name,
-    value: cat.id,
-    icon: cat.icon,
-    color: cat.color,
-    id: cat.id
-  }))
-
-  console.log('[CategorySelector] mapped items:', items)
-  console.log('[CategorySelector] items length:', items.length)
-
-  return items
+  // Convert to plain objects for USelectMenu
+  return JSON.parse(JSON.stringify(
+    categories.map(cat => ({
+      label: cat.name,
+      value: cat.id,
+      icon: cat.icon,
+      color: cat.color,
+      id: cat.id
+    }))
+  ))
 })
 
 // Selected categories - v-model works with full objects
@@ -89,13 +82,9 @@ const getCategoryColor = (categoryId: number) => {
 
 <template>
   <div class="w-full">
-    <!-- Debug info -->
-    <div class="text-xs text-gray-500 mb-2">
-      Debug: {{ categoryItems.length }} items, loading: {{ categoryStore.loading }}
-    </div>
     <USelectMenu
       v-model="selected"
-      :options="categoryItems"
+      :items="categoryItems"
       :multiple="multiple"
       :placeholder="placeholder"
       :loading="categoryStore.loading"
