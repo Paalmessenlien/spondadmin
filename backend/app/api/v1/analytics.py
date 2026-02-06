@@ -212,3 +212,20 @@ async def get_category_response_rates(
     return await service.get_category_response_rates(
         db, category_id, group_id, start_date, end_date
     )
+
+
+@router.get("/organizers")
+async def get_organizer_statistics(
+    limit: int = Query(10, ge=1, le=100),
+    group_id: Optional[str] = Query(None, description="Filter by group spond_id"),
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_user)
+):
+    """
+    Get organizer statistics
+
+    - **limit**: Maximum number of organizers to return (default: 10)
+    - **group_id**: Optional group spond_id to filter by
+    """
+    service = AnalyticsService()
+    return await service.get_organizer_statistics(db, limit, group_id)

@@ -673,6 +673,99 @@ class EventService:
         }
 
     @staticmethod
+    async def get_events_with_attendance(
+        db: AsyncSession,
+        group_id: Optional[int] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        category_ids: Optional[List[int]] = None
+    ) -> List[dict]:
+        """
+        Get events with aggregated attendance statistics
+
+        Args:
+            db: Database session
+            group_id: Optional group filter
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+            category_ids: Optional category ID filters
+
+        Returns:
+            List of events with attendance statistics
+        """
+        from sqlalchemy.orm import selectinload
+
+        query = select(Event).options(
+            selectinload(Event.category)
+        )
+
+        # Apply filters
+        if group_id:
+            query = query.where(Event.group_id == group_id)
+        if start_date:
+            query = query.where(Event.start_time >= start_date)
+        if end_date:
+            query = query.where(Event.start_time <= end_date)
+        if category_ids:
+            query = query.where(Event.category_id.in_(category_ids))
+
+        query = query.order_by(Event.start_time.desc())
+        result = await db.execute(query)
+        events = result.scalars().all()
+
+        # Build response with attendance stats
+        events_data = []
+        for event in events:
+            # Extract responses array (supports both old and new formats)
+            responses = []
+            if event.responses:
+                # New format: has responses array
+                if "responses" in event.responses:
+                    responses = event.responses["responses"]
+                # Old format: use all UID arrays
+                else:
+                    for uid in event.responses.get("accepted_uids", []):
+                        responses.append({"answer": "accepted", "profile": {"id": uid}})
+                    for uid in event.responses.get("declined_uids", []):
+                        responses.append({"answer": "declined", "profile": {"id": uid}})
+                    for uid in event.responses.get("unanswered_uids", []):
+                        responses.append({"answer": "unanswered", "profile": {"id": uid}})
+
+            # Count responses
+            accepted = sum(1 for r in responses if r.get("answer") == "accepted")
+            declined = sum(1 for r in responses if r.get("answer") == "declined")
+            total = len(responses)
+            unanswered = total - accepted - declined
+
+            # Only include events with at least one attendee
+            if accepted > 0:
+                # Extract organizers/owners from raw_data
+                organizers = []
+                if event.raw_data and "owners" in event.raw_data:
+                    for owner in event.raw_data["owners"]:
+                        organizers.append({
+                            "id": owner.get("id"),
+                            "name": f"{owner.get('firstName', '')} {owner.get('lastName', '')}".strip(),
+                            "response": owner.get("response", "unanswered")
+                        })
+
+                events_data.append({
+                    "event_id": event.id,
+                    "heading": event.heading,
+                    "start_time": event.start_time.isoformat() if event.start_time else None,
+                    "category_name": event.category.name if event.category else "Other",
+                    "category_color": event.category.color if event.category else "#6B7280",
+                    "total_invites": total,
+                    "accepted": accepted,
+                    "declined": declined,
+                    "unanswered": unanswered,
+                    "acceptance_rate": round((accepted / total * 100), 1) if total > 0 else 0,
+                    "organizers": organizers
+                })
+
+        return events_data
+
+    @staticmethod
     async def get_attendance_export(
         db: AsyncSession,
         event_id: int,

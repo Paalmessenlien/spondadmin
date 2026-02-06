@@ -7,11 +7,12 @@ import io
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 
 from app.models.report import Report
 from app.services.analytics_service import AnalyticsService
 from app.services.category_service import CategoryService
+from app.services.event_service import EventService
 
 
 class ReportService:
@@ -277,6 +278,145 @@ class ReportService:
                     db, start_date=start_date, end_date=end_date, group_id=group_id
                 )
                 report_data["data"]["response_rates"] = response_rates
+
+            if "member_participation" in metrics:
+                # Note: get_member_participation doesn't support date filtering
+                member_stats = await analytics_service.get_member_participation(
+                    db,
+                    group_id=group_id,
+                    limit=None  # Get all members for detailed view
+                )
+                # Convert Pydantic model to dict for JSON serialization
+                report_data["data"]["member_participation"] = {
+                    "members": [
+                        {
+                            "member_id": m.member_id,
+                            "member_name": m.member_name,
+                            "total_events": m.total_events,
+                            "attended": m.attended,
+                            "declined": m.declined,
+                            "no_response": m.no_response,
+                            "attendance_rate": m.attendance_rate
+                        }
+                        for m in member_stats.members
+                    ],
+                    "total": member_stats.total
+                }
+
+            if "event_details" in metrics:
+                # Get events in report date range with response details
+                events = await EventService.get_events_with_attendance(
+                    db,
+                    group_id=group_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    category_ids=category_ids if category_ids else None
+                )
+                report_data["data"]["event_details"] = events
+
+            if "category_details" in metrics:
+                # Get category stats with event counts
+                category_stats = await CategoryService.get_category_stats(
+                    db,
+                    group_id=group_id,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+
+                # Enhance with attendance data
+                from app.models.event import Event
+
+                enhanced_stats = []
+                for cat_stat in category_stats:
+                    cat_id = cat_stat["category_id"]
+
+                    # Get events for this category
+                    events_query = select(Event).where(Event.category_id == cat_id)
+                    if start_date:
+                        events_query = events_query.where(Event.start_time >= start_date)
+                    if end_date:
+                        events_query = events_query.where(Event.start_time <= end_date)
+                    if group_id:
+                        events_query = events_query.where(Event.group_id == group_id)
+
+                    events_result = await db.execute(events_query)
+                    cat_events = events_result.scalars().all()
+
+                    # Calculate attendance stats
+                    total_responses = 0
+                    total_accepted = 0
+                    total_declined = 0
+
+                    for event in cat_events:
+                        # Extract responses array (supports both old and new formats)
+                        responses = []
+                        if event.responses:
+                            # New format: has responses array
+                            if "responses" in event.responses:
+                                responses = event.responses["responses"]
+                            # Old format: use UID arrays
+                            else:
+                                for uid in event.responses.get("accepted_uids", []):
+                                    responses.append({"answer": "accepted"})
+                                for uid in event.responses.get("declined_uids", []):
+                                    responses.append({"answer": "declined"})
+                                for uid in event.responses.get("unanswered_uids", []):
+                                    responses.append({"answer": "unanswered"})
+
+                        total_responses += len(responses)
+                        total_accepted += sum(1 for r in responses if r.get("answer") == "accepted")
+                        total_declined += sum(1 for r in responses if r.get("answer") == "declined")
+
+                    avg_rate = (total_accepted / total_responses * 100) if total_responses > 0 else 0
+
+                    enhanced_stats.append({
+                        "category_id": cat_id,
+                        "category_name": cat_stat["category_name"],
+                        "color": cat_stat["color"],
+                        "icon": cat_stat.get("icon"),
+                        "total_events": cat_stat["event_count"],
+                        "avg_attendance_rate": round(avg_rate, 1),
+                        "total_responses": total_responses,
+                        "accepted": total_accepted,
+                        "declined": total_declined
+                    })
+
+                report_data["data"]["category_details"] = enhanced_stats
+
+            if "attendance_log" in metrics:
+                # Reuse attendance_trends but with daily granularity
+                log = await analytics_service.get_attendance_trends(
+                    db,
+                    period="day",  # Daily granularity
+                    start_date=start_date,
+                    end_date=end_date,
+                    group_id=group_id
+                )
+                # Convert Pydantic model to dict for JSON serialization
+                report_data["data"]["attendance_log"] = {
+                    "period": log.period,
+                    "data": [
+                        {
+                            "date": entry.date,
+                            "total_events": entry.total_events,
+                            "accepted": entry.accepted,
+                            "declined": entry.declined,
+                            "unanswered": entry.unanswered,
+                            "acceptance_rate": round((entry.accepted / (entry.accepted + entry.declined) * 100), 1)
+                                if (entry.accepted + entry.declined) > 0 else 0
+                        }
+                        for entry in log.data
+                    ]
+                }
+
+            if "organizer_statistics" in metrics:
+                # Get organizer statistics
+                organizer_stats = await analytics_service.get_organizer_statistics(
+                    db,
+                    limit=None,  # Get all organizers for detailed view
+                    group_id=group_id
+                )
+                report_data["data"]["organizer_statistics"] = organizer_stats
 
         # Update last_generated_at timestamp
         report.last_generated_at = datetime.utcnow()

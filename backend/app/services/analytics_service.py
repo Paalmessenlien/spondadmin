@@ -309,13 +309,81 @@ class AnalyticsService:
                     )
                 )
 
-        # Sort by total events participated
-        participation_stats.sort(key=lambda x: x.total_events, reverse=True)
+        # Sort by actual attendance (most active = most attended events)
+        participation_stats.sort(key=lambda x: x.attended, reverse=True)
 
         return MemberParticipationResponse(
             members=participation_stats[:limit],
             total=len(participation_stats)
         )
+
+    async def get_organizer_statistics(
+        self,
+        db: AsyncSession,
+        limit: int = 10,
+        group_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get organizer statistics"""
+
+        # Get all events (filtered by group if specified)
+        events_stmt = select(Event)
+        events_stmt = self._apply_event_group_filter(events_stmt, group_id)
+        events_result = await db.execute(events_stmt)
+        events = events_result.scalars().all()
+
+        # Build organizer stats
+        organizer_stats: Dict[str, Dict[str, Any]] = {}
+
+        for event in events:
+            if not event.raw_data or "owners" not in event.raw_data:
+                continue
+
+            for owner in event.raw_data["owners"]:
+                owner_id = owner.get("id")
+                if not owner_id:
+                    continue
+
+                if owner_id not in organizer_stats:
+                    organizer_stats[owner_id] = {
+                        "organizer_id": owner_id,
+                        "organizer_name": f"{owner.get('firstName', '')} {owner.get('lastName', '')}".strip(),
+                        "total_events": 0,
+                        "accepted": 0,
+                        "declined": 0,
+                        "unanswered": 0
+                    }
+
+                organizer_stats[owner_id]["total_events"] += 1
+
+                response = owner.get("response", "").lower()
+                if response == "accepted":
+                    organizer_stats[owner_id]["accepted"] += 1
+                elif response == "declined":
+                    organizer_stats[owner_id]["declined"] += 1
+                else:
+                    organizer_stats[owner_id]["unanswered"] += 1
+
+        # Calculate attendance rates
+        organizers_list = []
+        for stats in organizer_stats.values():
+            attendance_rate = (stats["accepted"] / stats["total_events"] * 100) if stats["total_events"] > 0 else 0
+            organizers_list.append({
+                "organizer_id": stats["organizer_id"],
+                "organizer_name": stats["organizer_name"],
+                "total_events": stats["total_events"],
+                "accepted": stats["accepted"],
+                "declined": stats["declined"],
+                "unanswered": stats["unanswered"],
+                "attendance_rate": round(attendance_rate, 1)
+            })
+
+        # Sort by total events organized
+        organizers_list.sort(key=lambda x: x["total_events"], reverse=True)
+
+        return {
+            "organizers": organizers_list[:limit],
+            "total": len(organizers_list)
+        }
 
     async def get_analytics_summary(
         self,

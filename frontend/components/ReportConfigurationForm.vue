@@ -50,6 +50,11 @@ const metricOptions = [
   { value: 'category_distribution', label: 'Category Distribution' },
   { value: 'attendance_trends', label: 'Attendance Trends' },
   { value: 'response_rates', label: 'Response Rates' },
+  { value: 'member_participation', label: 'Member Participation Details' },
+  { value: 'event_details', label: 'Event Details with Responses' },
+  { value: 'category_details', label: 'Category Breakdown Details' },
+  { value: 'attendance_log', label: 'Daily Attendance Log' },
+  { value: 'organizer_statistics', label: 'Organizer Statistics' },
 ]
 
 // Load categories and groups

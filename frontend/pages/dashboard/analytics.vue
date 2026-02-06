@@ -203,6 +203,79 @@
             </div>
           </UCard>
         </div>
+
+        <!-- Charts Row 3 - Organizers -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Most Active Organizers -->
+          <UCard>
+            <template #header>
+              <h3 class="text-lg font-semibold">Most Active Organizers</h3>
+            </template>
+
+            <div class="space-y-3">
+              <div
+                v-for="(organizer, index) in topOrganizers"
+                :key="organizer.organizer_id"
+                class="flex items-center justify-between"
+              >
+                <div class="flex items-center space-x-3">
+                  <div class="flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 font-semibold text-sm">
+                    {{ index + 1 }}
+                  </div>
+                  <div>
+                    <div class="font-medium">{{ organizer.organizer_name }}</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400">
+                      {{ organizer.total_events }} events organized
+                    </div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="font-semibold" :class="organizer.attendance_rate >= 70 ? 'text-green-600' : organizer.attendance_rate >= 50 ? 'text-yellow-600' : 'text-red-600'">
+                    {{ organizer.attendance_rate }}%
+                  </div>
+                  <div class="text-xs text-gray-600 dark:text-gray-400">
+                    {{ organizer.accepted }} attended
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="!topOrganizers || topOrganizers.length === 0" class="text-center py-8 text-gray-500">
+                No organizer data available
+              </div>
+            </div>
+          </UCard>
+
+          <!-- Placeholder for future chart -->
+          <UCard>
+            <template #header>
+              <h3 class="text-lg font-semibold">Organizer Attendance</h3>
+            </template>
+
+            <div class="space-y-4">
+              <div v-if="organizerStats && organizerStats.total > 0">
+                <div class="flex items-center justify-between py-2">
+                  <span class="text-sm text-gray-600">Total Organizers</span>
+                  <span class="text-lg font-semibold">{{ organizerStats.total }}</span>
+                </div>
+                <div class="flex items-center justify-between py-2">
+                  <span class="text-sm text-gray-600">Avg Attendance Rate</span>
+                  <span class="text-lg font-semibold text-green-600">
+                    {{ calculateAvgOrganizerRate() }}%
+                  </span>
+                </div>
+                <div class="flex items-center justify-between py-2 border-t">
+                  <span class="text-sm text-gray-600">Total Events Organized</span>
+                  <span class="text-lg font-semibold">
+                    {{ topOrganizers.reduce((sum, o) => sum + o.total_events, 0) }}
+                  </span>
+                </div>
+              </div>
+              <div v-else class="text-center py-8 text-gray-500">
+                No organizer statistics available
+              </div>
+            </div>
+          </UCard>
+        </div>
   </div>
 </template>
 
@@ -330,6 +403,34 @@ const { data: memberParticipation, pending: membersPending, refresh: refreshMemb
 
 const topMembers = computed(() => memberParticipation.value?.members || [])
 
+// Fetch organizer statistics
+const organizersQuery = computed(() => ({
+  limit: 10,
+  ...groupQuery.value
+}))
+
+const { data: organizerStats, pending: organizersPending, refresh: refreshOrganizers } = await useFetch(
+  '/analytics/organizers',
+  {
+    baseURL: config.public.apiBase,
+    headers: headers.value,
+    query: organizersQuery,
+    lazy: true,
+    key: 'organizer-stats',
+    watch: [() => authStore.selectedGroupId],
+  }
+)
+
+const topOrganizers = computed(() => organizerStats.value?.organizers || [])
+
+// Calculate average organizer attendance rate
+const calculateAvgOrganizerRate = () => {
+  const organizers = topOrganizers.value
+  if (!organizers || organizers.length === 0) return 0
+  const avg = organizers.reduce((sum, o) => sum + o.attendance_rate, 0) / organizers.length
+  return avg.toFixed(1)
+}
+
 // Fetch category distribution
 const { data: categoryDistribution, pending: categoryDistPending, refresh: refreshCategoryDist } = await useFetch(
   '/analytics/categories/distribution',
@@ -369,6 +470,7 @@ const refreshAllAnalytics = async () => {
       refreshRates(),
       refreshEventTypes(),
       refreshMembers(),
+      refreshOrganizers(),
       refreshCategoryDist(),
       refreshCategoryComp()
     ])
