@@ -8,6 +8,7 @@ interface PatternRule {
   type: 'contains' | 'starts_with' | 'ends_with' | 'regex'
   value: string
   case_insensitive: boolean
+  operator?: 'OR' | 'AND'  // Optional, not used for first pattern
 }
 
 const props = defineProps<{
@@ -38,7 +39,8 @@ const addPattern = () => {
   patterns.value.push({
     type: 'contains',
     value: '',
-    case_insensitive: true
+    case_insensitive: true,
+    operator: patterns.value.length > 0 ? 'OR' : undefined
   })
   emitUpdate()
 }
@@ -62,20 +64,36 @@ const emitUpdate = () => {
 
 // Test patterns against input
 const testPatterns = () => {
-  if (!testInput.value) {
+  if (!testInput.value || patterns.value.length === 0) {
     testResult.value = { matches: false, matchedPattern: null }
     return
   }
 
-  for (let i = 0; i < patterns.value.length; i++) {
+  // Evaluate first pattern
+  let result = matchesPattern(testInput.value, patterns.value[0])
+  let matchedIndex = result ? 0 : null
+
+  // Evaluate remaining patterns with operators
+  for (let i = 1; i < patterns.value.length; i++) {
     const pattern = patterns.value[i]
-    if (matchesPattern(testInput.value, pattern)) {
-      testResult.value = { matches: true, matchedPattern: i }
-      return
+    const operator = pattern.operator || 'OR'
+    const matches = matchesPattern(testInput.value, pattern)
+
+    if (operator === 'AND') {
+      result = result && matches
+    } else {
+      result = result || matches
+    }
+
+    if (matches && matchedIndex === null) {
+      matchedIndex = i
     }
   }
 
-  testResult.value = { matches: false, matchedPattern: null }
+  testResult.value = {
+    matches: result,
+    matchedPattern: matchedIndex
+  }
 }
 
 // Pattern matching logic (mirrors backend)
@@ -144,18 +162,49 @@ watch(() => props.modelValue, (newVal) => {
       <div
         v-for="(pattern, index) in patterns"
         :key="index"
-        class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg space-y-3"
+        class="space-y-3"
       >
-        <div class="flex items-start justify-between gap-2">
-          <span class="text-xs font-medium text-gray-500">Pattern {{ index + 1 }}</span>
-          <UButton
-            icon="i-heroicons-trash"
-            size="xs"
-            color="red"
-            variant="ghost"
-            @click="removePattern(index)"
-          />
+        <!-- Operator selector (only for patterns after the first) -->
+        <div
+          v-if="index > 0"
+          class="flex items-center gap-3 py-2"
+        >
+          <div class="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
+          <USelectMenu
+            :model-value="pattern.operator || 'OR'"
+            :items="[
+              { value: 'OR', label: 'OR', description: 'Match if either condition is true' },
+              { value: 'AND', label: 'AND', description: 'Match only if both conditions are true' }
+            ]"
+            value-key="value"
+            class="w-32"
+            @update:model-value="updatePattern(index, 'operator', $event)"
+          >
+            <template #label>
+              <span class="font-semibold text-sm">{{ pattern.operator || 'OR' }}</span>
+            </template>
+            <template #item="{ item }">
+              <div class="flex flex-col">
+                <span class="font-medium">{{ item.label }}</span>
+                <span class="text-xs text-gray-500">{{ item.description }}</span>
+              </div>
+            </template>
+          </USelectMenu>
+          <div class="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
         </div>
+
+        <!-- Pattern card -->
+        <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg space-y-3">
+          <div class="flex items-start justify-between gap-2">
+            <span class="text-xs font-medium text-gray-500">Pattern {{ index + 1 }}</span>
+            <UButton
+              icon="i-heroicons-trash"
+              size="xs"
+              color="red"
+              variant="ghost"
+              @click="removePattern(index)"
+            />
+          </div>
 
         <!-- Pattern type selector -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -199,6 +248,7 @@ watch(() => props.modelValue, (newVal) => {
           label="Case insensitive"
           @update:model-value="updatePattern(index, 'case_insensitive', $event)"
         />
+        </div>
       </div>
     </div>
 
@@ -257,10 +307,19 @@ watch(() => props.modelValue, (newVal) => {
 
     <!-- Help text -->
     <div class="text-xs text-gray-500 space-y-1">
-      <p><strong>Contains:</strong> Matches if the event title contains the text</p>
-      <p><strong>Starts with:</strong> Matches if the event title starts with the text</p>
-      <p><strong>Ends with:</strong> Matches if the event title ends with the text</p>
-      <p><strong>Regex:</strong> Matches using a regular expression pattern</p>
+      <p><strong>Pattern Types:</strong></p>
+      <ul class="ml-4 space-y-0.5">
+        <li><strong>Contains:</strong> Matches if the event title contains the text</li>
+        <li><strong>Starts with:</strong> Matches if the event title starts with the text</li>
+        <li><strong>Ends with:</strong> Matches if the event title ends with the text</li>
+        <li><strong>Regex:</strong> Matches using a regular expression pattern</li>
+      </ul>
+      <p class="mt-2"><strong>Operators:</strong></p>
+      <ul class="ml-4 space-y-0.5">
+        <li><strong>OR:</strong> Matches if either the previous result OR the current pattern is true</li>
+        <li><strong>AND:</strong> Matches only if both the previous result AND the current pattern are true</li>
+      </ul>
+      <p class="mt-2 text-gray-400">Patterns are evaluated left-to-right sequentially.</p>
     </div>
   </div>
 </template>

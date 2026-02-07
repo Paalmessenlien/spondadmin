@@ -192,10 +192,27 @@ class CategoryService:
             pattern_rules = category.pattern_rules or {}
             patterns = pattern_rules.get("patterns", [])
 
-            # If any pattern matches, return this category
-            for pattern in patterns:
-                if CategoryService._match_pattern(event_heading, pattern):
-                    return category.id
+            # Skip if no patterns
+            if not patterns:
+                continue
+
+            # Evaluate first pattern
+            result = CategoryService._match_pattern(event_heading, patterns[0])
+
+            # Evaluate remaining patterns with AND/OR operators
+            for i in range(1, len(patterns)):
+                pattern = patterns[i]
+                operator = pattern.get("operator", "OR")  # Default to OR
+                pattern_matches = CategoryService._match_pattern(event_heading, pattern)
+
+                if operator == "AND":
+                    result = result and pattern_matches
+                else:  # OR
+                    result = result or pattern_matches
+
+            # If the combined result matches, return this category
+            if result:
+                return category.id
 
         # No match found, return default category
         default_category = next(

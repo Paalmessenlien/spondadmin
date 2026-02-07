@@ -12,6 +12,7 @@ class PatternRule(BaseModel):
     type: str = Field(..., description="Pattern type: contains, starts_with, ends_with, regex")
     value: str = Field(..., description="Pattern value to match")
     case_insensitive: bool = Field(True, description="Whether matching is case insensitive")
+    operator: Optional[str] = Field(None, description="Logical operator: OR or AND")
 
     @field_validator("type")
     @classmethod
@@ -19,6 +20,13 @@ class PatternRule(BaseModel):
         allowed_types = ["contains", "starts_with", "ends_with", "regex"]
         if v not in allowed_types:
             raise ValueError(f"Pattern type must be one of: {', '.join(allowed_types)}")
+        return v
+
+    @field_validator("operator")
+    @classmethod
+    def validate_operator(cls, v):
+        if v is not None and v not in ["OR", "AND"]:
+            raise ValueError("Operator must be either 'OR' or 'AND'")
         return v
 
 
