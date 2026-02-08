@@ -19,9 +19,48 @@ interface EventDetail {
   organizers?: Organizer[]
 }
 
+interface ColumnConfig {
+  key: keyof EventDetail | 'organizers_col'
+  label: string
+  defaultVisible: boolean
+  alwaysVisible?: boolean
+}
+
 const props = defineProps<{
   data: EventDetail[]
 }>()
+
+// Column configuration
+const availableColumns: ColumnConfig[] = [
+  { key: 'heading', label: 'Event Name', defaultVisible: true, alwaysVisible: true },
+  { key: 'start_time', label: 'Date', defaultVisible: true },
+  { key: 'category_name', label: 'Category', defaultVisible: true },
+  { key: 'organizers_col', label: 'Organizers', defaultVisible: true },
+  { key: 'total_invites', label: 'Total Invites', defaultVisible: true },
+  { key: 'accepted', label: 'Accepted', defaultVisible: true },
+  { key: 'declined', label: 'Declined', defaultVisible: true },
+  { key: 'unanswered', label: 'Unanswered', defaultVisible: true },
+  { key: 'acceptance_rate', label: 'Acceptance Rate', defaultVisible: true }
+]
+
+const visibleColumns = ref<Set<string>>(
+  new Set(availableColumns.filter(col => col.defaultVisible).map(col => col.key))
+)
+
+const isColumnVisible = (key: string) => visibleColumns.value.has(key)
+
+const toggleColumn = (key: string) => {
+  const column = availableColumns.find(col => col.key === key)
+  if (column?.alwaysVisible) return
+
+  if (visibleColumns.value.has(key)) {
+    visibleColumns.value.delete(key)
+  } else {
+    visibleColumns.value.add(key)
+  }
+}
+
+const visibleColumnCount = computed(() => visibleColumns.value.size)
 
 // Custom filtering
 const events = computed(() => props.data || [])
@@ -98,6 +137,16 @@ const pageSizeOptions = [
   { label: '100', value: 100 }
 ]
 
+// Page size selection (handle object binding)
+const selectedPageSize = computed({
+  get: () => pageSizeOptions.find(opt => opt.value === tableState.pageSize.value),
+  set: (option) => {
+    if (option) {
+      tableState.pageSize.value = option.value
+    }
+  }
+})
+
 // Category options for filter
 const categoryOptions = computed(() =>
   categories.value.map(cat => ({ label: cat, value: cat }))
@@ -137,6 +186,33 @@ const clearAllFilters = () => {
   tableState.currentPage.value = 0
 }
 
+// CSV Export
+const { exportToCSV } = useCsvExport()
+
+const exportTableToCSV = () => {
+  const headers = [
+    { key: 'heading', label: 'Event' },
+    { key: 'start_time', label: 'Date' },
+    { key: 'category_name', label: 'Category' },
+    { key: 'total_invites', label: 'Total Invites' },
+    { key: 'accepted', label: 'Accepted' },
+    { key: 'declined', label: 'Declined' },
+    { key: 'unanswered', label: 'Unanswered' },
+    { key: 'acceptance_rate', label: 'Acceptance Rate (%)' },
+    { key: 'organizers', label: 'Organizers' }
+  ]
+
+  // Prepare data for export (use filtered and sorted data)
+  const exportData = tableState.sortedData.value.map(event => ({
+    ...event,
+    start_time: formatDate(event.start_time),
+    organizers: event.organizers?.map(o => o.name).join('; ') || 'N/A'
+  }))
+
+  const timestamp = new Date().toISOString().split('T')[0]
+  exportToCSV(exportData, headers, `event-details-${timestamp}.csv`)
+}
+
 const hasActiveFilters = computed(() =>
   searchQuery.value ||
   selectedCategories.value.length > 0 ||
@@ -146,36 +222,85 @@ const hasActiveFilters = computed(() =>
 
 <template>
   <div class="space-y-4">
-    <!-- Filters -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-      <UInput
-        v-model="searchQuery"
-        icon="i-heroicons-magnifying-glass"
-        placeholder="Search events..."
-      />
-
-      <USelectMenu
-        v-model="selectedCategories"
-        :items="categoryOptions"
-        multiple
-        placeholder="Filter by category..."
-      />
-
-      <div class="flex gap-2">
+    <!-- Filters and Actions -->
+    <div class="flex flex-col gap-2">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
         <UInput
-          v-model.number="minAcceptanceRate"
-          type="number"
-          min="0"
-          max="100"
-          placeholder="Min acceptance rate %"
+          v-model="searchQuery"
+          icon="i-heroicons-magnifying-glass"
+          placeholder="Search events..."
         />
+
+        <USelectMenu
+          v-model="selectedCategories"
+          :items="categoryOptions"
+          multiple
+          placeholder="Filter by category..."
+        />
+
+        <div class="flex gap-2">
+          <UInput
+            v-model.number="minAcceptanceRate"
+            type="number"
+            min="0"
+            max="100"
+            placeholder="Min acceptance rate %"
+          />
+          <UButton
+            v-if="hasActiveFilters"
+            icon="i-heroicons-x-mark"
+            @click="clearAllFilters"
+            variant="soft"
+          >
+            Clear
+          </UButton>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 relative z-10">
+        <UPopover :popper="{ placement: 'bottom-end' }">
+          <UButton
+            icon="i-heroicons-view-columns"
+            variant="soft"
+            color="gray"
+          >
+            Columns
+          </UButton>
+
+          <template #panel="{ close }">
+            <div class="p-4 w-64 bg-white shadow-lg rounded-lg border border-gray-200">
+              <div class="space-y-2">
+                <div
+                  v-for="column in availableColumns"
+                  :key="column.key"
+                  class="flex items-center gap-2"
+                >
+                  <UCheckbox
+                    :model-value="isColumnVisible(column.key)"
+                    @update:model-value="toggleColumn(column.key)"
+                    :disabled="column.alwaysVisible"
+                  />
+                  <label
+                    class="text-sm cursor-pointer select-none"
+                    :class="{ 'text-gray-400': column.alwaysVisible }"
+                    @click="!column.alwaysVisible && toggleColumn(column.key)"
+                  >
+                    {{ column.label }}
+                  </label>
+                </div>
+              </div>
+            </div>
+          </template>
+        </UPopover>
+
         <UButton
-          v-if="hasActiveFilters"
-          icon="i-heroicons-x-mark"
-          @click="clearAllFilters"
+          icon="i-heroicons-arrow-down-tray"
+          @click="exportTableToCSV"
           variant="soft"
+          color="gray"
+          :disabled="tableState.sortedData.value.length === 0"
         >
-          Clear
+          Export to CSV
         </UButton>
       </div>
     </div>
@@ -186,6 +311,7 @@ const hasActiveFilters = computed(() =>
         <thead class="bg-gray-50">
           <tr>
             <th
+              v-if="isColumnVisible('heading')"
               @click="tableState.toggleSort('heading')"
               class="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -195,6 +321,7 @@ const hasActiveFilters = computed(() =>
               </div>
             </th>
             <th
+              v-if="isColumnVisible('start_time')"
               @click="tableState.toggleSort('start_time')"
               class="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -204,6 +331,7 @@ const hasActiveFilters = computed(() =>
               </div>
             </th>
             <th
+              v-if="isColumnVisible('category_name')"
               @click="tableState.toggleSort('category_name')"
               class="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -212,10 +340,11 @@ const hasActiveFilters = computed(() =>
                 <UIcon v-if="getSortIcon('category_name')" :name="getSortIcon('category_name')!" class="w-4 h-4" />
               </div>
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th v-if="isColumnVisible('organizers_col')" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Organizers
             </th>
             <th
+              v-if="isColumnVisible('total_invites')"
               @click="tableState.toggleSort('total_invites')"
               class="cursor-pointer px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -225,6 +354,7 @@ const hasActiveFilters = computed(() =>
               </div>
             </th>
             <th
+              v-if="isColumnVisible('accepted')"
               @click="tableState.toggleSort('accepted')"
               class="cursor-pointer px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -234,6 +364,7 @@ const hasActiveFilters = computed(() =>
               </div>
             </th>
             <th
+              v-if="isColumnVisible('declined')"
               @click="tableState.toggleSort('declined')"
               class="cursor-pointer px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -243,6 +374,7 @@ const hasActiveFilters = computed(() =>
               </div>
             </th>
             <th
+              v-if="isColumnVisible('unanswered')"
               @click="tableState.toggleSort('unanswered')"
               class="cursor-pointer px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -252,6 +384,7 @@ const hasActiveFilters = computed(() =>
               </div>
             </th>
             <th
+              v-if="isColumnVisible('acceptance_rate')"
               @click="tableState.toggleSort('acceptance_rate')"
               class="cursor-pointer px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -264,7 +397,7 @@ const hasActiveFilters = computed(() =>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           <tr v-if="tableState.paginatedData.value.length === 0">
-            <td colspan="9" class="px-6 py-8 text-center text-gray-500">
+            <td :colspan="visibleColumnCount" class="px-6 py-8 text-center text-gray-500">
               No events found
             </td>
           </tr>
@@ -273,7 +406,7 @@ const hasActiveFilters = computed(() =>
             :key="event.event_id"
             class="hover:bg-gray-50"
           >
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+            <td v-if="isColumnVisible('heading')" class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
               <NuxtLink
                 :to="`/dashboard/events/${event.event_id}`"
                 class="text-blue-600 hover:text-blue-800 hover:underline"
@@ -281,15 +414,15 @@ const hasActiveFilters = computed(() =>
                 {{ event.heading }}
               </NuxtLink>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td v-if="isColumnVisible('start_time')" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               {{ formatDate(event.start_time) }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
+            <td v-if="isColumnVisible('category_name')" class="px-6 py-4 whitespace-nowrap text-sm">
               <UBadge :style="{ backgroundColor: event.category_color }" class="text-white">
                 {{ event.category_name }}
               </UBadge>
             </td>
-            <td class="px-6 py-4 text-sm">
+            <td v-if="isColumnVisible('organizers_col')" class="px-6 py-4 text-sm">
               <div v-if="event.organizers && event.organizers.length > 0" class="flex flex-wrap gap-1">
                 <span
                   v-for="org in event.organizers"
@@ -306,19 +439,20 @@ const hasActiveFilters = computed(() =>
               </div>
               <span v-else class="text-gray-400 text-xs">No organizers</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+            <td v-if="isColumnVisible('total_invites')" class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
               {{ event.total_invites }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
+            <td v-if="isColumnVisible('accepted')" class="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
               {{ event.accepted }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
+            <td v-if="isColumnVisible('declined')" class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
               {{ event.declined }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-400">
+            <td v-if="isColumnVisible('unanswered')" class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-400">
               {{ event.unanswered }}
             </td>
             <td
+              v-if="isColumnVisible('acceptance_rate')"
               class="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold"
               :class="getAcceptanceRateColor(event.acceptance_rate)"
             >
@@ -329,22 +463,25 @@ const hasActiveFilters = computed(() =>
         <!-- Calculations Footer -->
         <tfoot class="bg-gray-100 font-semibold">
           <tr>
-            <td colspan="4" class="px-6 py-3 text-sm text-gray-700">
+            <td v-if="isColumnVisible('heading')" class="px-6 py-3 text-sm text-gray-700">
               Totals ({{ calculations.totalEvents }} events)
             </td>
-            <td class="px-6 py-3 text-sm text-right text-gray-700">
+            <td v-if="isColumnVisible('start_time')" class="px-6 py-3 text-sm text-gray-700"></td>
+            <td v-if="isColumnVisible('category_name')" class="px-6 py-3 text-sm text-gray-700"></td>
+            <td v-if="isColumnVisible('organizers_col')" class="px-6 py-3 text-sm text-gray-700"></td>
+            <td v-if="isColumnVisible('total_invites')" class="px-6 py-3 text-sm text-right text-gray-700">
               {{ calculations.totalInvites }}
             </td>
-            <td class="px-6 py-3 text-sm text-right text-green-600">
+            <td v-if="isColumnVisible('accepted')" class="px-6 py-3 text-sm text-right text-green-600">
               {{ calculations.totalAccepted }}
             </td>
-            <td class="px-6 py-3 text-sm text-right text-red-600">
+            <td v-if="isColumnVisible('declined')" class="px-6 py-3 text-sm text-right text-red-600">
               {{ calculations.totalDeclined }}
             </td>
-            <td class="px-6 py-3 text-sm text-right text-gray-400">
+            <td v-if="isColumnVisible('unanswered')" class="px-6 py-3 text-sm text-right text-gray-400">
               {{ calculations.totalUnanswered }}
             </td>
-            <td class="px-6 py-3 text-sm text-right text-gray-700">
+            <td v-if="isColumnVisible('acceptance_rate')" class="px-6 py-3 text-sm text-right text-gray-700">
               Avg: {{ calculations.avgAcceptanceRate }}%
             </td>
           </tr>
@@ -357,9 +494,8 @@ const hasActiveFilters = computed(() =>
       <div class="flex items-center gap-2">
         <span class="text-sm text-gray-700">Show</span>
         <USelectMenu
-          v-model="tableState.pageSize.value"
+          v-model="selectedPageSize"
           :items="pageSizeOptions"
-          value-attribute="value"
         />
         <span class="text-sm text-gray-700">per page</span>
       </div>

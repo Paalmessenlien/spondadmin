@@ -17,6 +17,45 @@ const props = defineProps<{
   data: AttendanceLogData
 }>()
 
+interface ColumnConfig {
+  key: keyof AttendanceLogEntry
+  label: string
+  defaultVisible: boolean
+  alwaysVisible?: boolean
+}
+
+// Column configuration
+const availableColumns: ColumnConfig[] = [
+  { key: 'date', label: 'Date', defaultVisible: true, alwaysVisible: true },
+  { key: 'total_events', label: 'Total Events', defaultVisible: true },
+  { key: 'accepted', label: 'Accepted', defaultVisible: true },
+  { key: 'declined', label: 'Declined', defaultVisible: true },
+  { key: 'unanswered', label: 'Unanswered', defaultVisible: true },
+  { key: 'acceptance_rate', label: 'Acceptance Rate', defaultVisible: true }
+]
+
+const visibleColumns = ref<Set<keyof AttendanceLogEntry>>(
+  new Set(availableColumns.filter(col => col.defaultVisible).map(col => col.key))
+)
+
+const isColumnVisible = (key: keyof AttendanceLogEntry) => visibleColumns.value.has(key)
+
+const toggleColumn = (key: keyof AttendanceLogEntry) => {
+  const column = availableColumns.find(col => col.key === key)
+  if (column?.alwaysVisible) return
+
+  if (visibleColumns.value.has(key)) {
+    visibleColumns.value.delete(key)
+  } else {
+    visibleColumns.value.add(key)
+  }
+}
+
+const visibleColumnCount = computed(() => visibleColumns.value.size)
+
+// Column menu toggle
+const showColumnMenu = ref(false)
+
 // Custom filtering
 const logEntries = computed(() => props.data?.data || [])
 const startDateFilter = ref<string>('')
@@ -78,6 +117,16 @@ const pageSizeOptions = [
   { label: '100', value: 100 }
 ]
 
+// Page size selection (handle object binding)
+const selectedPageSize = computed({
+  get: () => pageSizeOptions.find(opt => opt.value === tableState.pageSize.value),
+  set: (option) => {
+    if (option) {
+      tableState.pageSize.value = option.value
+    }
+  }
+})
+
 // Get sort icon
 const getSortIcon = (field: keyof AttendanceLogEntry) => {
   if (tableState.sortField.value !== field) return null
@@ -110,33 +159,108 @@ const clearDateFilters = () => {
 }
 
 const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.value)
+
+// CSV Export
+const { exportToCSV } = useCsvExport()
+
+const exportTableToCSV = () => {
+  const headers = [
+    { key: 'date', label: 'Date' },
+    { key: 'total_events', label: 'Total Events' },
+    { key: 'accepted', label: 'Accepted' },
+    { key: 'declined', label: 'Declined' },
+    { key: 'unanswered', label: 'Unanswered' },
+    { key: 'acceptance_rate', label: 'Acceptance Rate (%)' }
+  ]
+
+  const exportData = tableState.sortedData.value.map(entry => ({
+    ...entry,
+    date: formatDate(entry.date),
+    acceptance_rate: entry.acceptance_rate.toFixed(1)
+  }))
+
+  const timestamp = new Date().toISOString().split('T')[0]
+  exportToCSV(exportData, headers, `attendance-log-${timestamp}.csv`)
+}
 </script>
 
 <template>
   <div class="space-y-4">
-    <!-- Filters -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-      <UInput
-        v-model="startDateFilter"
-        type="date"
-        label="Start Date"
-        placeholder="Start date"
-      />
-      <UInput
-        v-model="endDateFilter"
-        type="date"
-        label="End Date"
-        placeholder="End date"
-      />
-      <div class="flex items-end">
+    <!-- Filters and Actions -->
+    <div class="flex flex-col gap-2">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <UInput
+          v-model="startDateFilter"
+          type="date"
+          label="Start Date"
+          placeholder="Start date"
+        />
+        <UInput
+          v-model="endDateFilter"
+          type="date"
+          label="End Date"
+          placeholder="End date"
+        />
+        <div class="flex items-end">
+          <UButton
+            v-if="hasDateFilters"
+            icon="i-heroicons-x-mark"
+            @click="clearDateFilters"
+            variant="soft"
+            class="w-full"
+          >
+            Clear Filters
+          </UButton>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 relative">
+        <div class="relative">
+          <UButton
+            icon="i-heroicons-view-columns"
+            variant="soft"
+            color="gray"
+            @click="showColumnMenu = !showColumnMenu"
+          >
+            Columns
+          </UButton>
+
+          <div
+            v-if="showColumnMenu"
+            class="absolute right-0 mt-2 w-64 bg-white shadow-lg rounded-lg border border-gray-200 p-4 z-50"
+          >
+            <div class="space-y-2">
+              <div
+                v-for="column in availableColumns"
+                :key="column.key"
+                class="flex items-center gap-2 hover:bg-gray-50 px-2 py-1 rounded cursor-pointer"
+                @click="!column.alwaysVisible && toggleColumn(column.key)"
+              >
+                <UCheckbox
+                  :model-value="isColumnVisible(column.key)"
+                  :disabled="column.alwaysVisible"
+                  @click.stop
+                  @update:model-value="toggleColumn(column.key)"
+                />
+                <label
+                  class="text-sm select-none flex-1"
+                  :class="{ 'text-gray-400': column.alwaysVisible, 'cursor-pointer': !column.alwaysVisible }"
+                >
+                  {{ column.label }}
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <UButton
-          v-if="hasDateFilters"
-          icon="i-heroicons-x-mark"
-          @click="clearDateFilters"
+          icon="i-heroicons-arrow-down-tray"
+          @click="exportTableToCSV"
           variant="soft"
-          class="w-full"
+          color="gray"
+          :disabled="tableState.sortedData.value.length === 0"
         >
-          Clear Filters
+          Export to CSV
         </UButton>
       </div>
     </div>
@@ -147,6 +271,7 @@ const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.val
         <thead class="bg-gray-50">
           <tr>
             <th
+              v-if="isColumnVisible('date')"
               @click="tableState.toggleSort('date')"
               class="cursor-pointer px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -156,6 +281,7 @@ const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.val
               </div>
             </th>
             <th
+              v-if="isColumnVisible('total_events')"
               @click="tableState.toggleSort('total_events')"
               class="cursor-pointer px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -165,6 +291,7 @@ const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.val
               </div>
             </th>
             <th
+              v-if="isColumnVisible('accepted')"
               @click="tableState.toggleSort('accepted')"
               class="cursor-pointer px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -174,6 +301,7 @@ const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.val
               </div>
             </th>
             <th
+              v-if="isColumnVisible('declined')"
               @click="tableState.toggleSort('declined')"
               class="cursor-pointer px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -183,6 +311,7 @@ const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.val
               </div>
             </th>
             <th
+              v-if="isColumnVisible('unanswered')"
               @click="tableState.toggleSort('unanswered')"
               class="cursor-pointer px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -192,6 +321,7 @@ const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.val
               </div>
             </th>
             <th
+              v-if="isColumnVisible('acceptance_rate')"
               @click="tableState.toggleSort('acceptance_rate')"
               class="cursor-pointer px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
             >
@@ -204,7 +334,7 @@ const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.val
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           <tr v-if="tableState.paginatedData.value.length === 0">
-            <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+            <td :colspan="visibleColumnCount" class="px-6 py-8 text-center text-gray-500">
               No attendance data found
             </td>
           </tr>
@@ -213,22 +343,23 @@ const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.val
             :key="entry.date"
             class="hover:bg-gray-50"
           >
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+            <td v-if="isColumnVisible('date')" class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
               {{ formatDate(entry.date) }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700 font-medium">
+            <td v-if="isColumnVisible('total_events')" class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700 font-medium">
               {{ entry.total_events }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
+            <td v-if="isColumnVisible('accepted')" class="px-6 py-4 whitespace-nowrap text-sm text-right text-green-600 font-medium">
               {{ entry.accepted }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
+            <td v-if="isColumnVisible('declined')" class="px-6 py-4 whitespace-nowrap text-sm text-right text-red-600 font-medium">
               {{ entry.declined }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-400">
+            <td v-if="isColumnVisible('unanswered')" class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-400">
               {{ entry.unanswered }}
             </td>
             <td
+              v-if="isColumnVisible('acceptance_rate')"
               class="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold"
               :class="getAcceptanceRateColor(entry.acceptance_rate)"
             >
@@ -239,22 +370,22 @@ const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.val
         <!-- Calculations Footer -->
         <tfoot class="bg-gray-100 font-semibold">
           <tr>
-            <td class="px-6 py-3 text-sm text-gray-700">
+            <td v-if="isColumnVisible('date')" class="px-6 py-3 text-sm text-gray-700">
               Totals ({{ calculations.totalDays }} {{ props.data?.period || 'day' }}s)
             </td>
-            <td class="px-6 py-3 text-sm text-right text-gray-700">
+            <td v-if="isColumnVisible('total_events')" class="px-6 py-3 text-sm text-right text-gray-700">
               {{ calculations.totalEvents }}
             </td>
-            <td class="px-6 py-3 text-sm text-right text-green-600">
+            <td v-if="isColumnVisible('accepted')" class="px-6 py-3 text-sm text-right text-green-600">
               {{ calculations.totalAccepted }}
             </td>
-            <td class="px-6 py-3 text-sm text-right text-red-600">
+            <td v-if="isColumnVisible('declined')" class="px-6 py-3 text-sm text-right text-red-600">
               {{ calculations.totalDeclined }}
             </td>
-            <td class="px-6 py-3 text-sm text-right text-gray-400">
+            <td v-if="isColumnVisible('unanswered')" class="px-6 py-3 text-sm text-right text-gray-400">
               {{ calculations.totalUnanswered }}
             </td>
-            <td class="px-6 py-3 text-sm text-right text-gray-700">
+            <td v-if="isColumnVisible('acceptance_rate')" class="px-6 py-3 text-sm text-right text-gray-700">
               Avg: {{ calculations.avgAcceptanceRate }}%
             </td>
           </tr>
@@ -267,9 +398,8 @@ const hasDateFilters = computed(() => startDateFilter.value || endDateFilter.val
       <div class="flex items-center gap-2">
         <span class="text-sm text-gray-700">Show</span>
         <USelectMenu
-          v-model="tableState.pageSize.value"
+          v-model="selectedPageSize"
           :items="pageSizeOptions"
-          value-attribute="value"
         />
         <span class="text-sm text-gray-700">per page</span>
       </div>

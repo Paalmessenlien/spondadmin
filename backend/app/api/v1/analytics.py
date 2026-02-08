@@ -81,20 +81,28 @@ async def get_response_rates(
 @router.get("/event-types", response_model=List[EventTypeDistribution])
 async def get_event_type_distribution(
     group_id: Optional[str] = Query(None, description="Filter by group spond_id"),
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
     db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_user)
 ):
     """
     Get event type distribution
+
+    - **group_id**: Optional group spond_id to filter by
+    - **start_date**: Optional start date filter
+    - **end_date**: Optional end date filter
     """
     service = AnalyticsService()
-    return await service.get_event_type_distribution(db, group_id=group_id)
+    return await service.get_event_type_distribution(db, group_id, start_date, end_date)
 
 
 @router.get("/member-participation", response_model=MemberParticipationResponse)
 async def get_member_participation(
     limit: int = Query(10, ge=1, le=100),
     group_id: Optional[str] = Query(None, description="Filter by group spond_id"),
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
     db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_user)
 ):
@@ -103,9 +111,11 @@ async def get_member_participation(
 
     - **limit**: Maximum number of members to return (1-100)
     - **group_id**: Optional group spond_id to filter by
+    - **start_date**: Optional start date filter
+    - **end_date**: Optional end date filter
     """
     service = AnalyticsService()
-    return await service.get_member_participation(db, limit, group_id=group_id)
+    return await service.get_member_participation(db, limit, group_id, start_date, end_date)
 
 
 # Category Analytics Endpoints
@@ -218,6 +228,8 @@ async def get_category_response_rates(
 async def get_organizer_statistics(
     limit: int = Query(10, ge=1, le=100),
     group_id: Optional[str] = Query(None, description="Filter by group spond_id"),
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
     db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_user)
 ):
@@ -226,6 +238,8 @@ async def get_organizer_statistics(
 
     - **limit**: Maximum number of organizers to return (default: 10)
     - **group_id**: Optional group spond_id to filter by
+    - **start_date**: Optional start date filter
+    - **end_date**: Optional end date filter
     """
     service = AnalyticsService()
-    return await service.get_organizer_statistics(db, limit, group_id)
+    return await service.get_organizer_statistics(db, limit, group_id, start_date, end_date)

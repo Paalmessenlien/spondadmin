@@ -210,6 +210,7 @@ class ReportService:
         end_date = datetime.fromisoformat(date_range.get("end")) if date_range.get("end") else None
         group_ids = config.get("group_ids", [])
         category_ids = config.get("category_ids", [])
+        exclude_category_ids = config.get("exclude_category_ids", [])
         metrics = config.get("metrics", [])
 
         # Initialize report data
@@ -254,13 +255,27 @@ class ReportService:
             group_id = group_ids[0] if group_ids else None
 
             if "summary" in metrics:
-                summary = await analytics_service.get_analytics_summary(db, group_id=group_id)
+                summary = await analytics_service.get_analytics_summary(
+                    db,
+                    group_id=group_id,
+                    category_ids=category_ids if category_ids else None,
+                    exclude_category_ids=exclude_category_ids if exclude_category_ids else None,
+                    start_date=start_date,
+                    end_date=end_date
+                )
                 report_data["data"]["summary"] = summary
 
             if "category_distribution" in metrics:
                 category_stats = await CategoryService.get_category_stats(
                     db, group_id=group_id, start_date=start_date, end_date=end_date
                 )
+                # Filter excluded categories
+                if exclude_category_ids or category_ids:
+                    category_stats = [
+                        stat for stat in category_stats
+                        if (not exclude_category_ids or stat["category_id"] not in exclude_category_ids)
+                        and (not category_ids or stat["category_id"] in category_ids)
+                    ]
                 report_data["data"]["category_distribution"] = category_stats
 
             if "attendance_trends" in metrics:
@@ -280,11 +295,12 @@ class ReportService:
                 report_data["data"]["response_rates"] = response_rates
 
             if "member_participation" in metrics:
-                # Note: get_member_participation doesn't support date filtering
                 member_stats = await analytics_service.get_member_participation(
                     db,
                     group_id=group_id,
-                    limit=None  # Get all members for detailed view
+                    limit=None,  # Get all members for detailed view
+                    start_date=start_date,
+                    end_date=end_date
                 )
                 # Convert Pydantic model to dict for JSON serialization
                 report_data["data"]["member_participation"] = {
@@ -310,7 +326,8 @@ class ReportService:
                     group_id=group_id,
                     start_date=start_date,
                     end_date=end_date,
-                    category_ids=category_ids if category_ids else None
+                    category_ids=category_ids if category_ids else None,
+                    exclude_category_ids=exclude_category_ids if exclude_category_ids else None
                 )
                 report_data["data"]["event_details"] = events
 
@@ -330,6 +347,14 @@ class ReportService:
                 for cat_stat in category_stats:
                     cat_id = cat_stat["category_id"]
 
+                    # Skip excluded categories
+                    if exclude_category_ids and cat_id in exclude_category_ids:
+                        continue
+
+                    # Filter by included categories if specified
+                    if category_ids and cat_id not in category_ids:
+                        continue
+
                     # Get events for this category
                     events_query = select(Event).where(Event.category_id == cat_id)
                     if start_date:
@@ -342,10 +367,11 @@ class ReportService:
                     events_result = await db.execute(events_query)
                     cat_events = events_result.scalars().all()
 
-                    # Calculate attendance stats
+                    # Calculate attendance stats (only for events with attendees)
                     total_responses = 0
                     total_accepted = 0
                     total_declined = 0
+                    events_with_attendees = 0
 
                     for event in cat_events:
                         # Extract responses array (supports both old and new formats)
@@ -363,8 +389,14 @@ class ReportService:
                                 for uid in event.responses.get("unanswered_uids", []):
                                     responses.append({"answer": "unanswered"})
 
+                        # Only count events with at least one accepted response
+                        accepted_count = sum(1 for r in responses if r.get("answer") == "accepted")
+                        if accepted_count == 0:
+                            continue
+
+                        events_with_attendees += 1
                         total_responses += len(responses)
-                        total_accepted += sum(1 for r in responses if r.get("answer") == "accepted")
+                        total_accepted += accepted_count
                         total_declined += sum(1 for r in responses if r.get("answer") == "declined")
 
                     avg_rate = (total_accepted / total_responses * 100) if total_responses > 0 else 0
@@ -374,7 +406,7 @@ class ReportService:
                         "category_name": cat_stat["category_name"],
                         "color": cat_stat["color"],
                         "icon": cat_stat.get("icon"),
-                        "total_events": cat_stat["event_count"],
+                        "total_events": events_with_attendees,
                         "avg_attendance_rate": round(avg_rate, 1),
                         "total_responses": total_responses,
                         "accepted": total_accepted,
@@ -414,7 +446,9 @@ class ReportService:
                 organizer_stats = await analytics_service.get_organizer_statistics(
                     db,
                     limit=None,  # Get all organizers for detailed view
-                    group_id=group_id
+                    group_id=group_id,
+                    start_date=start_date,
+                    end_date=end_date
                 )
                 report_data["data"]["organizer_statistics"] = organizer_stats
 
@@ -515,11 +549,125 @@ class ReportService:
         if "summary" in data:
             writer.writerow(["Summary Statistics"])
             summary = data["summary"]
-            writer.writerow(["Total Events", summary["total_events"]])
-            writer.writerow(["Upcoming Events", summary["upcoming_events"]])
-            writer.writerow(["Past Events", summary["past_events"]])
-            writer.writerow(["Total Members", summary["total_members"]])
-            writer.writerow(["Average Attendance", f"{summary['average_attendance_rate']:.2f}%"])
+            # Handle both dict and Pydantic model
+            if hasattr(summary, 'total_events'):
+                writer.writerow(["Total Events", summary.total_events])
+                writer.writerow(["Upcoming Events", summary.upcoming_events])
+                writer.writerow(["Past Events", summary.past_events])
+                writer.writerow(["Total Members", summary.total_members])
+                writer.writerow(["Average Attendance", f"{summary.average_attendance_rate:.2f}%"])
+            else:
+                writer.writerow(["Total Events", summary["total_events"]])
+                writer.writerow(["Upcoming Events", summary["upcoming_events"]])
+                writer.writerow(["Past Events", summary["past_events"]])
+                writer.writerow(["Total Members", summary["total_members"]])
+                writer.writerow(["Average Attendance", f"{summary['average_attendance_rate']:.2f}%"])
+            writer.writerow([])
+
+        # Member participation details
+        if "member_participation" in data:
+            writer.writerow(["Member Participation Details"])
+            writer.writerow(["Member Name", "Total Events", "Attended", "Declined", "No Response", "Attendance Rate %"])
+
+            participation = data["member_participation"]
+            members = participation.get("members", [])
+
+            for member in members:
+                writer.writerow([
+                    member["member_name"],
+                    member["total_events"],
+                    member["attended"],
+                    member["declined"],
+                    member["no_response"],
+                    f"{member['attendance_rate']:.1f}%"
+                ])
+
+            writer.writerow([])
+            writer.writerow(["Total Members", participation.get("total", len(members))])
+            writer.writerow([])
+
+        # Event details with responses
+        if "event_details" in data:
+            writer.writerow(["Event Details"])
+            writer.writerow(["Event Name", "Date", "Category", "Organizers", "Total Invites", "Accepted", "Declined", "Unanswered", "Acceptance Rate %"])
+
+            for event in data["event_details"]:
+                # Format organizers
+                organizers_str = ""
+                if event.get("organizers"):
+                    organizers_str = ", ".join([
+                        f"{org['name']} ({org['response']})"
+                        for org in event["organizers"]
+                    ])
+
+                writer.writerow([
+                    event["heading"],
+                    event["start_time"],
+                    event["category_name"],
+                    organizers_str,
+                    event["total_invites"],
+                    event["accepted"],
+                    event["declined"],
+                    event["unanswered"],
+                    f"{event['acceptance_rate']:.1f}%"
+                ])
+            writer.writerow([])
+
+        # Category breakdown details
+        if "category_details" in data:
+            writer.writerow(["Category Breakdown Details"])
+            writer.writerow(["Category", "Total Events", "Avg Attendance Rate %", "Total Responses", "Accepted", "Declined"])
+
+            for category in data["category_details"]:
+                writer.writerow([
+                    category["category_name"],
+                    category["total_events"],
+                    f"{category['avg_attendance_rate']:.1f}%",
+                    category["total_responses"],
+                    category["accepted"],
+                    category["declined"]
+                ])
+            writer.writerow([])
+
+        # Daily attendance log
+        if "attendance_log" in data:
+            writer.writerow(["Daily Attendance Log"])
+            writer.writerow(["Date", "Total Events", "Accepted", "Declined", "Unanswered", "Acceptance Rate %"])
+
+            log = data["attendance_log"]
+            log_data = log.get("data", [])
+
+            for entry in log_data:
+                writer.writerow([
+                    entry["date"],
+                    entry["total_events"],
+                    entry["accepted"],
+                    entry["declined"],
+                    entry["unanswered"],
+                    f"{entry['acceptance_rate']:.1f}%"
+                ])
+            writer.writerow([])
+
+        # Organizer statistics
+        if "organizer_statistics" in data:
+            writer.writerow(["Organizer Statistics"])
+            writer.writerow(["Organizer Name", "Events Organized", "Accepted", "Declined", "Unanswered", "Attendance Rate %"])
+
+            org_stats = data["organizer_statistics"]
+            organizers = org_stats.get("organizers", [])
+
+            for organizer in organizers:
+                writer.writerow([
+                    organizer["organizer_name"],
+                    organizer["total_events"],
+                    organizer["accepted"],
+                    organizer["declined"],
+                    organizer["unanswered"],
+                    f"{organizer['attendance_rate']:.1f}%"
+                ])
+
+            writer.writerow([])
+            writer.writerow(["Total Organizers", org_stats.get("total", len(organizers))])
 
         # Convert to bytes
         csv_content = output.getvalue()

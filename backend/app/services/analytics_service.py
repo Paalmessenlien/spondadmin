@@ -112,6 +112,14 @@ class AnalyticsService:
         trends: Dict[str, AttendanceTrendPoint] = {}
 
         for event in events:
+            # Count responses first to check if event has attendees
+            responses = self._get_responses_array(event)
+            accepted_count = sum(1 for r in responses if r.get("answer", "").lower() == "accepted")
+
+            # Skip events with no attendees
+            if accepted_count == 0:
+                continue
+
             # Determine period key
             if period == "week":
                 # ISO week format
@@ -133,7 +141,7 @@ class AnalyticsService:
             trends[period_key].total_events += 1
 
             # Count responses using helper (supports both old and new formats)
-            for response in self._get_responses_array(event):
+            for response in responses:
                 answer = response.get("answer", "").lower()
                 if answer == "accepted":
                     trends[period_key].accepted += 1
@@ -211,7 +219,9 @@ class AnalyticsService:
     async def get_event_type_distribution(
         self,
         db: AsyncSession,
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
     ) -> List[EventTypeDistribution]:
         """Get distribution of event types"""
 
@@ -222,6 +232,12 @@ class AnalyticsService:
             stmt = stmt.where(
                 text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
             )
+
+        # Apply date range filters
+        if start_date:
+            stmt = stmt.where(Event.start_time >= start_date)
+        if end_date:
+            stmt = stmt.where(Event.start_time <= end_date)
 
         result = await db.execute(stmt)
         type_counts = result.all()
@@ -245,7 +261,9 @@ class AnalyticsService:
         self,
         db: AsyncSession,
         limit: int = 10,
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
     ) -> MemberParticipationResponse:
         """Get top members by participation"""
 
@@ -256,9 +274,16 @@ class AnalyticsService:
         members_result = await db.execute(members_stmt)
         members = members_result.scalars().all()
 
-        # Get all events (filtered by group if specified)
+        # Get all events (filtered by group and date range if specified)
         events_stmt = select(Event)
         events_stmt = self._apply_event_group_filter(events_stmt, group_id)
+
+        # Apply date range filters
+        if start_date:
+            events_stmt = events_stmt.where(Event.start_time >= start_date)
+        if end_date:
+            events_stmt = events_stmt.where(Event.start_time <= end_date)
+
         events_result = await db.execute(events_stmt)
         events = events_result.scalars().all()
 
@@ -321,13 +346,22 @@ class AnalyticsService:
         self,
         db: AsyncSession,
         limit: int = 10,
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
     ) -> Dict[str, Any]:
         """Get organizer statistics"""
 
-        # Get all events (filtered by group if specified)
+        # Get all events (filtered by group and date range if specified)
         events_stmt = select(Event)
         events_stmt = self._apply_event_group_filter(events_stmt, group_id)
+
+        # Apply date range filters
+        if start_date:
+            events_stmt = events_stmt.where(Event.start_time >= start_date)
+        if end_date:
+            events_stmt = events_stmt.where(Event.start_time <= end_date)
+
         events_result = await db.execute(events_stmt)
         events = events_result.scalars().all()
 
@@ -343,10 +377,17 @@ class AnalyticsService:
                 if not owner_id:
                     continue
 
+                # Build organizer name from firstName and lastName
+                organizer_name = f"{owner.get('firstName', '')} {owner.get('lastName', '')}".strip()
+
+                # Skip organizers with no name
+                if not organizer_name:
+                    continue
+
                 if owner_id not in organizer_stats:
                     organizer_stats[owner_id] = {
                         "organizer_id": owner_id,
-                        "organizer_name": f"{owner.get('firstName', '')} {owner.get('lastName', '')}".strip(),
+                        "organizer_name": organizer_name,
                         "total_events": 0,
                         "accepted": 0,
                         "declined": 0,
@@ -388,30 +429,55 @@ class AnalyticsService:
     async def get_analytics_summary(
         self,
         db: AsyncSession,
-        group_id: Optional[str] = None
+        group_id: Optional[str] = None,
+        category_ids: Optional[List[int]] = None,
+        exclude_category_ids: Optional[List[int]] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
     ) -> AnalyticsSummary:
         """Get overall analytics summary"""
 
-        # Get counts (with group filter if specified)
+        # Get counts (with group and date filters if specified)
         events_stmt = select(func.count(Event.id))
         if group_id:
             events_stmt = events_stmt.where(
                 text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
             )
+        # Apply date range filters
+        if start_date:
+            events_stmt = events_stmt.where(Event.start_time >= start_date)
+        if end_date:
+            events_stmt = events_stmt.where(Event.start_time <= end_date)
+        # Apply category filters
+        if category_ids:
+            events_stmt = events_stmt.where(Event.category_id.in_(category_ids))
+        if exclude_category_ids:
+            events_stmt = events_stmt.where(~Event.category_id.in_(exclude_category_ids))
         events_result = await db.execute(events_stmt)
         total_events = events_result.scalar() or 0
 
-        # Upcoming events
-        now = datetime.now(timezone.utc)
-        upcoming_stmt = select(func.count(Event.id)).where(Event.start_time >= now)
-        if group_id:
-            upcoming_stmt = upcoming_stmt.where(
-                text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
-            )
-        upcoming_result = await db.execute(upcoming_stmt)
-        upcoming_events = upcoming_result.scalar() or 0
+        # Only calculate upcoming/past if no date range specified
+        # For date-based reports, these metrics don't make sense
+        upcoming_events = 0
+        past_events = 0
 
-        past_events = total_events - upcoming_events
+        if not start_date and not end_date:
+            # Upcoming events
+            now = datetime.now(timezone.utc)
+            upcoming_stmt = select(func.count(Event.id)).where(Event.start_time >= now)
+            if group_id:
+                upcoming_stmt = upcoming_stmt.where(
+                    text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
+                )
+            # Apply category filters to upcoming events too
+            if category_ids:
+                upcoming_stmt = upcoming_stmt.where(Event.category_id.in_(category_ids))
+            if exclude_category_ids:
+                upcoming_stmt = upcoming_stmt.where(~Event.category_id.in_(exclude_category_ids))
+            upcoming_result = await db.execute(upcoming_stmt)
+            upcoming_events = upcoming_result.scalar() or 0
+
+            past_events = total_events - upcoming_events
 
         # Total members (filtered by group if specified)
         members_stmt = select(func.count(Member.id))
@@ -420,14 +486,30 @@ class AnalyticsService:
         members_result = await db.execute(members_stmt)
         total_members = members_result.scalar() or 0
 
-        # Get response rates (with group filter)
-        response_rates = await self.get_response_rates(db, group_id=group_id)
+        # Get response rates (with group and date filters)
+        response_rates = await self.get_response_rates(
+            db,
+            start_date=start_date,
+            end_date=end_date,
+            group_id=group_id
+        )
 
-        # Get event type distribution (with group filter)
-        event_distribution = await self.get_event_type_distribution(db, group_id=group_id)
+        # Get event type distribution (with group and date filters)
+        event_distribution = await self.get_event_type_distribution(
+            db,
+            group_id=group_id,
+            start_date=start_date,
+            end_date=end_date
+        )
 
-        # Get most active members (top 5, with group filter)
-        member_participation = await self.get_member_participation(db, limit=5, group_id=group_id)
+        # Get most active members (top 5, with group and date filters)
+        member_participation = await self.get_member_participation(
+            db,
+            limit=5,
+            group_id=group_id,
+            start_date=start_date,
+            end_date=end_date
+        )
 
         return AnalyticsSummary(
             total_events=total_events,
