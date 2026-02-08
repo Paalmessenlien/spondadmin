@@ -129,6 +129,50 @@ async def update_category(
         )
 
 
+@router.post("/{category_id}/duplicate", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
+async def duplicate_category(
+    category_id: int,
+    current_user: Admin = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Duplicate an existing category (admin only)
+    Creates a copy with the same settings but with " (Copy)" appended to the name
+    """
+    try:
+        # Get the original category
+        original = await CategoryService.get_by_id(db, category_id)
+
+        if not original:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Category {category_id} not found"
+            )
+
+        # Create duplicate with modified name
+        duplicate = await CategoryService.create(
+            db,
+            name=f"{original.name} (Copy)",
+            description=original.description,
+            color=original.color,
+            icon=original.icon,
+            pattern_rules=original.pattern_rules,
+            priority=original.priority + 1,  # Place it right after the original
+            is_active=original.is_active,
+            is_default=False,  # Never duplicate as default
+        )
+
+        await db.commit()
+        return CategoryResponse.model_validate(duplicate)
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to duplicate category: {str(e)}"
+        )
+
+
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_category(
     category_id: int,

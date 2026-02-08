@@ -24,7 +24,7 @@ const patterns = ref<PatternRule[]>([...(props.modelValue?.patterns || [])])
 
 // Test input
 const testInput = ref('')
-const testResult = ref<{ matches: boolean, matchedPattern: number | null } | null>(null)
+const testResult = ref<{ matches: boolean, matchedPattern: number | null, matchedContent?: string } | null>(null)
 
 // Pattern type options
 const patternTypes = [
@@ -72,6 +72,12 @@ const testPatterns = () => {
   // Evaluate first pattern
   let result = matchesPattern(testInput.value, patterns.value[0])
   let matchedIndex = result ? 0 : null
+  let matchedContent: string | null = null
+
+  // Get matched content from first pattern if it matched
+  if (result) {
+    matchedContent = getMatchedContent(testInput.value, patterns.value[0])
+  }
 
   // Evaluate remaining patterns with operators
   for (let i = 1; i < patterns.value.length; i++) {
@@ -85,14 +91,17 @@ const testPatterns = () => {
       result = result || matches
     }
 
+    // If this pattern matches and we don't have a matched content yet, get it
     if (matches && matchedIndex === null) {
       matchedIndex = i
+      matchedContent = getMatchedContent(testInput.value, pattern)
     }
   }
 
   testResult.value = {
     matches: result,
-    matchedPattern: matchedIndex
+    matchedPattern: matchedIndex,
+    matchedContent: matchedContent || undefined
   }
 }
 
@@ -122,6 +131,59 @@ const matchesPattern = (text: string, pattern: PatternRule): boolean => {
     }
   } catch (error) {
     return false
+  }
+}
+
+// Extract what matched from the text
+const getMatchedContent = (text: string, pattern: PatternRule): string | null => {
+  let testText = text
+  let testValue = pattern.value
+
+  if (pattern.case_insensitive) {
+    testText = text.toLowerCase()
+    testValue = pattern.value.toLowerCase()
+  }
+
+  try {
+    switch (pattern.type) {
+      case 'contains':
+        if (testText.includes(testValue)) {
+          // Find the actual matched substring in original text
+          const index = testText.indexOf(testValue)
+          return text.substring(index, index + testValue.length)
+        }
+        return null
+      case 'starts_with':
+        if (testText.startsWith(testValue)) {
+          return text.substring(0, testValue.length)
+        }
+        return null
+      case 'ends_with':
+        if (testText.endsWith(testValue)) {
+          return text.substring(text.length - testValue.length)
+        }
+        return null
+      case 'regex':
+        const flags = pattern.case_insensitive ? 'i' : ''
+        const match = text.match(new RegExp(pattern.value, flags))
+        return match ? match[0] : null
+      default:
+        return null
+    }
+  } catch (error) {
+    return null
+  }
+}
+
+// Helper to split text for highlighting
+const getHighlightedText = (fullText: string, matchedContent: string) => {
+  const index = fullText.indexOf(matchedContent)
+  if (index === -1) {
+    return { before: fullText, after: '' }
+  }
+  return {
+    before: fullText.substring(0, index),
+    after: fullText.substring(index + matchedContent.length)
   }
 }
 
@@ -299,6 +361,15 @@ watch(() => props.modelValue, (newVal) => {
               >
                 Matched by Pattern {{ testResult.matchedPattern + 1 }}
               </p>
+              <div
+                v-if="testResult.matches && testResult.matchedContent"
+                class="mt-2 pt-2 border-t border-green-200 dark:border-green-800"
+              >
+                <p class="text-xs text-green-700 dark:text-green-300 mb-1">Matched content:</p>
+                <div class="text-xs font-mono bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded break-words">
+                  <span class="text-green-600 dark:text-green-400">{{ getHighlightedText(testInput, testResult.matchedContent).before }}</span><span class="font-bold text-green-800 dark:text-green-200 bg-green-200 dark:bg-green-800 px-1">{{ testResult.matchedContent }}</span><span class="text-green-600 dark:text-green-400">{{ getHighlightedText(testInput, testResult.matchedContent).after }}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

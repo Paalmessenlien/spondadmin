@@ -247,15 +247,35 @@ export const useReportStore = defineStore('report', {
         const api = useApi()
         const url = await api.exportReport(id, format)
 
-        // Trigger download
+        // Trigger download with proper authentication
         if (import.meta.client) {
           const authStore = useAuthStore()
+          const config = useRuntimeConfig()
+
+          // Fetch the file with authentication header
+          const response = await fetch(`${config.public.apiBase}/reports/${id}/export?format=${format}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${authStore.token}`
+            }
+          })
+
+          if (!response.ok) {
+            throw new Error(`Export failed: ${response.statusText}`)
+          }
+
+          // Get the blob and create download link
+          const blob = await response.blob()
+          const downloadUrl = window.URL.createObjectURL(blob)
           const link = document.createElement('a')
-          link.href = url + `&token=${authStore.token}`
+          link.href = downloadUrl
           link.download = `report_${id}.${format}`
           document.body.appendChild(link)
           link.click()
           document.body.removeChild(link)
+
+          // Clean up the blob URL
+          window.URL.revokeObjectURL(downloadUrl)
         }
       } catch (error: any) {
         this.error = error.message || 'Failed to export report'

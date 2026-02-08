@@ -44,7 +44,10 @@ const handleExport = async (format: string) => {
 
 <template>
   <UDropdown
-    :items="[exportFormats]"
+    :items="[exportFormats.map(format => ({
+      ...format,
+      click: () => handleExport(format.value)
+    }))]"
     :popper="{ placement: 'bottom-end' }"
   >
     <UButton

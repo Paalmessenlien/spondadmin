@@ -168,6 +168,24 @@ export const useCategoryStore = defineStore('category', {
       }
     },
 
+    async duplicateCategory(id: number) {
+      this.loading = true
+      this.error = null
+
+      try {
+        const api = useApi()
+        const duplicatedCategory = await api.duplicateCategory(id)
+        this.categories.push(duplicatedCategory)
+        return duplicatedCategory
+      } catch (error: any) {
+        this.error = error.message || 'Failed to duplicate category'
+        console.error('Failed to duplicate category:', error)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
     async bulkCategorizeEvents(payload: { event_ids?: number[], force_recategorize?: boolean }) {
       this.loading = true
       this.error = null

@@ -678,7 +678,8 @@ class EventService:
         group_id: Optional[int] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        category_ids: Optional[List[int]] = None
+        category_ids: Optional[List[int]] = None,
+        exclude_category_ids: Optional[List[int]] = None
     ) -> List[dict]:
         """
         Get events with aggregated attendance statistics
@@ -688,7 +689,8 @@ class EventService:
             group_id: Optional group filter
             start_date: Optional start date filter
             end_date: Optional end date filter
-            category_ids: Optional category ID filters
+            category_ids: Optional category ID filters (include only these)
+            exclude_category_ids: Optional category IDs to exclude
 
         Returns:
             List of events with attendance statistics
@@ -708,6 +710,8 @@ class EventService:
             query = query.where(Event.start_time <= end_date)
         if category_ids:
             query = query.where(Event.category_id.in_(category_ids))
+        if exclude_category_ids:
+            query = query.where(~Event.category_id.in_(exclude_category_ids))
 
         query = query.order_by(Event.start_time.desc())
         result = await db.execute(query)
@@ -737,19 +741,21 @@ class EventService:
             total = len(responses)
             unanswered = total - accepted - declined
 
-            # Only include events with at least one attendee
-            if accepted > 0:
-                # Extract organizers/owners from raw_data
-                organizers = []
-                if event.raw_data and "owners" in event.raw_data:
-                    for owner in event.raw_data["owners"]:
-                        organizers.append({
-                            "id": owner.get("id"),
-                            "name": f"{owner.get('firstName', '')} {owner.get('lastName', '')}".strip(),
-                            "response": owner.get("response", "unanswered")
-                        })
+            # Skip events with no attendees (no accepted responses)
+            if accepted == 0:
+                continue
 
-                events_data.append({
+            # Extract organizers/owners from raw_data
+            organizers = []
+            if event.raw_data and "owners" in event.raw_data:
+                for owner in event.raw_data["owners"]:
+                    organizers.append({
+                        "id": owner.get("id"),
+                        "name": f"{owner.get('firstName', '')} {owner.get('lastName', '')}".strip(),
+                        "response": owner.get("response", "unanswered")
+                    })
+
+            events_data.append({
                     "event_id": event.id,
                     "heading": event.heading,
                     "start_time": event.start_time.isoformat() if event.start_time else None,

@@ -116,11 +116,11 @@ const handleExport = async () => {
                 <div class="text-sm text-gray-600">Total Members</div>
                 <div class="text-2xl font-bold">{{ reportStore.reportData.data.summary.total_members }}</div>
               </div>
-              <div v-if="reportStore.reportData.data.summary.upcoming_events !== undefined">
+              <div v-if="reportStore.reportData.data.summary.upcoming_events !== undefined && reportStore.reportData.data.summary.upcoming_events > 0">
                 <div class="text-sm text-gray-600">Upcoming Events</div>
                 <div class="text-2xl font-bold text-blue-600">{{ reportStore.reportData.data.summary.upcoming_events }}</div>
               </div>
-              <div v-if="reportStore.reportData.data.summary.past_events !== undefined">
+              <div v-if="reportStore.reportData.data.summary.past_events !== undefined && reportStore.reportData.data.summary.past_events > 0">
                 <div class="text-sm text-gray-600">Past Events</div>
                 <div class="text-2xl font-bold text-gray-600">{{ reportStore.reportData.data.summary.past_events }}</div>
               </div>

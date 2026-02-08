@@ -211,6 +211,12 @@ export const useApi = () => {
     })
   }
 
+  const duplicateCategory = async (id: number) => {
+    return makeRequest(`/categories/${id}/duplicate`, {
+      method: 'POST',
+    })
+  }
+
   const bulkCategorizeEvents = async (payload: { event_ids?: number[], force_recategorize?: boolean }) => {
     return makeRequest('/categories/bulk-categorize', {
       method: 'POST',
@@ -331,6 +337,7 @@ export const useApi = () => {
     createCategory,
     updateCategory,
     deleteCategory,
+    duplicateCategory,
     bulkCategorizeEvents,
     getCategoryStatistics,
     // Reports

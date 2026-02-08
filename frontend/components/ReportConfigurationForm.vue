@@ -11,6 +11,7 @@ interface ReportConfiguration {
   }
   group_ids?: string[]
   category_ids?: number[]
+  exclude_category_ids?: number[]
   metrics?: string[]
   chart_types?: string[]
   comparison_period?: string
@@ -79,12 +80,17 @@ if (!localValue.value.configuration) {
       end: today
     },
     category_ids: [],
+    exclude_category_ids: [],
     metrics: ['summary']
   }
 } else {
   // Ensure category_ids is always an array
   if (!localValue.value.configuration.category_ids) {
     localValue.value.configuration.category_ids = []
+  }
+  // Ensure exclude_category_ids is always an array
+  if (!localValue.value.configuration.exclude_category_ids) {
+    localValue.value.configuration.exclude_category_ids = []
   }
 }
 
@@ -165,15 +171,41 @@ watch(localValue, () => {
 
     <!-- Categories Filter -->
     <div class="space-y-4">
-      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Filters</h3>
+      <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Category Filters</h3>
 
-      <UFormGroup label="Categories">
+      <UFormGroup
+        label="Include Categories"
+        help="Leave empty to include all categories"
+      >
         <CategorySelector
           v-model="localValue.configuration!.category_ids!"
           :multiple="true"
           placeholder="All categories"
         />
       </UFormGroup>
+
+      <UFormGroup
+        label="Exclude Categories"
+        help="Select categories to exclude from the report"
+      >
+        <CategorySelector
+          v-model="localValue.configuration!.exclude_category_ids!"
+          :multiple="true"
+          placeholder="No exclusions"
+        />
+      </UFormGroup>
+
+      <div
+        v-if="localValue.configuration!.category_ids!.length > 0 && localValue.configuration!.exclude_category_ids!.length > 0"
+        class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg"
+      >
+        <div class="flex items-start gap-2">
+          <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+          <p class="text-sm text-amber-800 dark:text-amber-300">
+            Note: Exclude filters are applied after include filters. Only included categories that are not excluded will appear in the report.
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Metrics (for comprehensive reports) -->

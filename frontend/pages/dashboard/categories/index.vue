@@ -24,6 +24,16 @@ const handleBulkCategorize = async () => {
     toast.add({ title: 'Error', description: error.message, color: 'red' })
   }
 }
+
+const handleDuplicate = async (id: number, name: string) => {
+  if (!confirm(`Duplicate "${name}"?`)) return
+  try {
+    const duplicated = await categoryStore.duplicateCategory(id)
+    toast.add({ title: 'Success', description: `Created "${duplicated.name}"`, color: 'green' })
+  } catch (error: any) {
+    toast.add({ title: 'Error', description: error.message, color: 'red' })
+  }
+}
 </script>
 
 <template>
@@ -79,10 +89,21 @@ const handleBulkCategorize = async () => {
         </div>
 
         <template #footer>
-          <div class="flex justify-between">
-            <UButton :to="`/dashboard/categories/${category.id}`" size="xs" variant="soft">
-              Edit
-            </UButton>
+          <div class="flex justify-between items-center">
+            <div class="flex gap-2">
+              <UButton :to="`/dashboard/categories/${category.id}`" size="xs" variant="soft">
+                Edit
+              </UButton>
+              <UButton
+                icon="i-heroicons-document-duplicate"
+                size="xs"
+                variant="soft"
+                color="gray"
+                @click="handleDuplicate(category.id, category.name)"
+              >
+                Duplicate
+              </UButton>
+            </div>
             <UButton
               v-if="!category.is_default"
               icon="i-heroicons-trash"
