@@ -96,11 +96,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     Handle validation errors with consistent format
     """
     logger.warning(f"Validation error on {request.url.path}: {exc.errors()}")
+    errors = []
+    for err in exc.errors():
+        err = dict(err)
+        if isinstance(err.get("input"), bytes):
+            err["input"] = err["input"].decode("utf-8", errors="replace")
+        errors.append(err)
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
-            "detail": exc.errors(),
-            "body": exc.body if hasattr(exc, 'body') else None,
+            "detail": errors,
+            "body": exc.body.decode("utf-8", errors="replace") if isinstance(getattr(exc, 'body', None), bytes) else (exc.body if hasattr(exc, 'body') else None),
         }
     )
 

@@ -291,7 +291,9 @@ class AnalyticsService:
         member_stats: Dict[str, Dict[str, Any]] = {}
 
         for member in members:
-            member_id = member.spond_id
+            # Use profile ID for matching with event responses (profile.id != spond_id)
+            profile = member.raw_data.get("profile", {}) if member.raw_data else {}
+            member_id = profile.get("id") or member.spond_id
             member_stats[member_id] = {
                 "member_id": member.id,
                 "member_name": f"{member.first_name} {member.last_name}",

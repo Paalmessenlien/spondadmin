@@ -385,13 +385,13 @@ const filters = reactive({
   search: '',
   event_type: '',
   include_hidden: 'true',
-  include_archived: 'false',
+  include_archived: 'both',
   start_date: '',
   end_date: '',
   skip: 0,
   limit: 20,
   order_by: 'start_time',
-  order_desc: false, // Show earliest/upcoming events first
+  order_desc: true, // Show newest events first
 })
 
 // Filter options
@@ -431,7 +431,7 @@ const hasActiveFilters = computed(() => {
   return filters.search ||
          filters.event_type ||
          filters.include_hidden !== 'true' ||
-         filters.include_archived !== 'false' ||
+         filters.include_archived !== 'both' ||
          filters.start_date ||
          filters.end_date
 })
@@ -453,7 +453,7 @@ const activeFilterChips = computed(() => {
     chips.push({ key: 'include_hidden', label: `Visibility: ${visOption?.label}` })
   }
 
-  if (filters.include_archived !== 'false') {
+  if (filters.include_archived !== 'both') {
     const archOption = archivedOptions.find(opt => opt.value === filters.include_archived)
     chips.push({ key: 'include_archived', label: `Status: ${archOption?.label}` })
   }
@@ -510,10 +510,20 @@ const loadEvents = async () => {
     const params: any = {
       skip: filters.skip,
       limit: filters.limit,
-      include_hidden: filters.include_hidden,
-      include_archived: filters.include_archived,
       order_by: filters.order_by,
       order_desc: filters.order_desc,
+    }
+
+    if (filters.include_hidden !== 'both') {
+      params.include_hidden = filters.include_hidden === 'true'
+    } else {
+      params.include_hidden = true
+    }
+
+    if (filters.include_archived !== 'both') {
+      params.include_archived = filters.include_archived === 'true'
+    } else {
+      params.include_archived = true
     }
 
     if (filters.search) {
@@ -574,7 +584,7 @@ const clearFilters = () => {
   filters.search = ''
   filters.event_type = ''
   filters.include_hidden = 'true'
-  filters.include_archived = 'false'
+  filters.include_archived = 'both'
   filters.start_date = ''
   filters.end_date = ''
 }
@@ -591,7 +601,7 @@ const removeFilter = (key: string) => {
       filters.include_hidden = 'true'
       break
     case 'include_archived':
-      filters.include_archived = 'false'
+      filters.include_archived = 'both'
       break
     case 'start_date':
       filters.start_date = ''

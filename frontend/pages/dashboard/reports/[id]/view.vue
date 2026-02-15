@@ -161,19 +161,19 @@ const handleExport = async () => {
             </div>
 
             <!-- Event Type Distribution -->
-            <div v-if="reportStore.reportData.data.summary.events_by_type && typeof reportStore.reportData.data.summary.events_by_type === 'object'" class="border-t pt-4">
+            <div v-if="reportStore.reportData.data.summary.event_type_distribution && reportStore.reportData.data.summary.event_type_distribution.length > 0" class="border-t pt-4">
               <h3 class="text-sm font-semibold text-gray-700 mb-3">Event Type Distribution</h3>
               <div class="space-y-2">
                 <div
-                  v-for="(count, type) in reportStore.reportData.data.summary.events_by_type"
-                  :key="type"
+                  v-for="item in reportStore.reportData.data.summary.event_type_distribution"
+                  :key="item.event_type"
                   class="flex items-center justify-between"
                 >
-                  <span class="text-sm text-gray-600 capitalize">{{ type }}</span>
+                  <span class="text-sm text-gray-600 capitalize">{{ item.event_type }}</span>
                   <div class="flex items-center gap-2">
-                    <span class="text-sm font-semibold">{{ count }}</span>
+                    <span class="text-sm font-semibold">{{ item.count }}</span>
                     <span class="text-xs text-gray-500">
-                      ({{ ((count / reportStore.reportData.data.summary.total_events) * 100).toFixed(1) }}%)
+                      ({{ item.percentage.toFixed(1) }}%)
                     </span>
                   </div>
                 </div>

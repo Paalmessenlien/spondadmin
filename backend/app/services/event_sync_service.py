@@ -3,7 +3,7 @@ Event synchronization service
 Handles syncing events from Spond API to local database
 """
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 from sqlalchemy import select
@@ -86,11 +86,14 @@ class EventSyncService:
                 except Exception as e:
                     logger.warning(f"Failed to fetch group data for member profiles: {e}")
 
-            # Fetch events from Spond API
+            # Fetch events from Spond API (include past events by setting min_end far back)
             logger.info(f"Fetching events from Spond API (group_id={group_id})")
+            min_end = datetime.utcnow() - timedelta(days=365 * 5)  # Go back 5 years
             events_data = await spond_service.get_events(
                 group_id=group_id,
                 max_events=max_events,
+                min_end=min_end,
+                include_hidden=bool(group_id),
             )
 
             stats["fetched"] = len(events_data)

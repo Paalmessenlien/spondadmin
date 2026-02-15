@@ -68,6 +68,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         algorithm=settings.ALGORITHM
     )
 
+    if isinstance(encoded_jwt, bytes):
+        encoded_jwt = encoded_jwt.decode("utf-8")
+
     return encoded_jwt
 
 
@@ -103,6 +106,9 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
         settings.SECRET_KEY,
         algorithm=settings.ALGORITHM
     )
+
+    if isinstance(encoded_jwt, bytes):
+        encoded_jwt = encoded_jwt.decode("utf-8")
 
     return encoded_jwt
 
