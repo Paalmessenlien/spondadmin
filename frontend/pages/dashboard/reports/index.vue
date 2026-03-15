@@ -3,6 +3,7 @@ definePageMeta({ middleware: 'auth', layout: 'dashboard' })
 
 const reportStore = useReportStore()
 const toast = useToast()
+const { canEdit } = usePermissions()
 
 onMounted(() => reportStore.fetchReports())
 
@@ -46,7 +47,7 @@ const handleToggleFavorite = async (id: number) => {
 
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-3xl font-bold">Reports</h1>
-      <UButton icon="i-heroicons-plus" to="/dashboard/reports/create">
+      <UButton v-if="canEdit" icon="i-heroicons-plus" to="/dashboard/reports/create">
         Create Report
       </UButton>
     </div>

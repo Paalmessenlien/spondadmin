@@ -11,6 +11,7 @@ interface User {
   full_name: string
   is_active: boolean
   is_superuser: boolean
+  role: 'admin' | 'editor' | 'viewer'
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -25,6 +26,9 @@ export const useAuthStore = defineStore('auth', {
     isAuthenticated: (state) => !!state.token,
     isLoading: (state) => state.loading,
     hasSelectedGroup: (state) => !!state.selectedGroupId,
+    isAdmin: (state) => state.user?.role === 'admin',
+    canEdit: (state) => ['admin', 'editor'].includes(state.user?.role ?? ''),
+    canManageSystem: (state) => state.user?.role === 'admin',
   },
 
   actions: {
@@ -33,9 +37,9 @@ export const useAuthStore = defineStore('auth', {
       try {
         const api = useApi()
         const response = await api.login(username, password)
-        
+
         this.token = response.access_token
-        
+
         // Store token in localStorage for persistence
         if (import.meta.client) {
           localStorage.setItem('auth_token', response.access_token)

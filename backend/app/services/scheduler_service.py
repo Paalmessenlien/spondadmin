@@ -54,6 +54,26 @@ class SchedulerService:
     async def _add_scheduled_jobs(self):
         """Add all scheduled synchronization jobs"""
 
+        # Bueskyting scraper job (if configured)
+        try:
+            from app.services.scraping_config_service import ScrapingConfigService
+            async with AsyncSessionLocal() as db:
+                config = await ScrapingConfigService.get_config(db)
+                if config.auto_scrape_enabled and config.club_id:
+                    interval_hours = config.scrape_interval_hours or 24
+                    self.scheduler.add_job(
+                        self._scrape_bueskyting_job,
+                        trigger=IntervalTrigger(hours=interval_hours),
+                        id="scrape_bueskyting",
+                        name="Scrape bueskyting.no",
+                        replace_existing=True,
+                        max_instances=1,
+                    )
+                    logger.info(f"Scheduled bueskyting scrape every {interval_hours} hours")
+                await db.commit()
+        except Exception as e:
+            logger.warning(f"Could not configure bueskyting scraper job: {e}")
+
         # Events sync job
         if settings.SYNC_EVENTS_ENABLED:
             interval_minutes = settings.SYNC_EVENTS_INTERVAL_MINUTES
@@ -144,6 +164,24 @@ class SchedulerService:
                 )
         except Exception as e:
             logger.error(f"Scheduled members sync failed: {e}", exc_info=True)
+
+    async def _scrape_bueskyting_job(self):
+        """Background job to scrape bueskyting.no"""
+        logger.info("Starting scheduled bueskyting scrape")
+        try:
+            from app.services.scraping_config_service import ScrapingConfigService
+            from app.services.bueskyting_scraper_service import BueskytingScraperService
+
+            async with AsyncSessionLocal() as db:
+                config = await ScrapingConfigService.get_config(db)
+                if not config.club_id:
+                    logger.warning("Bueskyting scrape skipped: no club_id configured")
+                    return
+                await BueskytingScraperService.scrape_full(db, config, mode="incremental")
+                await db.commit()
+                logger.info("Scheduled bueskyting scrape completed")
+        except Exception as e:
+            logger.error(f"Scheduled bueskyting scrape failed: {e}", exc_info=True)
 
     def get_jobs(self):
         """Get all scheduled jobs"""

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_admin, get_current_editor_or_above
 from app.db.session import get_db
 from app.models.admin import Admin
 from app.services.spond_service import get_spond_service, SpondService
@@ -28,7 +28,7 @@ router = APIRouter()
 @router.post("/sync", response_model=GroupSyncResult)
 async def sync_groups(
     force_refresh: bool = Query(False, description="Force refresh even if recently synced"),
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
     spond: SpondService = Depends(get_spond_service),
 ):
@@ -117,7 +117,7 @@ async def get_group(
 async def update_group(
     group_id: int,
     update_data: GroupUpdate,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     db: AsyncSession = Depends(get_db),
 ):
     """

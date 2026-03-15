@@ -8,7 +8,31 @@ Spond Admin Interface - A full-stack web application for managing Spond events, 
 
 ## Commands
 
-### Backend (FastAPI)
+### Docker (Recommended)
+
+```bash
+# Development - starts db, backend (hot-reload), frontend (HMR)
+docker compose up
+docker compose up --build          # rebuild after dependency changes
+docker compose down                # stop all services
+docker compose logs -f backend     # tail backend logs
+
+# Production
+docker compose -f docker-compose.prod.yml up -d
+./scripts/deploy.sh                # full deployment (backup, build, migrate, health check)
+
+# Create admin user (Docker)
+docker compose exec backend python3 create_admin.py
+
+# Run migrations (Docker)
+docker compose exec backend alembic upgrade head
+
+# Database backup/restore (Docker)
+./scripts/backup.sh
+./scripts/restore.sh backups/<file>.dump
+```
+
+### Local Development (without Docker)
 
 ```bash
 cd backend
@@ -27,8 +51,6 @@ python3 create_admin.py
 # Reset admin password
 python3 reset_admin_password.py
 ```
-
-### Frontend (Nuxt 3)
 
 ```bash
 cd frontend
@@ -52,13 +74,14 @@ lsof -ti:3000 | xargs kill -9  # Frontend
 ### Backend (`backend/`)
 
 - **Framework**: FastAPI with async SQLAlchemy ORM
-- **Database**: SQLite (dev) / PostgreSQL (prod)
-- **Auth**: JWT tokens with bcrypt password hashing
+- **Database**: PostgreSQL (production + Docker dev) / SQLite (local dev)
+- **Auth**: JWT tokens with bcrypt password hashing, role-based access (admin/editor/viewer)
 - **External API**: Spond API via `spond` and `spond-classes` libraries
+- **Scraping**: bueskyting.no competition results and records via crawl4ai
 
 **Key Directories**:
-- `app/api/v1/` - API route handlers (auth, events, groups, members, analytics, scheduler)
-- `app/services/` - Business logic and Spond sync services
+- `app/api/v1/` - API route handlers (auth, events, groups, members, analytics, scheduler, scores, scraper, backups, migrations)
+- `app/services/` - Business logic, Spond sync, backup, migration, and scraper services
 - `app/models/` - SQLAlchemy ORM models
 - `app/schemas/` - Pydantic validation schemas
 - `app/core/` - Config (`config.py`), security (`security.py`), dependencies (`deps.py`)
@@ -77,10 +100,10 @@ lsof -ti:3000 | xargs kill -9  # Frontend
 - **Charts**: Chart.js with vue-chartjs
 
 **Key Directories**:
-- `pages/dashboard/` - Main app pages (events/, groups/, members/, analytics.vue, reports/)
+- `pages/dashboard/` - Main app pages (events/, groups/, members/, analytics.vue, reports/, scores/, settings/)
 - `components/` - Reusable Vue components (charts, empty states, breadcrumbs)
   - `components/reports/` - Report-specific table components with sorting/filtering
-- `composables/` - Composable functions for shared logic
+- `composables/` - Composable functions for shared logic (`useApi.ts`, `usePermissions.ts`)
 - `stores/` - Pinia state management
 - `layouts/` - Page layouts (dashboard.vue)
 - `middleware/` - Auth middleware
@@ -89,17 +112,52 @@ lsof -ti:3000 | xargs kill -9  # Frontend
 
 ### Data Flow
 
-1. Spond API → Sync Services → SQLite/PostgreSQL
-2. Frontend → Backend API → Database
-3. Background scheduler refreshes data automatically
+1. Spond API → Sync Services → PostgreSQL
+2. bueskyting.no → Scraper Service → PostgreSQL
+3. Frontend → Backend API → Database
+4. Background scheduler refreshes data automatically
+
+### Docker Infrastructure
+
+- `docker-compose.yml` - Development (db + backend + frontend, hot-reload)
+- `docker-compose.prod.yml` - Production (+ nginx reverse proxy, resource limits, logging)
+- `nginx/` - Nginx config with SSL/TLS, rate limiting, security headers
+- `scripts/` - Deployment, backup, restore, and SQLite-to-PostgreSQL migration scripts
+- `monitoring/` - Service health check script
+
+### Backup System
+
+- **Backend**: `BackupService` uses `pg_dump`/`pg_restore` with Bunny CDN offsite storage
+- **API**: `/backups/` CRUD endpoints (admin only)
+- **Frontend**: Settings > Database Backups page
+- **Scripts**: `scripts/backup.sh` (scheduled), `scripts/restore.sh` (CLI)
+- CDN path: `spondadmin/backups/` in the shared `archery-trainer-storage` Bunny CDN zone
+
+### Migration Management
+
+- **Backend**: `MigrationService` wraps Alembic operations (status, history, run)
+- **API**: `/migrations/status`, `/migrations/history`, `/migrations/run` (admin only)
+- **Frontend**: Settings > Migrations page
 
 ## Configuration
 
+### Docker Development
+Uses `backend/.env.docker` with PostgreSQL defaults. Just run `docker compose up`.
+
+### Local Development
 Backend config via `backend/.env` (copy from `.env.example`):
 - `SPOND_USERNAME` / `SPOND_PASSWORD` - Spond API credentials
 - `SECRET_KEY` - JWT signing key (generate with `openssl rand -hex 32`)
 - `AUTO_SYNC_ENABLED` - Enable background sync
 - `SYNC_*_INTERVAL_MINUTES` - Sync frequency per entity
+
+### Production
+Copy `.env.production.example` to `.env` and configure:
+- `DATABASE_URL` - PostgreSQL connection (asyncpg)
+- `POSTGRES_PASSWORD` - Strong database password
+- `SECRET_KEY` - JWT signing key
+- `BUNNY_STORAGE_ZONE`, `BUNNY_STORAGE_API_KEY`, `BUNNY_CDN_HOSTNAME` - CDN backup storage
+- `ALLOWED_ORIGINS` - JSON array format: `["https://admin.lillehammerbueskyttere.no"]`
 
 Frontend config via `frontend/.env`:
 - `NUXT_PUBLIC_API_BASE` - Backend API URL (default: `http://localhost:8001/api/v1`)
@@ -117,11 +175,17 @@ Base URL: `http://localhost:8001/api/v1`
 - `/analytics/categories/*` - Category-specific analytics
 - `/reports/`, `/reports/{id}`, `/reports/{id}/generate` - Report management
 - `/scheduler/status`, `/scheduler/jobs` - Background job management
+- `/scores/results`, `/scores/competitions`, `/scores/records`, `/scores/statistics` - Competition scores
+- `/scraper/run`, `/scraper/status`, `/scraper/config` - bueskyting.no scraper
+- `/backups/`, `/backups/{id}/restore`, `/backups/{id}/upload-cdn` - Database backups
+- `/migrations/status`, `/migrations/history`, `/migrations/run` - Migration management
 - `/docs` - Swagger UI
 
 ## Important Patterns
 
-**Timestamp Handling**: SQLAlchemy models use `TimestampMixin`. When creating records via sync services, explicitly set `created_at` and `updated_at` fields for SQLite compatibility.
+**Timestamp Handling**: SQLAlchemy models use `TimestampMixin`. When creating records via sync services, explicitly set `created_at` and `updated_at` fields. Use timezone-naive datetimes with PostgreSQL (`TIMESTAMP WITHOUT TIME ZONE`).
+
+**bcrypt Compatibility**: Pin `bcrypt==4.0.1` in requirements.txt. Newer bcrypt versions break `passlib` on Python 3.13.
 
 **Analytics Response Format**: Event responses are stored as JSON with structure `{"responses": [...], "accepted_uids": [...]}`. The `analytics_service.py` uses `_get_responses_array()` helper for backward compatibility.
 
@@ -140,6 +204,10 @@ Base URL: `http://localhost:8001/api/v1`
 ```
 
 **Organizer Tracking**: Event organizers are extracted from `event.raw_data.owners` field. The `get_events_with_attendance()` service method includes organizer information with their response status (accepted/declined/unanswered).
+
+**ALLOWED_ORIGINS Format**: Must be a JSON array in `.env` files: `ALLOWED_ORIGINS=["http://localhost:3000"]`. Comma-separated strings will fail pydantic validation.
+
+**Role-Based Access**: Three roles: `admin` (full access), `editor` (modify data), `viewer` (read-only). Use `get_current_admin`, `get_current_editor_or_above` dependencies from `app/core/deps.py`. The `usePermissions` composable provides frontend guards.
 
 ## Reporting System
 
@@ -183,3 +251,40 @@ Tables use the `useTableState` composable for consistent sorting and pagination 
 - Analytics dashboard shows top 10 most active organizers
 - Reports include organizer columns showing who organized events and their responses
 - Organizer statistics show events organized vs their own attendance rates
+
+## Competition Scores System
+
+### Architecture
+- **Scraper**: `bueskyting_scraper_service.py` scrapes competition results and records from bueskyting.no using crawl4ai
+- **Models**: `Competition`, `CompetitionResult`, `ArcherStatistics`, `ArcheryRecord`, `ArcherProfile`
+- **Matching**: `archer_matching_service.py` links bueskyting.no archers to Spond members using fuzzy name matching (rapidfuzz)
+- **Frontend**: `/dashboard/scores/` pages for results, competitions, records, and statistics
+
+### Archer Profiles
+- Link Spond members to bueskyting.no profiles via `bueskyting_id`
+- Store bow type, age class, and other archery-specific data
+- `ArcherProfileForm.vue` component for editing profiles on member detail pages
+
+### Scraper Configuration
+- Managed via Settings > Competition Scraper
+- Configurable base URLs, club ID, auto-scrape interval
+- Unmatched archer management with auto-match and manual match options
+
+## Deployment
+
+### Production Domain
+`admin.lillehammerbueskyttere.no`
+
+### First-Time Setup
+1. Copy `.env.production.example` to `.env`, fill in all values
+2. Set up SSL: `certbot certonly --webroot -w /var/www/certbot -d admin.lillehammerbueskyttere.no`
+3. Run `./scripts/deploy.sh`
+4. Create admin user: `docker compose -f docker-compose.prod.yml exec backend python3 create_admin.py`
+
+### SQLite to PostgreSQL Migration
+For migrating existing data from local SQLite to Docker PostgreSQL:
+```bash
+docker compose up db -d
+docker compose exec backend alembic upgrade head
+python3 scripts/migrate-sqlite-to-postgres.py
+```

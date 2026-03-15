@@ -7,12 +7,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_admin, get_current_editor_or_above
 from app.db.session import get_db
 from app.models.admin import Admin
 from app.services.spond_service import get_spond_service, SpondService
 from app.services.member_service import MemberService
 from app.services.member_sync_service import MemberSyncService
+from app.services.archer_profile_service import ArcherProfileService
 from app.schemas.member import (
     MemberResponse,
     MemberListResponse,
@@ -20,6 +21,11 @@ from app.schemas.member import (
     MemberSyncResult,
     MemberStats,
     MemberFilters,
+)
+from app.schemas.archer_profile import (
+    ArcherProfileCreate,
+    ArcherProfileUpdate,
+    ArcherProfileResponse,
 )
 
 router = APIRouter()
@@ -29,7 +35,7 @@ router = APIRouter()
 async def sync_members(
     group_id: str | None = Query(None, description="Sync members from specific group"),
     force_refresh: bool = Query(False, description="Force refresh even if recently synced"),
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
     spond: SpondService = Depends(get_spond_service),
 ):
@@ -128,7 +134,7 @@ async def get_member(
 async def update_member(
     member_id: int,
     update_data: MemberUpdate,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -142,3 +148,69 @@ async def update_member(
     await db.refresh(member)
 
     return MemberResponse.model_validate(member)
+
+
+# ============================================================
+# Archer Profile endpoints
+# ============================================================
+
+@router.get("/{member_id}/archery-profile", response_model=ArcherProfileResponse)
+async def get_archery_profile(
+    member_id: int,
+    current_user: Admin = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the archery profile for a member (looked up via spond_id)"""
+    member = await MemberService.get_by_id(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    profile = await ArcherProfileService.get_by_spond_id(db, member.spond_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Archery profile not found")
+
+    return ArcherProfileResponse.model_validate(profile)
+
+
+@router.put("/{member_id}/archery-profile", response_model=ArcherProfileResponse)
+async def create_or_update_archery_profile(
+    member_id: int,
+    data: ArcherProfileCreate,
+    current_user: Admin = Depends(get_current_editor_or_above),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create or update the archery profile for a member (keyed by spond_id)"""
+    member = await MemberService.get_by_id(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    profile = await ArcherProfileService.get_by_spond_id(db, member.spond_id)
+    if profile:
+        profile = await ArcherProfileService.update(
+            db, profile, ArcherProfileUpdate(**data.model_dump())
+        )
+    else:
+        profile = await ArcherProfileService.create(db, member.spond_id, data)
+
+    await db.commit()
+    await db.refresh(profile)
+    return ArcherProfileResponse.model_validate(profile)
+
+
+@router.delete("/{member_id}/archery-profile", status_code=204)
+async def delete_archery_profile(
+    member_id: int,
+    current_user: Admin = Depends(get_current_editor_or_above),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete the archery profile for a member"""
+    member = await MemberService.get_by_id(db, member_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    profile = await ArcherProfileService.get_by_spond_id(db, member.spond_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Archery profile not found")
+
+    await ArcherProfileService.delete(db, profile)
+    await db.commit()

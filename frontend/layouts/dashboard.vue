@@ -8,136 +8,112 @@
       Skip to main content
     </a>
 
-    <!-- Navigation Header -->
-    <header class="bg-white dark:bg-gray-800 shadow">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center h-16">
-          <!-- Logo and Mobile Menu Button -->
-          <div class="flex items-center space-x-4">
-            <!-- Mobile menu button -->
-            <UButton
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-bars-3"
-              class="md:hidden"
-              aria-label="Open navigation menu"
-              @click="mobileMenuOpen = true"
-            />
-
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white">
-              Spond Admin
-            </h1>
-          </div>
-
-          <!-- Desktop Navigation -->
-          <nav class="hidden md:flex space-x-2" aria-label="Main navigation">
-            <UButton
-              to="/dashboard"
-              exact
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-home"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-            >
-              Dashboard
-            </UButton>
-            <UButton
-              to="/dashboard/analytics"
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-chart-bar"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-            >
-              Analytics
-            </UButton>
-            <UButton
-              to="/dashboard/events"
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-calendar"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-            >
-              Events
-            </UButton>
-            <UButton
-              to="/dashboard/groups"
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-user-group"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-            >
-              Groups
-            </UButton>
-            <UButton
-              to="/dashboard/members"
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-users"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-            >
-              Members
-            </UButton>
-            <UButton
-              to="/dashboard/categories"
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-tag"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-            >
-              Categories
-            </UButton>
-            <UButton
-              to="/dashboard/reports"
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-document-chart-bar"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-            >
-              Reports
-            </UButton>
-          </nav>
-
-          <!-- Group Selector and User Menu - Desktop -->
-          <div class="hidden md:flex items-center space-x-4">
-            <div class="w-48">
-              <GroupSelector />
-            </div>
-            <div class="text-sm text-gray-700 dark:text-gray-300">
-              {{ authStore.user?.full_name || authStore.user?.username }}
-            </div>
-            <UButton
-              color="red"
-              variant="outline"
-              icon="i-heroicons-arrow-right-on-rectangle"
-              aria-label="Logout"
-              @click="handleLogout"
-            >
-              Logout
-            </UButton>
-          </div>
-
-          <!-- User Menu - Mobile -->
-          <div class="flex md:hidden items-center">
-            <UButton
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-user-circle"
-              aria-label="Open user menu"
-              @click="userMenuOpen = true"
-            />
-          </div>
+    <!-- Mobile Header -->
+    <header class="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40">
+      <div class="flex justify-between items-center h-14 px-4">
+        <div class="flex items-center space-x-3">
+          <UButton
+            color="gray"
+            variant="ghost"
+            icon="i-heroicons-bars-3"
+            aria-label="Open navigation menu"
+            @click="mobileMenuOpen = true"
+          />
+          <span class="text-lg font-bold text-gray-900 dark:text-white">{{ clubName }}</span>
         </div>
+        <UButton
+          color="gray"
+          variant="ghost"
+          icon="i-heroicons-user-circle"
+          aria-label="Open user menu"
+          @click="userMenuOpen = true"
+        />
       </div>
     </header>
+
+    <!-- Desktop Sidebar -->
+    <aside class="hidden md:flex md:flex-col md:fixed md:inset-y-0 md:left-0 md:w-[260px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-30">
+      <!-- Club Header -->
+      <div class="flex items-center space-x-3 px-5 h-16 border-b border-gray-200 dark:border-gray-700">
+        <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+          <UIcon name="i-heroicons-viewfinder-circle" class="w-5 h-5 text-white" />
+        </div>
+        <span class="text-lg font-bold text-gray-900 dark:text-white">{{ clubName }}</span>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-6" aria-label="Main navigation">
+        <div v-for="group in navGroups" :key="group.label">
+          <p class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+            {{ group.label }}
+          </p>
+          <div class="space-y-1">
+            <NuxtLink
+              v-for="item in group.items"
+              :key="item.to"
+              :to="item.comingSoon ? undefined : item.to"
+              :class="[
+                'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                isActive(item)
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                  : item.comingSoon
+                    ? 'text-gray-400 dark:text-gray-500 cursor-default'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+              ]"
+            >
+              <UIcon :name="item.icon" class="w-5 h-5 mr-3 flex-shrink-0" />
+              <span class="flex-1">{{ item.label }}</span>
+              <span
+                v-if="item.comingSoon"
+                class="ml-2 px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500"
+              >
+                Soon
+              </span>
+            </NuxtLink>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Group Selector -->
+      <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Group</label>
+        <GroupSelector />
+      </div>
+
+      <!-- User Profile -->
+      <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+            {{ getInitials(authStore.user?.full_name || authStore.user?.username) }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+              {{ authStore.user?.full_name || authStore.user?.username }}
+            </p>
+          </div>
+          <UButton
+            color="red"
+            variant="ghost"
+            icon="i-heroicons-arrow-right-on-rectangle"
+            size="xs"
+            aria-label="Logout"
+            @click="handleLogout"
+          />
+        </div>
+      </div>
+    </aside>
 
     <!-- Mobile Navigation Drawer -->
     <ClientOnly>
       <USlideover v-model="mobileMenuOpen" side="left" class="md:hidden">
-        <div class="p-4 space-y-4">
-          <div class="flex justify-between items-center mb-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-              Navigation
-            </h2>
+        <div class="flex flex-col h-full">
+          <div class="flex justify-between items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center space-x-3">
+              <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+                <UIcon name="i-heroicons-viewfinder-circle" class="w-5 h-5 text-white" />
+              </div>
+              <span class="text-lg font-bold text-gray-900 dark:text-white">{{ clubName }}</span>
+            </div>
             <UButton
               color="gray"
               variant="ghost"
@@ -147,86 +123,44 @@
             />
           </div>
 
-          <nav class="space-y-2" aria-label="Mobile navigation">
-            <UButton
-              to="/dashboard"
-              exact
-              block
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-home"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-              @click="mobileMenuOpen = false"
-            >
-              Dashboard
-            </UButton>
-            <UButton
-              to="/dashboard/analytics"
-              block
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-chart-bar"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-              @click="mobileMenuOpen = false"
-            >
-              Analytics
-            </UButton>
-            <UButton
-              to="/dashboard/events"
-              block
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-calendar"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-              @click="mobileMenuOpen = false"
-            >
-              Events
-            </UButton>
-            <UButton
-              to="/dashboard/groups"
-              block
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-user-group"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-              @click="mobileMenuOpen = false"
-            >
-              Groups
-            </UButton>
-            <UButton
-              to="/dashboard/members"
-              block
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-users"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-              @click="mobileMenuOpen = false"
-            >
-              Members
-            </UButton>
-            <UButton
-              to="/dashboard/categories"
-              block
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-tag"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-              @click="mobileMenuOpen = false"
-            >
-              Categories
-            </UButton>
-            <UButton
-              to="/dashboard/reports"
-              block
-              color="gray"
-              variant="ghost"
-              icon="i-heroicons-document-chart-bar"
-              exact-active-class="!bg-blue-100 dark:!bg-blue-900 !text-blue-600 dark:!text-blue-400"
-              @click="mobileMenuOpen = false"
-            >
-              Reports
-            </UButton>
+          <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-6" aria-label="Mobile navigation">
+            <div v-for="group in navGroups" :key="group.label">
+              <p class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                {{ group.label }}
+              </p>
+              <div class="space-y-1">
+                <NuxtLink
+                  v-for="item in group.items"
+                  :key="item.to"
+                  :to="item.comingSoon ? undefined : item.to"
+                  :class="[
+                    'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                    isActive(item)
+                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                      : item.comingSoon
+                        ? 'text-gray-400 dark:text-gray-500 cursor-default'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+                  ]"
+                  @click="!item.comingSoon && (mobileMenuOpen = false)"
+                >
+                  <UIcon :name="item.icon" class="w-5 h-5 mr-3 flex-shrink-0" />
+                  <span class="flex-1">{{ item.label }}</span>
+                  <span
+                    v-if="item.comingSoon"
+                    class="ml-2 px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500"
+                  >
+                    Soon
+                  </span>
+                </NuxtLink>
+              </div>
+            </div>
           </nav>
+
+          <!-- Group Selector (Mobile) -->
+          <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Group</label>
+            <GroupSelector />
+          </div>
         </div>
       </USlideover>
     </ClientOnly>
@@ -236,9 +170,7 @@
       <USlideover v-model="userMenuOpen" side="right" class="md:hidden">
         <div class="p-4 space-y-4">
           <div class="flex justify-between items-center mb-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-              Account
-            </h2>
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Account</h2>
             <UButton
               color="gray"
               variant="ghost"
@@ -265,14 +197,6 @@
               </div>
             </div>
 
-            <!-- Group Selector -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Select Group
-              </label>
-              <GroupSelector />
-            </div>
-
             <UButton
               block
               color="red"
@@ -288,29 +212,131 @@
     </ClientOnly>
 
     <!-- Main Content -->
-    <main id="main-content" class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-      <slot />
+    <main id="main-content" class="md:ml-[260px]">
+      <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <slot />
+      </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
+const route = useRoute()
 const authStore = useAuthStore()
 
-// Mobile menu state - ensure they start closed
 const mobileMenuOpen = ref(false)
 const userMenuOpen = ref(false)
 
-// Initialize auth on mount and ensure menus are closed
+const clubName = ref('Archery Club')
+
+// Fetch club name from backend
 onMounted(async () => {
-  // Explicitly close menus
   mobileMenuOpen.value = false
   userMenuOpen.value = false
 
   if (!authStore.token) {
     await authStore.initAuth()
   }
+
+  try {
+    const config = useRuntimeConfig()
+    const data = await $fetch<{ club_name: string }>('/config/public', {
+      baseURL: config.public.apiBase,
+    })
+    if (data?.club_name) {
+      clubName.value = data.club_name
+    }
+  } catch {
+    // Use default club name
+  }
 })
+
+const { canManageSystem } = usePermissions()
+
+interface NavItem {
+  label: string
+  to: string
+  icon: string
+  exact?: boolean
+  comingSoon?: boolean
+  minRole?: 'admin' | 'editor' | 'viewer'
+}
+
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
+const allNavGroups: NavGroup[] = [
+  {
+    label: 'Core',
+    items: [
+      { label: 'Dashboard', to: '/dashboard', icon: 'i-heroicons-home', exact: true },
+    ],
+  },
+  {
+    label: 'People',
+    items: [
+      { label: 'Members', to: '/dashboard/members', icon: 'i-heroicons-users' },
+    ],
+  },
+  {
+    label: 'Activities',
+    items: [
+      { label: 'Events & Training', to: '/dashboard/events', icon: 'i-heroicons-calendar' },
+      { label: 'Competitions', to: '/dashboard/competitions', icon: 'i-heroicons-trophy', comingSoon: true },
+    ],
+  },
+  {
+    label: 'Performance',
+    items: [
+      { label: 'Scores & Records', to: '/dashboard/scores', icon: 'i-heroicons-viewfinder-circle' },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { label: 'Equipment', to: '/dashboard/equipment', icon: 'i-heroicons-cube', comingSoon: true },
+      { label: 'Finances', to: '/dashboard/finances', icon: 'i-heroicons-credit-card', comingSoon: true },
+      { label: 'Communication', to: '/dashboard/communication', icon: 'i-heroicons-bell', comingSoon: true },
+    ],
+  },
+  {
+    label: 'Intelligence',
+    items: [
+      { label: 'Reports', to: '/dashboard/reports', icon: 'i-heroicons-document-chart-bar' },
+      { label: 'Analytics', to: '/dashboard/analytics', icon: 'i-heroicons-chart-bar' },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { label: 'Settings', to: '/dashboard/settings', icon: 'i-heroicons-cog-6-tooth', minRole: 'admin' },
+    ],
+  },
+]
+
+const navGroups = computed(() => {
+  const roleLevel = { admin: 3, editor: 2, viewer: 1 }
+  const userRole = authStore.user?.role ?? 'viewer'
+  const userLevel = roleLevel[userRole] || 1
+
+  return allNavGroups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => {
+        const minLevel = roleLevel[item.minRole ?? 'viewer'] || 1
+        return userLevel >= minLevel
+      }),
+    }))
+    .filter(group => group.items.length > 0)
+})
+
+const isActive = (item: NavItem): boolean => {
+  if (item.comingSoon) return false
+  if (item.exact) return route.path === item.to
+  return route.path.startsWith(item.to)
+}
 
 const handleLogout = () => {
   authStore.logout()
@@ -318,7 +344,6 @@ const handleLogout = () => {
   userMenuOpen.value = false
 }
 
-// Helper function to get user initials
 const getInitials = (name: string | undefined) => {
   if (!name) return '?'
   const names = name.split(' ')

@@ -64,33 +64,37 @@
             </div>
           </UCard>
 
-          <!-- Statistics -->
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <UCard>
-              <div class="text-center">
-                <div class="text-3xl font-bold text-blue-600">{{ participationStats.total }}</div>
-                <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Total Events</div>
-              </div>
-            </UCard>
-            <UCard>
-              <div class="text-center">
-                <div class="text-3xl font-bold text-green-600">{{ participationStats.attended }}</div>
-                <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Attended</div>
-              </div>
-            </UCard>
-            <UCard>
-              <div class="text-center">
-                <div class="text-3xl font-bold text-red-600">{{ participationStats.declined }}</div>
-                <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Declined</div>
-              </div>
-            </UCard>
-            <UCard>
-              <div class="text-center">
-                <div class="text-3xl font-bold text-purple-600">{{ participationStats.attendanceRate }}%</div>
-                <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Attendance Rate</div>
-              </div>
-            </UCard>
-          </div>
+          <!-- Tabs -->
+          <UTabs :items="tabs" class="w-full">
+            <template #participation>
+              <!-- Statistics -->
+              <div class="space-y-6 mt-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <UCard>
+                    <div class="text-center">
+                      <div class="text-3xl font-bold text-blue-600">{{ participationStats.total }}</div>
+                      <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Total Events</div>
+                    </div>
+                  </UCard>
+                  <UCard>
+                    <div class="text-center">
+                      <div class="text-3xl font-bold text-green-600">{{ participationStats.attended }}</div>
+                      <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Attended</div>
+                    </div>
+                  </UCard>
+                  <UCard>
+                    <div class="text-center">
+                      <div class="text-3xl font-bold text-red-600">{{ participationStats.declined }}</div>
+                      <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Declined</div>
+                    </div>
+                  </UCard>
+                  <UCard>
+                    <div class="text-center">
+                      <div class="text-3xl font-bold text-purple-600">{{ participationStats.attendanceRate }}%</div>
+                      <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Attendance Rate</div>
+                    </div>
+                  </UCard>
+                </div>
 
           <!-- Participation History -->
           <UCard>
@@ -180,6 +184,101 @@
               </div>
             </div>
           </UCard>
+              </div>
+            </template>
+
+            <template #competition-results>
+              <div class="space-y-6 mt-4">
+                <div v-if="loadingCompResults" class="flex justify-center py-8">
+                  <UIcon name="i-heroicons-arrow-path" class="animate-spin h-8 w-8" />
+                </div>
+
+                <div v-else-if="compResults.length === 0" class="text-center py-8 text-gray-500">
+                  <UIcon name="i-heroicons-viewfinder-circle" class="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p>No competition results linked to this member</p>
+                  <p class="text-sm mt-1">Results are linked via bueskyting.no archer matching</p>
+                </div>
+
+                <template v-else>
+                  <!-- Stats -->
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <UCard>
+                      <div class="text-center">
+                        <div class="text-3xl font-bold text-blue-600">{{ compResults.length }}</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Total Results</div>
+                      </div>
+                    </UCard>
+                    <UCard>
+                      <div class="text-center">
+                        <div class="text-3xl font-bold text-amber-600">{{ compResultsStats.podiums }}</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Top 3 Finishes</div>
+                      </div>
+                    </UCard>
+                    <UCard>
+                      <div class="text-center">
+                        <div class="text-3xl font-bold text-green-600">{{ compResultsStats.victories }}</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Victories</div>
+                      </div>
+                    </UCard>
+                  </div>
+
+                  <!-- Results table -->
+                  <UCard>
+                    <template #header>
+                      <h2 class="text-xl font-bold">Competition History</h2>
+                    </template>
+
+                    <div class="overflow-x-auto">
+                      <table class="w-full text-sm">
+                        <thead>
+                          <tr class="border-b border-gray-200 dark:border-gray-700">
+                            <th class="text-left py-3 px-2 font-medium text-gray-500">Date</th>
+                            <th class="text-left py-3 px-2 font-medium text-gray-500">Event</th>
+                            <th class="text-left py-3 px-2 font-medium text-gray-500">Distance</th>
+                            <th class="text-left py-3 px-2 font-medium text-gray-500">Class</th>
+                            <th class="text-right py-3 px-2 font-medium text-gray-500">Score</th>
+                            <th class="text-right py-3 px-2 font-medium text-gray-500">Rank</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr
+                            v-for="result in compResults"
+                            :key="result.id"
+                            class="border-b border-gray-100 dark:border-gray-800"
+                          >
+                            <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ formatCompDate(result.date) }}</td>
+                            <td class="py-2 px-2 text-gray-900 dark:text-white">{{ result.event_name }}</td>
+                            <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ result.distance }}</td>
+                            <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ result.equipment_class }}</td>
+                            <td class="py-2 px-2 text-right font-bold text-blue-600">{{ result.score }}</td>
+                            <td class="py-2 px-2 text-right">
+                              <UBadge v-if="result.ranking" :color="result.ranking <= 3 ? 'amber' : 'gray'" size="sm">
+                                #{{ result.ranking }}
+                              </UBadge>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </UCard>
+                </template>
+              </div>
+            </template>
+
+            <template #archery-profile>
+              <div class="mt-4">
+                <UCard>
+                  <template #header>
+                    <div class="flex items-center space-x-2">
+                      <UIcon name="i-heroicons-viewfinder-circle" class="w-5 h-5 text-blue-600" />
+                      <h2 class="text-xl font-bold">Archery Profile</h2>
+                    </div>
+                  </template>
+                  <ArcherProfileForm :member-id="memberId" />
+                </UCard>
+              </div>
+            </template>
+          </UTabs>
         </template>
   </div>
 </template>
@@ -193,6 +292,7 @@ definePageMeta({
 const route = useRoute()
 const api = useApi()
 const toast = useToast()
+const { canEdit } = usePermissions()
 
 const memberId = computed(() => parseInt(route.params.id as string))
 
@@ -204,11 +304,53 @@ const error = ref<string | null>(null)
 const historyFilter = ref('all')
 const historySkip = ref(0)
 const historyPageSize = ref(10)
+const compResults = ref<any[]>([])
+const loadingCompResults = ref(true)
+
+const tabs = computed(() => {
+  const items = [
+    { label: 'Participation', slot: 'participation' },
+    { label: 'Competition Results', slot: 'competition-results' },
+  ]
+  if (canEdit.value) {
+    items.push({ label: 'Archery Profile', slot: 'archery-profile' })
+  }
+  return items
+})
 
 onMounted(async () => {
   await loadMember()
-  await loadEvents()
+  if (!error.value) {
+    await Promise.all([loadEvents(), loadCompResults()])
+  }
 })
+
+const loadCompResults = async () => {
+  if (!member.value?.spond_id) {
+    loadingCompResults.value = false
+    return
+  }
+  loadingCompResults.value = true
+  try {
+    const data: any = await api.getMemberResults(member.value.spond_id)
+    compResults.value = data.results || []
+  } catch (err) {
+    console.error('Failed to load competition results:', err)
+  } finally {
+    loadingCompResults.value = false
+  }
+}
+
+const compResultsStats = computed(() => {
+  const podiums = compResults.value.filter(r => r.ranking != null && r.ranking <= 3).length
+  const victories = compResults.value.filter(r => r.ranking === 1).length
+  return { podiums, victories }
+})
+
+const formatCompDate = (dateStr: string) => {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
 
 const loadMember = async () => {
   loading.value = true

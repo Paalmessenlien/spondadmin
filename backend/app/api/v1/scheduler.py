@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_admin
 from app.models.admin import Admin
 from app.services.scheduler_service import get_scheduler, SchedulerService
 
@@ -31,7 +31,7 @@ class JobTriggerResponse(BaseModel):
 
 @router.get("/jobs", response_model=List[JobInfo])
 async def list_scheduled_jobs(
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_admin),
     scheduler: SchedulerService = Depends(get_scheduler),
 ):
     """
@@ -54,7 +54,7 @@ async def list_scheduled_jobs(
 @router.post("/jobs/{job_id}/trigger", response_model=JobTriggerResponse)
 async def trigger_job(
     job_id: str,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_admin),
     scheduler: SchedulerService = Depends(get_scheduler),
 ):
     """
@@ -87,7 +87,7 @@ async def trigger_job(
 
 @router.get("/status")
 async def get_scheduler_status(
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_admin),
     scheduler: SchedulerService = Depends(get_scheduler),
 ):
     """

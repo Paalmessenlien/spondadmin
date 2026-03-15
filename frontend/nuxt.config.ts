@@ -19,11 +19,11 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'Spond Admin',
+      title: 'Archery Club Admin',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'Admin interface for managing Spond events, groups, and members' }
+        { name: 'description', content: 'Archery club administration with Spond integration' }
       ],
     }
   },

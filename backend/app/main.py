@@ -1,5 +1,5 @@
 """
-Spond Admin Interface - FastAPI Application
+Archery Club Administration - FastAPI Application
 """
 import logging
 from contextlib import asynccontextmanager
@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
     Application lifespan manager - handles startup and shutdown events
     """
     # Startup
-    logger.info("Starting up Spond Admin API...")
+    logger.info("Starting up Archery Club Admin API...")
     try:
         await init_db()
         logger.info("Database initialized successfully")
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    logger.info("Shutting down Spond Admin API...")
+    logger.info("Shutting down Archery Club Admin API...")
 
     # Stop background scheduler
     if settings.AUTO_SYNC_ENABLED:
@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI application
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Admin interface for managing Spond events, groups, and members",
+    description="Archery club administration with Spond integration",
     version="1.0.0",
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     docs_url=f"{settings.API_V1_PREFIX}/docs",
@@ -129,11 +129,24 @@ async def general_exception_handler(request: Request, exc: Exception):
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint - validates DB connectivity"""
+    from sqlalchemy import text
+    from app.db.session import AsyncSessionLocal
+
+    db_ok = False
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
+            db_ok = True
+    except Exception as e:
+        logger.warning(f"Health check DB test failed: {e}")
+
+    status = "healthy" if db_ok else "degraded"
     return {
-        "status": "healthy",
+        "status": status,
         "service": settings.PROJECT_NAME,
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "database": "connected" if db_ok else "unavailable",
     }
 
 
@@ -142,13 +155,13 @@ async def health_check():
 async def root():
     """Root endpoint"""
     return {
-        "message": "Spond Admin API",
+        "message": f"{settings.CLUB_NAME} Admin API",
         "docs": f"{settings.API_V1_PREFIX}/docs",
     }
 
 
 # Include API routers
-from app.api.v1 import auth, events, groups, members, analytics, scheduler, categories, reports
+from app.api.v1 import auth, events, groups, members, analytics, scheduler, categories, reports, config_public, scores, scraper, backups, migrations
 
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(events.router, prefix=f"{settings.API_V1_PREFIX}/events", tags=["events"])
@@ -158,3 +171,8 @@ app.include_router(analytics.router, prefix=f"{settings.API_V1_PREFIX}/analytics
 app.include_router(categories.router, prefix=f"{settings.API_V1_PREFIX}/categories", tags=["categories"])
 app.include_router(reports.router, prefix=f"{settings.API_V1_PREFIX}/reports", tags=["reports"])
 app.include_router(scheduler.router, prefix=f"{settings.API_V1_PREFIX}/scheduler", tags=["scheduler"])
+app.include_router(config_public.router, prefix=f"{settings.API_V1_PREFIX}/config", tags=["config"])
+app.include_router(scores.router, prefix=f"{settings.API_V1_PREFIX}/scores", tags=["scores"])
+app.include_router(scraper.router, prefix=f"{settings.API_V1_PREFIX}/scraper", tags=["scraper"])
+app.include_router(backups.router, prefix=f"{settings.API_V1_PREFIX}/backups", tags=["backups"])
+app.include_router(migrations.router, prefix=f"{settings.API_V1_PREFIX}/migrations", tags=["migrations"])

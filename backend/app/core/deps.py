@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_access_token
 from app.db.session import get_db
-from app.models.admin import Admin
+from app.models.admin import Admin, UserRole
 from app.services.admin_service import AdminService
 
 # HTTP Bearer token scheme
@@ -21,16 +21,6 @@ async def get_current_user(
 ) -> Admin:
     """
     Get the current authenticated user from JWT token
-
-    Args:
-        credentials: HTTP Authorization credentials with Bearer token
-        db: Database session
-
-    Returns:
-        Current admin user
-
-    Raises:
-        HTTPException: If token is invalid or user not found
     """
     token = credentials.credentials
 
@@ -84,15 +74,6 @@ async def get_current_active_user(
 ) -> Admin:
     """
     Get the current active user
-
-    Args:
-        current_user: Current user from get_current_user
-
-    Returns:
-        Current active admin user
-
-    Raises:
-        HTTPException: If user is inactive
     """
     if not current_user.is_active:
         raise HTTPException(
@@ -102,24 +83,23 @@ async def get_current_active_user(
     return current_user
 
 
-async def get_current_superuser(
-    current_user: Admin = Depends(get_current_user),
-) -> Admin:
+def require_role(*allowed_roles: UserRole):
     """
-    Get the current superuser (admin with elevated privileges)
-
-    Args:
-        current_user: Current user from get_current_user
-
-    Returns:
-        Current superuser
-
-    Raises:
-        HTTPException: If user is not a superuser
+    Factory that returns a dependency requiring the user to have one of the allowed roles.
     """
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
-        )
-    return current_user
+    async def role_checker(current_user: Admin = Depends(get_current_user)) -> Admin:
+        if UserRole(current_user.role) not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions"
+            )
+        return current_user
+    return role_checker
+
+
+# Convenience dependencies
+get_current_admin = require_role(UserRole.ADMIN)
+get_current_editor_or_above = require_role(UserRole.ADMIN, UserRole.EDITOR)
+
+# Backward-compatible alias
+get_current_superuser = get_current_admin

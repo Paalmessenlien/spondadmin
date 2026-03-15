@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Application
     PROJECT_NAME: str = "Spond Admin API"
+    CLUB_NAME: str = "Archery Club"
     API_V1_PREFIX: str = "/api/v1"
     DEBUG: bool = False
 
@@ -110,6 +111,44 @@ class Settings(BaseSettings):
     SYNC_MEMBERS_INTERVAL_MINUTES: int = Field(
         default=360,
         description="Interval in minutes for members sync (default 6 hours)"
+    )
+
+    # Bueskyting.no scraper settings
+    BUESKYTING_BASE_URL: str = Field(
+        default="https://resultat.bueskyting.no",
+        description="Base URL for bueskyting.no results"
+    )
+    BUESKYTING_RECORDS_URL: str = Field(
+        default="https://rekord.bueskyting.no",
+        description="Base URL for bueskyting.no records"
+    )
+    BUESKYTING_CLUB_ID: str = Field(
+        default="",
+        description="Club ID on bueskyting.no"
+    )
+
+    # Bunny CDN (Backup Storage)
+    BUNNY_STORAGE_ZONE: str = Field(
+        default="",
+        description="Bunny CDN storage zone name"
+    )
+    BUNNY_STORAGE_API_KEY: str = Field(
+        default="",
+        description="Bunny CDN storage API key"
+    )
+    BUNNY_CDN_HOSTNAME: str = Field(
+        default="",
+        description="Bunny CDN hostname for public URLs"
+    )
+    BUNNY_STORAGE_REGION: str = Field(
+        default="",
+        description="Bunny CDN storage region (empty for default)"
+    )
+
+    # Production
+    GUNICORN_WORKERS: int = Field(
+        default=4,
+        description="Number of uvicorn workers in production"
     )
 
 

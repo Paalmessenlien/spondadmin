@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_admin, get_current_editor_or_above
 from app.db.session import get_db
 from app.models.admin import Admin
 from app.schemas.event import (
@@ -31,7 +31,7 @@ async def sync_events(
     group_id: Optional[str] = None,
     max_events: int = 500,
     db: AsyncSession = Depends(get_db),
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_admin),
     spond_service: SpondService = Depends(get_spond_service),
 ):
     """
@@ -77,7 +77,7 @@ async def sync_events(
 async def create_event(
     create_data: EventCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     spond_service: SpondService = Depends(get_spond_service),
 ):
     """
@@ -254,7 +254,7 @@ async def update_event(
     event_id: int,
     update_data: EventUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     spond_service: SpondService = Depends(get_spond_service),
 ):
     """
@@ -302,7 +302,7 @@ async def update_event(
 async def push_event_to_spond(
     event_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_admin),
     spond_service: SpondService = Depends(get_spond_service),
 ):
     """
@@ -347,7 +347,7 @@ async def push_event_to_spond(
 async def delete_event(
     event_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
 ):
     """
     Delete an event from database (local only, not from Spond)
@@ -429,7 +429,7 @@ async def update_event_response(
     event_id: int,
     response_data: EventResponseUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     spond_service: SpondService = Depends(get_spond_service),
 ):
     """

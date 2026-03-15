@@ -1,6 +1,9 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth', layout: 'dashboard' })
 
+const { canEdit } = usePermissions()
+if (!canEdit.value) navigateTo('/dashboard/reports')
+
 const route = useRoute()
 const router = useRouter()
 const reportStore = useReportStore()

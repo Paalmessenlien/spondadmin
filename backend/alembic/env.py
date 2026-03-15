@@ -29,6 +29,17 @@ from app.models import (  # noqa: F401
     SyncHistory,
     AuditLog,
 )
+from app.models import (  # noqa: F401
+    archer_profile,
+    competition,
+    competition_result,
+    archer_statistics,
+    archery_record,
+    bueskyting_scrape_log,
+    unmatched_archer,
+    scraping_config,
+    database_backup,
+)
 
 # this is the Alembic Config object
 config = context.config

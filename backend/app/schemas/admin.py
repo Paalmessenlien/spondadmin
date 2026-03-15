@@ -15,6 +15,7 @@ class AdminBase(BaseModel):
     full_name: Optional[str] = Field(None, max_length=255)
     is_active: bool = True
     is_superuser: bool = False
+    role: str = Field(default="viewer", pattern=r"^(admin|editor|viewer)$")
 
 
 class AdminCreate(AdminBase):
@@ -26,14 +27,6 @@ class AdminCreate(AdminBase):
     @field_validator('password')
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
-        """
-        Validate password strength requirements:
-        - At least 8 characters (enforced by Field)
-        - At least one uppercase letter
-        - At least one lowercase letter
-        - At least one digit
-        - At least one special character
-        """
         if not any(c.isupper() for c in v):
             raise ValueError('Password must contain at least one uppercase letter')
         if not any(c.islower() for c in v):
@@ -46,9 +39,6 @@ class AdminCreate(AdminBase):
 
     @model_validator(mode='after')
     def validate_username_password_different(self) -> 'AdminCreate':
-        """
-        Ensure username and password are not the same
-        """
         if self.username.lower() == self.password.lower():
             raise ValueError('Password cannot be the same as username')
         if self.email.split('@')[0].lower() == self.password.lower():
@@ -66,13 +56,11 @@ class AdminUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=8, max_length=100, description="Password must be at least 8 characters with uppercase, lowercase, digit, and special character")
     is_active: Optional[bool] = None
     is_superuser: Optional[bool] = None
+    role: Optional[str] = Field(None, pattern=r"^(admin|editor|viewer)$")
 
     @field_validator('password')
     @classmethod
     def validate_password_strength(cls, v: Optional[str]) -> Optional[str]:
-        """
-        Validate password strength requirements when password is being updated
-        """
         if v is None:
             return v
 

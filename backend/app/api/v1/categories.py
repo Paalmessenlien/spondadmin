@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_editor_or_above
 from app.db.session import get_db
 from app.models.admin import Admin
 from app.services.category_service import CategoryService
@@ -38,7 +38,7 @@ async def list_categories(
 @router.post("/", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
 async def create_category(
     category_data: CategoryCreate,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -91,7 +91,7 @@ async def get_category(
 async def update_category(
     category_id: int,
     category_data: CategoryUpdate,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -132,7 +132,7 @@ async def update_category(
 @router.post("/{category_id}/duplicate", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
 async def duplicate_category(
     category_id: int,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -176,7 +176,7 @@ async def duplicate_category(
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_category(
     category_id: int,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -211,7 +211,7 @@ async def delete_category(
 @router.post("/bulk-categorize", response_model=BulkCategorizeResponse)
 async def bulk_categorize_events(
     request: BulkCategorizeRequest,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     db: AsyncSession = Depends(get_db),
 ):
     """

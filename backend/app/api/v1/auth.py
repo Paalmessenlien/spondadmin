@@ -10,7 +10,7 @@ from slowapi.util import get_remote_address
 
 from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token, decode_access_token
-from app.core.deps import get_current_user, get_current_superuser
+from app.core.deps import get_current_user, get_current_superuser, get_current_admin
 from app.db.session import get_db
 from app.models.admin import Admin
 from app.schemas.admin import (
@@ -193,9 +193,11 @@ async def update_current_user(
     Raises:
         HTTPException: If update fails
     """
-    # Don't allow users to change their own superuser status
+    # Don't allow users to change their own superuser status or role
     if update_data.is_superuser is not None:
         update_data.is_superuser = current_user.is_superuser
+    if update_data.role is not None:
+        update_data.role = current_user.role
 
     try:
         updated_admin = await AdminService.update(db, current_user.id, update_data)

@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_editor_or_above
 from app.db.session import get_db
 from app.models.admin import Admin
 from app.services.report_service import ReportService
@@ -58,7 +58,7 @@ async def list_reports(
 @router.post("/", response_model=ReportResponse, status_code=status.HTTP_201_CREATED)
 async def create_report(
     report_data: ReportCreate,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -110,7 +110,7 @@ async def get_report(
 async def update_report(
     report_id: int,
     report_data: ReportUpdate,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -147,7 +147,7 @@ async def update_report(
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_report(
     report_id: int,
-    current_user: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_editor_or_above),
     db: AsyncSession = Depends(get_db),
 ):
     """

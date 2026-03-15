@@ -303,6 +303,179 @@ export const useApi = () => {
     return makeRequest(`/analytics/categories/${categoryId}/response-rates?${query}`)
   }
 
+  // Scores & Records
+  const getScoresSummary = async () => {
+    return makeRequest('/scores/summary')
+  }
+
+  const getResults = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(params).toString()
+    return makeRequest(`/scores/results?${query}`)
+  }
+
+  const getResultById = async (id: number) => {
+    return makeRequest(`/scores/results/${id}`)
+  }
+
+  const getCompetitions = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(params).toString()
+    return makeRequest(`/scores/competitions?${query}`)
+  }
+
+  const getCompetition = async (id: number) => {
+    return makeRequest(`/scores/competitions/${id}`)
+  }
+
+  const getRecords = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(params).toString()
+    return makeRequest(`/scores/records?${query}`)
+  }
+
+  const getRecordFilters = async () => {
+    return makeRequest('/scores/records/filters')
+  }
+
+  const getStatistics = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(params).toString()
+    return makeRequest(`/scores/statistics?${query}`)
+  }
+
+  const getMemberResults = async (spondId: string) => {
+    return makeRequest(`/scores/members/${spondId}/results`)
+  }
+
+  const getMemberStatistics = async (spondId: string) => {
+    return makeRequest(`/scores/members/${spondId}/statistics`)
+  }
+
+  const getMemberRecords = async (spondId: string) => {
+    return makeRequest(`/scores/members/${spondId}/records`)
+  }
+
+  // Scraper
+  const triggerScrape = async (data: { type: string; archer_id?: string; mode?: string }) => {
+    return makeRequest('/scraper/run', { method: 'POST', body: data })
+  }
+
+  const getScrapeStatus = async () => {
+    return makeRequest('/scraper/status')
+  }
+
+  const getScrapeLogs = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(params).toString()
+    return makeRequest(`/scraper/logs?${query}`)
+  }
+
+  const getScrapingConfig = async () => {
+    return makeRequest('/scraper/config')
+  }
+
+  const updateScrapingConfig = async (data: any) => {
+    return makeRequest('/scraper/config', { method: 'PUT', body: data })
+  }
+
+  const getUnmatchedArchers = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(params).toString()
+    return makeRequest(`/scraper/unmatched?${query}`)
+  }
+
+  const matchArcher = async (data: { bueskyting_id: string; spond_id: string }) => {
+    return makeRequest('/scraper/match', { method: 'POST', body: data })
+  }
+
+  const dismissUnmatched = async (id: number) => {
+    return makeRequest(`/scraper/dismiss/${id}`, { method: 'POST' })
+  }
+
+  const runAutoMatch = async () => {
+    return makeRequest('/scraper/auto-match', { method: 'POST' })
+  }
+
+  // Admin Users
+  const getAdmins = async () => {
+    return makeRequest<any[]>('/auth/admins')
+  }
+
+  const getAdmin = async (id: number) => {
+    return makeRequest<any>(`/auth/admins/${id}`)
+  }
+
+  const createAdmin = async (data: any) => {
+    return makeRequest<any>('/auth/register', {
+      method: 'POST',
+      body: data,
+    })
+  }
+
+  const updateAdmin = async (id: number, data: any) => {
+    return makeRequest<any>(`/auth/admins/${id}`, {
+      method: 'PUT',
+      body: data,
+    })
+  }
+
+  const deleteAdmin = async (id: number) => {
+    return makeRequest(`/auth/admins/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Backups
+  const getBackups = async () => {
+    return makeRequest('/backups/')
+  }
+
+  const createBackup = async (data: any = {}) => {
+    return makeRequest('/backups/', { method: 'POST', body: data })
+  }
+
+  const getBackup = async (id: number) => {
+    return makeRequest(`/backups/${id}`)
+  }
+
+  const restoreBackup = async (id: number) => {
+    return makeRequest(`/backups/${id}/restore`, { method: 'POST' })
+  }
+
+  const uploadBackupToCdn = async (id: number) => {
+    return makeRequest(`/backups/${id}/upload-cdn`, { method: 'POST' })
+  }
+
+  const deleteBackup = async (id: number) => {
+    return makeRequest(`/backups/${id}`, { method: 'DELETE' })
+  }
+
+  // Migrations
+  const getMigrationStatus = async () => {
+    return makeRequest('/migrations/status')
+  }
+
+  const getMigrationHistory = async () => {
+    return makeRequest('/migrations/history')
+  }
+
+  const runMigrations = async () => {
+    return makeRequest('/migrations/run', { method: 'POST' })
+  }
+
+  // Archer Profiles
+  const getArcherProfile = async (memberId: number) => {
+    return makeRequest(`/members/${memberId}/archery-profile`)
+  }
+
+  const saveArcherProfile = async (memberId: number, data: any) => {
+    return makeRequest(`/members/${memberId}/archery-profile`, {
+      method: 'PUT',
+      body: data,
+    })
+  }
+
+  const deleteArcherProfile = async (memberId: number) => {
+    return makeRequest(`/members/${memberId}/archery-profile`, {
+      method: 'DELETE',
+    })
+  }
+
   return {
     // Auth
     login,
@@ -354,5 +527,48 @@ export const useApi = () => {
     getCategoryAttendanceComparison,
     getCategoryTrends,
     getCategoryResponseRates,
+    // Scores & Records
+    getScoresSummary,
+    getResults,
+    getResultById,
+    getCompetitions,
+    getCompetition,
+    getRecords,
+    getRecordFilters,
+    getStatistics,
+    getMemberResults,
+    getMemberStatistics,
+    getMemberRecords,
+    // Scraper
+    triggerScrape,
+    getScrapeStatus,
+    getScrapeLogs,
+    getScrapingConfig,
+    updateScrapingConfig,
+    getUnmatchedArchers,
+    matchArcher,
+    dismissUnmatched,
+    runAutoMatch,
+    // Admin Users
+    getAdmins,
+    getAdmin,
+    createAdmin,
+    updateAdmin,
+    deleteAdmin,
+    // Backups
+    getBackups,
+    createBackup,
+    getBackup,
+    restoreBackup,
+    uploadBackupToCdn,
+    deleteBackup,
+    // Migrations
+    getMigrationStatus,
+    getMigrationHistory,
+    runMigrations,
+    // Archer Profiles
+    getArcherProfile,
+    saveArcherProfile,
+    deleteArcherProfile,
   }
 }

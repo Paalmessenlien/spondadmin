@@ -126,6 +126,7 @@ class AdminService:
             full_name=admin_data.full_name,
             is_active=admin_data.is_active,
             is_superuser=admin_data.is_superuser,
+            role=admin_data.role,
         )
 
         db.add(admin)
@@ -183,6 +184,8 @@ class AdminService:
             admin.is_active = admin_data.is_active
         if admin_data.is_superuser is not None:
             admin.is_superuser = admin_data.is_superuser
+        if admin_data.role is not None:
+            admin.role = admin_data.role
 
         await db.flush()
         await db.refresh(admin)

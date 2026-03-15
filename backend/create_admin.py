@@ -48,8 +48,18 @@ async def create_admin():
         print("Error: Passwords do not match")
         return
 
-    is_superuser_input = input("Is superuser? (y/N): ").strip().lower()
-    is_superuser = is_superuser_input in ['y', 'yes']
+    print("\nRole options:")
+    print("  1. admin  - Full access (manage users, settings, sync, scraper)")
+    print("  2. editor - View all + modify data (categories, reports)")
+    print("  3. viewer - Read-only access")
+    role_input = input("Role (1/2/3) [1]: ").strip()
+    role_map = {'1': 'admin', '2': 'editor', '3': 'viewer', '': 'admin'}
+    role = role_map.get(role_input)
+    if not role:
+        print("Error: Invalid role selection")
+        return
+
+    is_superuser = role == 'admin'
 
     print()
     print("Creating admin user...")
@@ -64,6 +74,7 @@ async def create_admin():
                 password=password,
                 is_active=True,
                 is_superuser=is_superuser,
+                role=role,
             )
 
             admin = await AdminService.create(db, admin_data)
@@ -75,7 +86,7 @@ async def create_admin():
             print(f"  Username: {admin.username}")
             print(f"  Email: {admin.email}")
             print(f"  Full Name: {admin.full_name or 'N/A'}")
-            print(f"  Superuser: {'Yes' if admin.is_superuser else 'No'}")
+            print(f"  Role: {admin.role}")
             print(f"  Active: {'Yes' if admin.is_active else 'No'}")
             print()
 
@@ -109,7 +120,7 @@ async def list_admins():
         for admin in admins:
             print(f"  • {admin.username} ({admin.email})")
             print(f"    Full Name: {admin.full_name or 'N/A'}")
-            print(f"    Superuser: {'Yes' if admin.is_superuser else 'No'}")
+            print(f"    Role: {admin.role}")
             print(f"    Active: {'Yes' if admin.is_active else 'No'}")
             print()
 
