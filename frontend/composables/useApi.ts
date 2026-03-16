@@ -476,6 +476,55 @@ export const useApi = () => {
     })
   }
 
+  // External Events
+  const getExternalEvents = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(params).toString()
+    return makeRequest(`/external-events/?${query}`)
+  }
+
+  const getExternalEvent = async (id: number) => {
+    return makeRequest(`/external-events/${id}`)
+  }
+
+  const scrapeExternalEvents = async () => {
+    return makeRequest('/external-events/scrape', { method: 'POST' })
+  }
+
+  const analyzeExternalEvent = async (id: number) => {
+    return makeRequest(`/external-events/${id}/analyze`, { method: 'POST' })
+  }
+
+  const analyzeAllExternalEvents = () => {
+    // Returns the full URL for SSE streaming - caller handles EventSource
+    const token = authStore.token
+    return { url: `${config.public.apiBase}/external-events/analyze-all`, token }
+  }
+
+  const stopExternalEventAnalysis = async (taskId: string) => {
+    return makeRequest(`/external-events/analyze-stop/${taskId}`, { method: 'POST' })
+  }
+
+  // AI Providers
+  const getAIProviders = async () => {
+    return makeRequest('/ai/providers')
+  }
+
+  const getAIProvider = async (provider: string) => {
+    return makeRequest(`/ai/providers/${provider}`)
+  }
+
+  const updateAIProvider = async (provider: string, data: any) => {
+    return makeRequest(`/ai/providers/${provider}`, { method: 'PUT', body: data })
+  }
+
+  const testAIProvider = async (provider: string) => {
+    return makeRequest(`/ai/providers/${provider}/test`, { method: 'POST' })
+  }
+
+  const getAIModels = async (provider: string) => {
+    return makeRequest(`/ai/models/${provider}`)
+  }
+
   return {
     // Auth
     login,
@@ -570,5 +619,18 @@ export const useApi = () => {
     getArcherProfile,
     saveArcherProfile,
     deleteArcherProfile,
+    // External Events
+    getExternalEvents,
+    getExternalEvent,
+    scrapeExternalEvents,
+    analyzeExternalEvent,
+    analyzeAllExternalEvents,
+    stopExternalEventAnalysis,
+    // AI Providers
+    getAIProviders,
+    getAIProvider,
+    updateAIProvider,
+    testAIProvider,
+    getAIModels,
   }
 }

@@ -62,6 +62,8 @@ async def init_db() -> None:
             competition, competition_result, archer_statistics, archery_record,
             bueskyting_scrape_log, unmatched_archer, scraping_config,
             database_backup,
+            ai_provider_config,
+            external_event,
         )
 
         # Create all tables

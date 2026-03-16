@@ -77,10 +77,11 @@ lsof -ti:3000 | xargs kill -9  # Frontend
 - **Database**: PostgreSQL (production + Docker dev) / SQLite (local dev)
 - **Auth**: JWT tokens with bcrypt password hashing, role-based access (admin/editor/viewer)
 - **External API**: Spond API via `spond` and `spond-classes` libraries
-- **Scraping**: bueskyting.no competition results and records via crawl4ai
+- **Scraping**: bueskyting.no competition results, records, and upcoming events via crawl4ai/httpx+BeautifulSoup
+- **AI Integration**: Configurable AI providers (OpenAI, Anthropic, DeepSeek) for event analysis
 
 **Key Directories**:
-- `app/api/v1/` - API route handlers (auth, events, groups, members, analytics, scheduler, scores, scraper, backups, migrations)
+- `app/api/v1/` - API route handlers (auth, events, groups, members, analytics, scheduler, scores, scraper, backups, migrations, ai_providers, external_events)
 - `app/services/` - Business logic, Spond sync, backup, migration, and scraper services
 - `app/models/` - SQLAlchemy ORM models
 - `app/schemas/` - Pydantic validation schemas
@@ -100,7 +101,7 @@ lsof -ti:3000 | xargs kill -9  # Frontend
 - **Charts**: Chart.js with vue-chartjs
 
 **Key Directories**:
-- `pages/dashboard/` - Main app pages (events/, groups/, members/, analytics.vue, reports/, scores/, settings/)
+- `pages/dashboard/` - Main app pages (events/, groups/, members/, analytics.vue, reports/, scores/, competitions/, settings/)
 - `components/` - Reusable Vue components (charts, empty states, breadcrumbs)
   - `components/reports/` - Report-specific table components with sorting/filtering
 - `composables/` - Composable functions for shared logic (`useApi.ts`, `usePermissions.ts`)
@@ -179,6 +180,9 @@ Base URL: `http://localhost:8001/api/v1`
 - `/scraper/run`, `/scraper/status`, `/scraper/config` - bueskyting.no scraper
 - `/backups/`, `/backups/{id}/restore`, `/backups/{id}/upload-cdn` - Database backups
 - `/migrations/status`, `/migrations/history`, `/migrations/run` - Migration management
+- `/ai/providers`, `/ai/providers/{provider}`, `/ai/providers/{provider}/test` - AI provider configuration
+- `/external-events/`, `/external-events/{id}`, `/external-events/scrape` - External event management
+- `/external-events/analyze-all`, `/external-events/{id}/analyze` - AI event analysis (SSE streaming for bulk)
 - `/docs` - Swagger UI
 
 ## Important Patterns
@@ -269,6 +273,35 @@ Tables use the `useTableState` composable for consistent sorting and pagination 
 - Managed via Settings > Competition Scraper
 - Configurable base URLs, club ID, auto-scrape interval
 - Unmatched archer management with auto-match and manual match options
+
+## AI Provider System
+
+### Architecture
+- **Service**: `AIService` in `app/services/ai_service.py` — reusable abstraction for calling AI providers
+- **Config**: `AIProviderConfig` model stores provider settings with encrypted API keys
+- **Encryption**: `app/core/encryption.py` uses Fernet symmetric encryption derived from `SECRET_KEY`
+- **Providers**: OpenAI, Anthropic (Claude), DeepSeek — all via `httpx` async HTTP calls
+- **Frontend**: Settings > AI Providers page for configuration and testing
+
+### Important: DeepSeek Reasoner Models
+DeepSeek R1 (`deepseek-reasoner`) uses `reasoning_content` for chain-of-thought and `content` for the final answer. The `AIService` falls back to `reasoning_content` if `content` is empty. When using reasoning models, set `max_tokens` high enough (4096+) since reasoning consumes most of the token budget.
+
+## External Events System (Konkurranser)
+
+### Architecture
+- **Scraper**: `external_event_scraper_service.py` scrapes upcoming competitions from `resultat.bueskyting.no`
+- **Model**: `ExternalEvent` stores scraped data + AI-generated classification and summary
+- **AI Analysis**: Classifies events as "personlig" (personal signup) or "klubb" (club invitation) with Norwegian summary
+- **Frontend**: `/dashboard/competitions/` list and detail pages (all UI in Norwegian)
+
+### Scraping Details
+- **Homepage** (`resultat.bueskyting.no`): Terminliste uses `div.fRow.datarows` rows with `title` attribute for event name, `onclick` for event ID, `.flexDate` for dates, `.overflowYhidden` for name/organizer
+- **Detail pages** (`/Event/Details/{id}`): Uses `h1.page-title`, `span.sbf-label` for type, `ul.list-icons` with Font Awesome icons (fa-users → organizer, fa-map-marker → address, fa-calendar-alt → dates), `.preDiv` for description
+
+### Bulk Analysis
+- `POST /external-events/analyze-all` returns Server-Sent Events (SSE) stream with progress
+- Frontend uses `fetch()` + ReadableStream to display real-time progress bar
+- Cancellable via `POST /external-events/analyze-stop/{task_id}` or client disconnect
 
 ## Deployment
 

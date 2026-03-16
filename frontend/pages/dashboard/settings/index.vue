@@ -88,6 +88,21 @@
         </div>
       </UCard>
 
+      <!-- AI Providers -->
+      <UCard class="hover:border-rose-300 dark:hover:border-rose-700 transition-colors cursor-pointer" @click="navigateTo('/dashboard/settings/ai-providers')">
+        <div class="flex items-start space-x-4">
+          <div class="w-12 h-12 rounded-lg bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center flex-shrink-0">
+            <UIcon name="i-heroicons-cpu-chip" class="w-6 h-6 text-rose-600 dark:text-rose-400" />
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">AI Providers</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Configure API keys and settings for OpenAI, Anthropic, and DeepSeek integrations.
+            </p>
+          </div>
+        </div>
+      </UCard>
+
       <!-- Migrations -->
       <UCard class="hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer" @click="navigateTo('/dashboard/settings/migrations')">
         <div class="flex items-start space-x-4">

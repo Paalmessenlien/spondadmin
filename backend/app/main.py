@@ -161,7 +161,7 @@ async def root():
 
 
 # Include API routers
-from app.api.v1 import auth, events, groups, members, analytics, scheduler, categories, reports, config_public, scores, scraper, backups, migrations
+from app.api.v1 import auth, events, groups, members, analytics, scheduler, categories, reports, config_public, scores, scraper, backups, migrations, ai_providers, external_events
 
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(events.router, prefix=f"{settings.API_V1_PREFIX}/events", tags=["events"])
@@ -176,3 +176,5 @@ app.include_router(scores.router, prefix=f"{settings.API_V1_PREFIX}/scores", tag
 app.include_router(scraper.router, prefix=f"{settings.API_V1_PREFIX}/scraper", tags=["scraper"])
 app.include_router(backups.router, prefix=f"{settings.API_V1_PREFIX}/backups", tags=["backups"])
 app.include_router(migrations.router, prefix=f"{settings.API_V1_PREFIX}/migrations", tags=["migrations"])
+app.include_router(ai_providers.router, prefix=f"{settings.API_V1_PREFIX}/ai", tags=["ai"])
+app.include_router(external_events.router, prefix=f"{settings.API_V1_PREFIX}/external-events", tags=["external-events"])

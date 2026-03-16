@@ -39,6 +39,8 @@ from app.models import (  # noqa: F401
     unmatched_archer,
     scraping_config,
     database_backup,
+    ai_provider_config,
+    external_event,
 )
 
 # this is the Alembic Config object

@@ -18,6 +18,8 @@ from app.models.bueskyting_scrape_log import BueskytingScrapeLog
 from app.models.unmatched_archer import UnmatchedArcher
 from app.models.scraping_config import ScrapingConfig
 from app.models.database_backup import DatabaseBackup
+from app.models.ai_provider_config import AIProviderConfig
+from app.models.external_event import ExternalEvent
 
 __all__ = [
     "Admin",
@@ -38,4 +40,6 @@ __all__ = [
     "UnmatchedArcher",
     "ScrapingConfig",
     "DatabaseBackup",
+    "AIProviderConfig",
+    "ExternalEvent",
 ]
