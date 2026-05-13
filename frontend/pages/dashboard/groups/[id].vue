@@ -152,7 +152,7 @@
                 </div>
 
                 <div class="text-sm text-gray-600 dark:text-gray-400">
-                  {{ member.subgroup_uids?.length || 0 }} subgroup(s)
+                  {{ subgroupCountForMember(member) }} subgroup(s)
                 </div>
               </div>
             </div>
@@ -212,11 +212,16 @@ const loadMembers = async () => {
   }
 }
 
+const memberGroupEntry = (m: any) =>
+  m.groups?.find((g: any) => g.spond_id === group.value?.spond_id)
+
 const groupMembers = computed(() => {
-  // Filter members who belong to this group
-  // Since we're using group_id in members, we can filter by spond_id
-  return members.value.filter(m => m.group_id === group.value?.spond_id)
+  // Members who belong to this group via the group_members association.
+  return members.value.filter(m => m.groups?.some((g: any) => g.spond_id === group.value?.spond_id))
 })
+
+const subgroupCountForMember = (m: any) =>
+  memberGroupEntry(m)?.subgroup_uids?.length || 0
 
 const filteredMembers = computed(() => {
   let filtered = groupMembers.value
@@ -243,13 +248,13 @@ const roleCount = computed(() => {
 
 const getMemberCountInSubgroup = (subgroupId: string) => {
   return groupMembers.value.filter(m =>
-    m.subgroup_uids?.includes(subgroupId)
+    memberGroupEntry(m)?.subgroup_uids?.includes(subgroupId)
   ).length
 }
 
 const getMemberCountInRole = (roleId: string) => {
   return groupMembers.value.filter(m =>
-    m.role_uids?.includes(roleId)
+    memberGroupEntry(m)?.role_uids?.includes(roleId)
   ).length
 }
 

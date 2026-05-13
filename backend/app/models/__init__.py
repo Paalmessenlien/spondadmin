@@ -6,6 +6,7 @@ from app.models.event import Event
 from app.models.event_category import EventCategory
 from app.models.group import Group
 from app.models.member import Member
+from app.models.group_member import GroupMember
 from app.models.archer_profile import ArcherProfile
 from app.models.report import Report
 from app.models.sync_history import SyncHistory
@@ -28,6 +29,7 @@ __all__ = [
     "EventCategory",
     "Group",
     "Member",
+    "GroupMember",
     "ArcherProfile",
     "Report",
     "SyncHistory",

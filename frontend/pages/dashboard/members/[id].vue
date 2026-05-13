@@ -50,15 +50,39 @@
                     <span>{{ member.phone_number }}</span>
                   </div>
 
-                  <div v-if="member.subgroup_uids && member.subgroup_uids.length > 0" class="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                    <UIcon name="i-heroicons-user-group" />
-                    <span>{{ member.subgroup_uids.length }} subgroup(s)</span>
-                  </div>
-
                   <div v-if="member.member_created_time" class="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
                     <UIcon name="i-heroicons-calendar" />
                     <span>Member since {{ formatDate(member.member_created_time) }}</span>
                   </div>
+                </div>
+
+                <div v-if="member.groups?.length" class="mt-4">
+                  <div class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center space-x-2">
+                    <UIcon name="i-heroicons-user-group" />
+                    <span>
+                      Belongs to {{ member.groups.length }} group{{ member.groups.length === 1 ? '' : 's' }}
+                    </span>
+                  </div>
+                  <ul class="space-y-1">
+                    <li
+                      v-for="g in member.groups"
+                      :key="g.group_id"
+                      class="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-800 rounded px-3 py-2"
+                    >
+                      <NuxtLink
+                        :to="`/dashboard/groups/${g.group_id}`"
+                        class="font-medium text-blue-700 dark:text-blue-300 hover:underline"
+                      >
+                        {{ g.name }}
+                      </NuxtLink>
+                      <span class="text-xs text-gray-600 dark:text-gray-400">
+                        {{ g.subgroup_uids?.length || 0 }} subgroup{{ (g.subgroup_uids?.length || 0) === 1 ? '' : 's' }}
+                        <template v-if="g.role_uids?.length">
+                          · {{ g.role_uids.length }} role{{ g.role_uids.length === 1 ? '' : 's' }}
+                        </template>
+                      </span>
+                    </li>
+                  </ul>
                 </div>
               </div>
             </div>

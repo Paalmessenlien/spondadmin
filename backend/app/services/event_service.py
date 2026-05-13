@@ -227,7 +227,7 @@ class EventService:
         # Filter by group_id (stored in raw_data JSON as recipients.group.id)
         if filters.group_id:
             conditions.append(
-                text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=filters.group_id)
+                text("raw_data #>> '{recipients,group,id}' = :group_id").bindparams(group_id=filters.group_id)
             )
 
         return conditions

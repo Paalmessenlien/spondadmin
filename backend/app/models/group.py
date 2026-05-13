@@ -2,10 +2,16 @@
 Group model for caching Spond groups
 """
 from datetime import datetime
+from typing import TYPE_CHECKING
+
 from sqlalchemy import String, Text, JSON, DateTime, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.group_member import GroupMember
+    from app.models.member import Member
 
 
 class Group(Base, TimestampMixin):
@@ -36,6 +42,15 @@ class Group(Base, TimestampMixin):
         DateTime,
         server_default=func.now(),
         nullable=False
+    )
+
+    member_associations: Mapped[list["GroupMember"]] = relationship(
+        back_populates="group",
+        cascade="all, delete-orphan",
+    )
+    members: Mapped[list["Member"]] = relationship(
+        secondary="group_members",
+        viewonly=True,
     )
 
     def __repr__(self) -> str:

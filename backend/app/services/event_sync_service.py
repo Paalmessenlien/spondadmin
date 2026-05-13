@@ -3,7 +3,7 @@ Event synchronization service
 Handles syncing events from Spond API to local database
 """
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 
 from sqlalchemy import select
@@ -291,7 +291,11 @@ class EventSyncService:
             if timestamp_str.endswith('Z'):
                 timestamp_str = timestamp_str[:-1] + '+00:00'
 
-            return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            # Events table is TIMESTAMP WITHOUT TIME ZONE — normalize to naive UTC
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
         except (ValueError, AttributeError) as e:
             logger.warning(f"Failed to parse timestamp '{timestamp_str}': {e}")
             return None

@@ -10,6 +10,8 @@ from collections import defaultdict, Counter
 
 from app.models.event import Event
 from app.models.event_category import EventCategory
+from app.models.group import Group
+from app.models.group_member import GroupMember
 from app.models.member import Member
 from app.schemas.analytics import (
     AttendanceTrendPoint,
@@ -34,7 +36,7 @@ class AnalyticsService:
         """Apply group filter to event query using JSON extraction from raw_data"""
         if group_id:
             stmt = stmt.where(
-                text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
+                text("raw_data #>> '{recipients,group,id}' = :group_id").bindparams(group_id=group_id)
             )
         return stmt
 
@@ -230,7 +232,7 @@ class AnalyticsService:
         # Apply group filter
         if group_id:
             stmt = stmt.where(
-                text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
+                text("raw_data #>> '{recipients,group,id}' = :group_id").bindparams(group_id=group_id)
             )
 
         # Apply date range filters
@@ -270,9 +272,13 @@ class AnalyticsService:
         # Get all members (filtered by group if specified)
         members_stmt = select(Member)
         if group_id:
-            members_stmt = members_stmt.where(Member.group_id == group_id)
+            members_stmt = (
+                members_stmt.join(GroupMember, GroupMember.member_id == Member.id)
+                .join(Group, Group.id == GroupMember.group_id)
+                .where(Group.spond_id == group_id)
+            )
         members_result = await db.execute(members_stmt)
-        members = members_result.scalars().all()
+        members = members_result.scalars().unique().all()
 
         # Get all events (filtered by group and date range if specified)
         events_stmt = select(Event)
@@ -443,7 +449,7 @@ class AnalyticsService:
         events_stmt = select(func.count(Event.id))
         if group_id:
             events_stmt = events_stmt.where(
-                text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
+                text("raw_data #>> '{recipients,group,id}' = :group_id").bindparams(group_id=group_id)
             )
         # Apply date range filters
         if start_date:
@@ -469,7 +475,7 @@ class AnalyticsService:
             upcoming_stmt = select(func.count(Event.id)).where(Event.start_time >= now)
             if group_id:
                 upcoming_stmt = upcoming_stmt.where(
-                    text("json_extract(raw_data, '$.recipients.group.id') = :group_id").bindparams(group_id=group_id)
+                    text("raw_data #>> '{recipients,group,id}' = :group_id").bindparams(group_id=group_id)
                 )
             # Apply category filters to upcoming events too
             if category_ids:
@@ -482,9 +488,13 @@ class AnalyticsService:
             past_events = total_events - upcoming_events
 
         # Total members (filtered by group if specified)
-        members_stmt = select(func.count(Member.id))
+        members_stmt = select(func.count(func.distinct(Member.id)))
         if group_id:
-            members_stmt = members_stmt.where(Member.group_id == group_id)
+            members_stmt = (
+                members_stmt.join(GroupMember, GroupMember.member_id == Member.id)
+                .join(Group, Group.id == GroupMember.group_id)
+                .where(Group.spond_id == group_id)
+            )
         members_result = await db.execute(members_stmt)
         total_members = members_result.scalar() or 0
 

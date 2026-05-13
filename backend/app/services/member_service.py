@@ -2,13 +2,15 @@
 Member service for CRUD operations
 """
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 import logging
 
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.member import Member
+from app.models.group import Group
+from app.models.group_member import GroupMember
 from app.schemas.member import MemberUpdate, MemberFilters
 
 logger = logging.getLogger(__name__)
@@ -18,24 +20,46 @@ class MemberService:
     """Service for member CRUD operations"""
 
     @staticmethod
+    def _apply_group_filters(
+        query,
+        group_spond_id: Optional[str],
+        subgroup_uid: Optional[str] = None,
+    ):
+        """
+        Restrict a Member-based query by Spond group and/or subgroup.
+
+        Group and subgroup filters share a single GroupMember join so combining
+        them ANDs the conditions on the same association row (member must
+        belong to the group AND have the subgroup recorded for that group).
+        """
+        if not group_spond_id and not subgroup_uid:
+            return query
+        query = query.join(GroupMember, GroupMember.member_id == Member.id)
+        if group_spond_id:
+            query = query.join(Group, Group.id == GroupMember.group_id).where(
+                Group.spond_id == group_spond_id
+            )
+        if subgroup_uid:
+            query = query.where(
+                text("group_members.subgroup_uids::jsonb ? :sid").bindparams(sid=subgroup_uid)
+            )
+        return query
+
+    # Backwards-compat shim used by analytics_service (group-only filter).
+    @staticmethod
+    def _apply_group_filter(query, group_spond_id: Optional[str]):
+        return MemberService._apply_group_filters(query, group_spond_id)
+
+    @staticmethod
     async def get_all(
         db: AsyncSession,
         filters: MemberFilters,
     ) -> tuple[List[Member], int]:
         """
-        Get all members with optional filtering and pagination
-
-        Args:
-            db: Database session
-            filters: Filter parameters
-
-        Returns:
-            Tuple of (members list, total count)
+        Get all members with optional filtering and pagination.
         """
-        # Build base query
         query = select(Member)
 
-        # Apply filters
         conditions = []
 
         if filters.search:
@@ -61,48 +85,90 @@ class MemberService:
                 conditions.append(Member.phone_number.is_(None))
 
         if filters.has_guardians is not None:
-            # Guardians are stored in the profile JSON field
-            # This filter checks if profile exists (which would contain guardian info if any)
             if filters.has_guardians:
                 conditions.append(Member.profile.isnot(None))
             else:
                 conditions.append(Member.profile.is_(None))
 
-        # Filter by group_id (stored as spond_id string)
-        if filters.group_id:
-            conditions.append(Member.group_id == filters.group_id)
+        query = MemberService._apply_group_filters(
+            query, filters.group_id, filters.subgroup_id
+        )
 
-        # Apply all conditions
         if conditions:
             query = query.where(*conditions)
 
-        # Get total count
         count_query = select(func.count()).select_from(query.subquery())
         total_result = await db.execute(count_query)
         total = total_result.scalar()
 
-        # Apply sorting and pagination
-        query = query.order_by(Member.last_name, Member.first_name)
+        query = MemberService._apply_sort(query, filters.sort_by, filters.sort_order)
         query = query.offset(filters.skip).limit(filters.limit)
 
-        # Execute query
         result = await db.execute(query)
-        members = result.scalars().all()
+        members = result.scalars().unique().all()
 
         return list(members), total or 0
 
     @staticmethod
+    def _apply_sort(query, sort_by: str, sort_order: str):
+        descending = sort_order == "desc"
+
+        def direction(col):
+            return col.desc() if descending else col.asc()
+
+        if sort_by == "email":
+            # Push NULL emails to the end regardless of direction.
+            return query.order_by(
+                Member.email.is_(None).asc(),
+                direction(Member.email),
+                Member.last_name.asc(),
+                Member.first_name.asc(),
+            )
+        if sort_by == "last_synced_at":
+            return query.order_by(direction(Member.last_synced_at))
+        if sort_by == "group_count":
+            # Correlated subquery so we can sort without disturbing distinct rows.
+            count_subq = (
+                select(func.count(GroupMember.group_id))
+                .where(GroupMember.member_id == Member.id)
+                .correlate(Member)
+                .scalar_subquery()
+            )
+            return query.order_by(
+                direction(count_subq),
+                Member.last_name.asc(),
+                Member.first_name.asc(),
+            )
+        if sort_by == "subgroup_count":
+            # Sum jsonb_array_length(subgroup_uids) across the member's associations.
+            sub_count_subq = (
+                select(
+                    func.coalesce(
+                        func.sum(
+                            func.jsonb_array_length(
+                                func.cast(GroupMember.subgroup_uids, JSONB)
+                            )
+                        ),
+                        0,
+                    )
+                )
+                .where(GroupMember.member_id == Member.id)
+                .correlate(Member)
+                .scalar_subquery()
+            )
+            return query.order_by(
+                direction(sub_count_subq),
+                Member.last_name.asc(),
+                Member.first_name.asc(),
+            )
+        # Default: name.
+        return query.order_by(
+            direction(Member.last_name),
+            direction(Member.first_name),
+        )
+
+    @staticmethod
     async def get_by_id(db: AsyncSession, member_id: int) -> Optional[Member]:
-        """
-        Get member by ID
-
-        Args:
-            db: Database session
-            member_id: Member ID
-
-        Returns:
-            Member or None if not found
-        """
         result = await db.execute(
             select(Member).where(Member.id == member_id)
         )
@@ -110,16 +176,6 @@ class MemberService:
 
     @staticmethod
     async def get_by_spond_id(db: AsyncSession, spond_id: str) -> Optional[Member]:
-        """
-        Get member by Spond ID
-
-        Args:
-            db: Database session
-            spond_id: Spond member ID
-
-        Returns:
-            Member or None if not found
-        """
         result = await db.execute(
             select(Member).where(Member.spond_id == spond_id)
         )
@@ -131,22 +187,10 @@ class MemberService:
         member_id: int,
         update_data: MemberUpdate,
     ) -> Optional[Member]:
-        """
-        Update a member
-
-        Args:
-            db: Database session
-            member_id: Member ID
-            update_data: Update data
-
-        Returns:
-            Updated member or None if not found
-        """
         member = await MemberService.get_by_id(db, member_id)
         if not member:
             return None
 
-        # Update fields
         update_dict = update_data.model_dump(exclude_unset=True)
         for key, value in update_dict.items():
             setattr(member, key, value)
@@ -158,52 +202,54 @@ class MemberService:
         return member
 
     @staticmethod
-    async def get_statistics(db: AsyncSession, group_id: Optional[str] = None) -> Dict[str, Any]:
+    async def get_statistics(
+        db: AsyncSession,
+        group_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
-        Get member statistics
-
-        Args:
-            db: Database session
-            group_id: Optional group spond_id to filter by
-
-        Returns:
-            Dictionary with statistics
+        Get member statistics, optionally scoped to a single Spond group.
         """
-        # Base condition for group filtering
-        group_condition = Member.group_id == group_id if group_id else True
 
-        # Total members
-        total_query = select(func.count(Member.id))
-        if group_id:
-            total_query = total_query.where(Member.group_id == group_id)
-        total_result = await db.execute(total_query)
-        total_members = total_result.scalar() or 0
+        def base_query(column_filter=None):
+            q = select(func.count(func.distinct(Member.id)))
+            if column_filter is not None:
+                q = q.where(column_filter)
+            return MemberService._apply_group_filter(q, group_id)
 
-        # Members with email
-        with_email_query = select(func.count(Member.id)).where(Member.email.isnot(None))
-        if group_id:
-            with_email_query = with_email_query.where(Member.group_id == group_id)
-        with_email_result = await db.execute(with_email_query)
-        members_with_email = with_email_result.scalar() or 0
+        total_members = (await db.execute(base_query())).scalar() or 0
+        members_with_email = (
+            await db.execute(base_query(Member.email.isnot(None)))
+        ).scalar() or 0
+        members_with_phone = (
+            await db.execute(base_query(Member.phone_number.isnot(None)))
+        ).scalar() or 0
+        members_with_profile = (
+            await db.execute(base_query(Member.profile.isnot(None)))
+        ).scalar() or 0
 
-        # Members with phone
-        with_phone_query = select(func.count(Member.id)).where(Member.phone_number.isnot(None))
+        # Average groups per member: count associations per member, then average.
+        per_member_counts = (
+            select(func.count(GroupMember.group_id).label("group_count"))
+            .group_by(GroupMember.member_id)
+        )
         if group_id:
-            with_phone_query = with_phone_query.where(Member.group_id == group_id)
-        with_phone_result = await db.execute(with_phone_query)
-        members_with_phone = with_phone_result.scalar() or 0
-
-        # Members with profile
-        with_profile_query = select(func.count(Member.id)).where(Member.profile.isnot(None))
-        if group_id:
-            with_profile_query = with_profile_query.where(Member.group_id == group_id)
-        with_profile_result = await db.execute(with_profile_query)
-        members_with_profile = with_profile_result.scalar() or 0
+            member_ids_subq = (
+                select(GroupMember.member_id)
+                .join(Group, Group.id == GroupMember.group_id)
+                .where(Group.spond_id == group_id)
+            ).subquery()
+            per_member_counts = per_member_counts.where(
+                GroupMember.member_id.in_(select(member_ids_subq))
+            )
+        avg_result = await db.execute(
+            select(func.avg(per_member_counts.subquery().c.group_count))
+        )
+        average_groups_per_member = float(avg_result.scalar() or 0.0)
 
         return {
             "total_members": total_members,
             "members_with_email": members_with_email,
             "members_with_phone": members_with_phone,
             "members_with_profile": members_with_profile,
-            "average_groups_per_member": 0.0,  # Would need to calculate from group_id field
+            "average_groups_per_member": average_groups_per_member,
         }

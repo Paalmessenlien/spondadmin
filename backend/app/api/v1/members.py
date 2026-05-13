@@ -70,9 +70,12 @@ async def sync_members(
 async def list_members(
     search: str | None = Query(None, description="Search in name and email"),
     group_id: str | None = Query(None, description="Filter by group spond_id"),
+    subgroup_id: str | None = Query(None, description="Filter by Spond subgroup uid"),
     has_email: bool | None = Query(None, description="Filter by presence of email"),
     has_phone: bool | None = Query(None, description="Filter by presence of phone"),
     has_guardians: bool | None = Query(None, description="Filter by presence of guardians"),
+    sort_by: str = Query("name", description="name | email | group_count | subgroup_count | last_synced_at"),
+    sort_order: str = Query("asc", description="asc | desc"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     current_user: Admin = Depends(get_current_user),
@@ -84,9 +87,12 @@ async def list_members(
     filters = MemberFilters(
         search=search,
         group_id=group_id,
+        subgroup_id=subgroup_id,
         has_email=has_email,
         has_phone=has_phone,
         has_guardians=has_guardians,
+        sort_by=sort_by,
+        sort_order=sort_order,
         skip=skip,
         limit=limit,
     )
