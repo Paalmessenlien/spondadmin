@@ -32,7 +32,8 @@ fi
 
 # Step 2: Git pull
 echo "[2/9] Pulling latest code..."
-git pull --ff-only
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+git pull --ff-only origin "$CURRENT_BRANCH"
 
 # Step 3: Build images
 echo "[3/9] Building Docker images..."
