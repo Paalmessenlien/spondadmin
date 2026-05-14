@@ -797,7 +797,11 @@ class EventService:
         Returns:
             Dictionary with statistics
         """
-        now = datetime.now(timezone.utc)
+        # Naive UTC to match the TIMESTAMP WITHOUT TIME ZONE columns and the
+        # rest of this module (every other now() here uses utcnow()). Mixing an
+        # aware datetime with the naive end_time filter from
+        # _build_filter_conditions makes asyncpg reject the whole query.
+        now = datetime.utcnow()
 
         # Base query conditions
         conditions = []
