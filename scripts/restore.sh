@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+COMPOSE_FILE="${PROJECT_DIR}/docker-compose.prod.yml"
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <backup_file>"
@@ -36,7 +37,7 @@ SAFETY_TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
 SAFETY_FILE="${PROJECT_DIR}/backups/spondadmin_pre_restore_${SAFETY_TIMESTAMP}.dump"
 
 cd "$PROJECT_DIR"
-docker compose exec -T db pg_dump \
+docker compose -f "$COMPOSE_FILE" exec -T db pg_dump \
     -U "${POSTGRES_USER:-postgres}" \
     -d "${POSTGRES_DB:-spond_admin}" \
     -Fc \
@@ -46,7 +47,7 @@ echo "Safety backup created: ${SAFETY_FILE}"
 
 # Restore
 echo "Restoring database..."
-docker compose exec -T db pg_restore \
+docker compose -f "$COMPOSE_FILE" exec -T db pg_restore \
     -U "${POSTGRES_USER:-postgres}" \
     -d "${POSTGRES_DB:-spond_admin}" \
     --clean \

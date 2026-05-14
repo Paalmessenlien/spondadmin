@@ -4,15 +4,18 @@
 # placeholder), then `systemctl reload caddy`. Caddy will obtain and renew
 # the TLS cert on its own as soon as the domain resolves to this host.
 #
-# Layout: a single virtual host. `/api/*` goes to the FastAPI backend on
-# port 8001, everything else to the Nuxt frontend on port 3000. Both
-# upstreams are bound to 127.0.0.1 by docker-compose.prod.yml.
+# Layout: a single virtual host. `/api/v1/*` goes to the FastAPI backend
+# on port 8001, everything else (including Nuxt's own `/api/_nuxt_icon/*`
+# server routes) to the Nuxt frontend on port 3000. Both upstreams are
+# bound to 127.0.0.1 by docker-compose.prod.yml.
 
 admin.lillehammerbueskyttere.no {
     encode gzip zstd
 
-    # Backend API + OpenAPI docs.
-    @api path /api/* /health /docs /redoc /openapi.json
+    # Backend API + OpenAPI docs. Match only /api/v1/* (the real backend
+    # surface) so Nuxt's own /api/_nuxt_icon/* server route doesn't get
+    # swallowed and routed to FastAPI.
+    @api path /api/v1/* /health /docs /redoc /openapi.json
     handle @api {
         reverse_proxy 127.0.0.1:8001
     }
