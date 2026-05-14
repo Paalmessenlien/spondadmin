@@ -1,0 +1,110 @@
+name: CI
+
+# Runs on every PR and every push to main / production. The deploy workflow
+# depends on this passing — a red CI blocks any attempt to ship.
+#
+# Kept deliberately simple: one job per stack (frontend + backend), no matrix.
+# This project has one Node version, one Python version, and one target
+# environment, so the extra plumbing would just be noise.
+#
+# Security: all steps use only `github.repository` / `github.ref` / checked-in
+# sources. No user-supplied strings (issue titles, PR bodies, etc.) are fed
+# into `run:` blocks — see
+# https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
+
+on:
+  pull_request:
+    branches: [main, production]
+  push:
+    branches: [main, production]
+
+concurrency:
+  # Cancel in-progress runs of the same PR/branch — we only care about the
+  # latest commit. Saves runner minutes.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm run build` catches Vite/Nuxt regressions that a plain typecheck
+      # would miss (template expressions, asset imports, module resolution).
+      # No separate test step yet — add one here once a suite exists.
+      - name: Production build
+        run: npm run build
+        env:
+          NODE_ENV: production
+          # Build-time API base is only used by the SSR layer; runtime uses
+          # NUXT_PUBLIC_API_BASE on the server. Set a placeholder so SSR
+          # doesn't error trying to hit localhost during prerender.
+          NUXT_PUBLIC_API_BASE: https://admin.example.invalid/api/v1
+
+  backend:
+    name: Backend smoke check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Import the app package — catches syntax errors, broken imports, and
+      # bad model definitions that the runtime would otherwise only surface
+      # after deploy. Cheap and effective.
+      - name: Import-check the FastAPI app
+        env:
+          # Minimal stub config so `app.core.config.Settings()` doesn't bail.
+          # The values don't reach any external service — we never start the
+          # server here.
+          DATABASE_URL: sqlite+aiosqlite:///./ci.db
+          SECRET_KEY: ci-placeholder-key-not-used-at-runtime
+          ALLOWED_ORIGINS: '["http://localhost:3000"]'
+        run: python -c "from app.main import app; print('OK', app.title)"
+
+      # Verify all alembic revisions are reachable from `head`. Catches
+      # missing or mis-pointed down_revision values that would otherwise blow
+      # up on the first `alembic upgrade` against a fresh DB.
+      - name: Validate alembic chain
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///./ci.db
+          SECRET_KEY: ci-placeholder-key-not-used-at-runtime
+          ALLOWED_ORIGINS: '["http://localhost:3000"]'
+        run: alembic history --verbose | head -50 && alembic heads
