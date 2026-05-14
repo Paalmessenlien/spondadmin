@@ -189,18 +189,14 @@ const exportTableToCSV = () => {
     <!-- Filters and Actions -->
     <div class="flex flex-col gap-2">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-        <UInput
-          v-model="startDateFilter"
-          type="date"
-          label="Start Date"
-          placeholder="Start date"
-        />
-        <UInput
-          v-model="endDateFilter"
-          type="date"
-          label="End Date"
-          placeholder="End date"
-        />
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
+          <DateInputISO v-model="startDateFilter" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">End Date</label>
+          <DateInputISO v-model="endDateFilter" />
+        </div>
         <div class="flex items-end">
           <UButton
             v-if="hasDateFilters"

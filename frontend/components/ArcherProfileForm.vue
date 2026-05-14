@@ -33,7 +33,7 @@
         </UFormGroup>
 
         <UFormGroup label="Club Join Date">
-          <UInput v-model="form.club_join_date" type="date" />
+          <DateInputISO v-model="form.club_join_date" />
         </UFormGroup>
       </div>
 

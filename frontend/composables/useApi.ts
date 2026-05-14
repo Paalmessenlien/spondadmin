@@ -7,7 +7,7 @@
  */
 
 interface ApiOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: any
   headers?: Record<string, string>
 }
@@ -504,6 +504,117 @@ export const useApi = () => {
     return makeRequest(`/external-events/analyze-stop/${taskId}`, { method: 'POST' })
   }
 
+  // Training: shifts
+  const getTrainingShifts = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).reduce((acc, [k, v]) => {
+        if (v !== undefined && v !== null && v !== '') acc[k] = String(v)
+        return acc
+      }, {} as Record<string, string>)
+    ).toString()
+    return makeRequest<{ items: any[]; total: number }>(`/training/shifts${query ? `?${query}` : ''}`)
+  }
+
+  const getTrainingShift = async (id: number) => {
+    return makeRequest<any>(`/training/shifts/${id}`)
+  }
+
+  const createTrainingShift = async (body: any) => {
+    return makeRequest<any>('/training/shifts', { method: 'POST', body })
+  }
+
+  const updateTrainingShift = async (id: number, body: any) => {
+    return makeRequest<any>(`/training/shifts/${id}`, { method: 'PATCH', body })
+  }
+
+  const deleteTrainingShift = async (id: number) => {
+    return makeRequest(`/training/shifts/${id}`, { method: 'DELETE' })
+  }
+
+  const publishTrainingShift = async (id: number) => {
+    return makeRequest<any>(`/training/shifts/${id}/publish`, { method: 'POST' })
+  }
+
+  // Training: session types
+  const getTrainingSessionTypes = async () => {
+    return makeRequest<{ items: any[]; total: number }>('/training/session-types')
+  }
+
+  const createTrainingSessionType = async (body: any) => {
+    return makeRequest<any>('/training/session-types', { method: 'POST', body })
+  }
+
+  const updateTrainingSessionType = async (id: number, body: any) => {
+    return makeRequest<any>(`/training/session-types/${id}`, { method: 'PATCH', body })
+  }
+
+  const deleteTrainingSessionType = async (id: number) => {
+    return makeRequest(`/training/session-types/${id}`, { method: 'DELETE' })
+  }
+
+  // Training: aliases
+  const getTrainingAliases = async () => {
+    return makeRequest<{ items: any[]; total: number }>('/training/aliases')
+  }
+
+  const createTrainingAlias = async (body: any) => {
+    return makeRequest<any>('/training/aliases', { method: 'POST', body })
+  }
+
+  const updateTrainingAlias = async (id: number, body: any) => {
+    return makeRequest<any>(`/training/aliases/${id}`, { method: 'PATCH', body })
+  }
+
+  const deleteTrainingAlias = async (id: number) => {
+    return makeRequest(`/training/aliases/${id}`, { method: 'DELETE' })
+  }
+
+  // Training: leader groups
+  const getLeaderGroups = async () => {
+    return makeRequest<{ items: any[]; total: number }>('/training/leader-groups')
+  }
+
+  const createLeaderGroup = async (body: any) => {
+    return makeRequest<any>('/training/leader-groups', { method: 'POST', body })
+  }
+
+  const updateLeaderGroup = async (id: number, body: any) => {
+    return makeRequest<any>(`/training/leader-groups/${id}`, { method: 'PATCH', body })
+  }
+
+  const deleteLeaderGroup = async (id: number) => {
+    return makeRequest(`/training/leader-groups/${id}`, { method: 'DELETE' })
+  }
+
+  const setLeaderGroupMembers = async (id: number, memberIds: number[]) => {
+    return makeRequest<any>(`/training/leader-groups/${id}/members`, {
+      method: 'PUT',
+      body: { member_ids: memberIds },
+    })
+  }
+
+  // Training: import xlsx (multipart upload)
+  const importTrainingXlsx = async (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const headers: Record<string, string> = {}
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`
+    }
+    return $fetch<any>('/training/import', {
+      baseURL: config.public.apiBase,
+      method: 'POST',
+      body: formData,
+      headers,
+      onResponseError({ response }) {
+        if (response.status === 401) {
+          authStore.logout()
+          navigateTo('/login')
+        }
+      },
+    })
+  }
+
   // AI Providers
   const getAIProviders = async () => {
     return makeRequest('/ai/providers')
@@ -632,5 +743,26 @@ export const useApi = () => {
     updateAIProvider,
     testAIProvider,
     getAIModels,
+    // Training
+    getTrainingShifts,
+    getTrainingShift,
+    createTrainingShift,
+    updateTrainingShift,
+    deleteTrainingShift,
+    publishTrainingShift,
+    getTrainingSessionTypes,
+    createTrainingSessionType,
+    updateTrainingSessionType,
+    deleteTrainingSessionType,
+    getTrainingAliases,
+    createTrainingAlias,
+    updateTrainingAlias,
+    deleteTrainingAlias,
+    getLeaderGroups,
+    createLeaderGroup,
+    updateLeaderGroup,
+    deleteLeaderGroup,
+    setLeaderGroupMembers,
+    importTrainingXlsx,
   }
 }

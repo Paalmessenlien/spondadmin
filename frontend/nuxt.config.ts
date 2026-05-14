@@ -20,6 +20,10 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'Archery Club Admin',
+      // `en-GB` forces native time/date inputs into 24-hour format (and
+      // DD/MM/YYYY for dates) regardless of OS locale. Without this the
+      // browser falls back to e.g. en-US which renders time as AM/PM.
+      htmlAttrs: { lang: 'en-GB' },
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },

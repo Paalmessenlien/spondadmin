@@ -284,6 +284,7 @@ const allNavGroups: NavGroup[] = [
     label: 'Activities',
     items: [
       { label: 'Events & Training', to: '/dashboard/events', icon: 'i-heroicons-calendar' },
+      { label: 'Training plan', to: '/dashboard/training', icon: 'i-heroicons-clipboard-document-list' },
       { label: 'Konkurranser', to: '/dashboard/competitions', icon: 'i-heroicons-trophy' },
     ],
   },

@@ -21,6 +21,10 @@ from app.models.scraping_config import ScrapingConfig
 from app.models.database_backup import DatabaseBackup
 from app.models.ai_provider_config import AIProviderConfig
 from app.models.external_event import ExternalEvent
+from app.models.training_session_type import TrainingSessionType
+from app.models.training_shift import TrainingShift
+from app.models.member_alias import MemberAlias
+from app.models.leader_group import LeaderGroup, LeaderGroupMember
 
 __all__ = [
     "Admin",
@@ -44,4 +48,9 @@ __all__ = [
     "DatabaseBackup",
     "AIProviderConfig",
     "ExternalEvent",
+    "TrainingSessionType",
+    "TrainingShift",
+    "MemberAlias",
+    "LeaderGroup",
+    "LeaderGroupMember",
 ]

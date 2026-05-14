@@ -33,75 +33,88 @@
         <!-- Filters -->
         <UCard>
           <div class="space-y-4">
-            <!-- Filter Controls -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-              <UInput
-                v-model="filters.search"
-                placeholder="Search events..."
-                icon="i-heroicons-magnifying-glass"
-                class="lg:col-span-2"
-              >
-                <template #trailing>
-                  <UButton
-                    v-if="filters.search"
-                    color="gray"
-                    variant="link"
-                    icon="i-heroicons-x-mark"
-                    :padded="false"
-                    @click="filters.search = ''"
+            <!-- Row 1: Search + Type + Date range -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+              <div class="lg:col-span-5">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Search</label>
+                <UInput
+                  v-model="filters.search"
+                  placeholder="Heading, description…"
+                  icon="i-heroicons-magnifying-glass"
+                  class="w-full"
+                  :ui="{ base: 'w-full' }"
+                >
+                  <template #trailing>
+                    <UButton
+                      v-if="filters.search"
+                      color="neutral"
+                      variant="link"
+                      icon="i-heroicons-x-mark"
+                      :padded="false"
+                      @click="filters.search = ''"
+                    />
+                  </template>
+                </UInput>
+              </div>
+
+              <div class="lg:col-span-3">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Type</label>
+                <select
+                  v-model="filters.event_type"
+                  class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                >
+                  <option
+                    v-for="opt in eventTypeOptions"
+                    :key="opt.value || 'all'"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="lg:col-span-2">
+                <label class="block text-xs font-medium text-gray-500 mb-1">From</label>
+                <DateInputISO v-model="filters.start_date" />
+              </div>
+
+              <div class="lg:col-span-2">
+                <label class="block text-xs font-medium text-gray-500 mb-1">To</label>
+                <DateInputISO v-model="filters.end_date" />
+              </div>
+            </div>
+
+            <!-- Row 2: Toggles + Clear -->
+            <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <div class="flex flex-wrap gap-4">
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    v-model="filters.include_hidden"
+                    class="rounded border-gray-300 dark:border-gray-600"
                   />
-                </template>
-              </UInput>
-
-              <USelectMenu
-                v-model="filters.event_type"
-                :options="eventTypeOptions"
-                value-attribute="value"
-                option-attribute="label"
-                placeholder="All Types"
-              />
-
-              <USelectMenu
-                v-model="filters.include_hidden"
-                :options="visibilityOptions"
-                value-attribute="value"
-                option-attribute="label"
-                placeholder="Visibility"
-              />
-
-              <USelectMenu
-                v-model="filters.include_archived"
-                :options="archivedOptions"
-                value-attribute="value"
-                option-attribute="label"
-                placeholder="Status"
-              />
+                  <span class="text-gray-700 dark:text-gray-300">Include hidden</span>
+                </label>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    v-model="filters.include_archived"
+                    class="rounded border-gray-300 dark:border-gray-600"
+                  />
+                  <span class="text-gray-700 dark:text-gray-300">Include archived</span>
+                </label>
+              </div>
 
               <UButton
                 v-if="hasActiveFilters"
                 color="neutral"
                 variant="outline"
+                size="sm"
                 icon="i-heroicons-x-circle"
                 @click="clearFilters"
               >
-                Clear Filters
+                Clear filters
               </UButton>
-            </div>
-
-            <!-- Date Range Filters -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <UInput
-                v-model="filters.start_date"
-                type="date"
-                label="From Date"
-                placeholder="Filter from date"
-              />
-              <UInput
-                v-model="filters.end_date"
-                type="date"
-                label="To Date"
-                placeholder="Filter to date"
-              />
             </div>
 
             <!-- Active Filter Chips -->
@@ -384,8 +397,8 @@ watch(selectedView, (newView) => {
 const filters = reactive({
   search: '',
   event_type: '',
-  include_hidden: 'true',
-  include_archived: 'both',
+  include_hidden: true,    // visible+hidden by default
+  include_archived: false, // active & upcoming by default
   start_date: '',
   end_date: '',
   skip: 0,
@@ -396,22 +409,10 @@ const filters = reactive({
 
 // Filter options
 const eventTypeOptions = [
-  { label: 'All Types', value: '' },
-  { label: 'Regular Events', value: 'EVENT' },
-  { label: 'Recurring Events', value: 'RECURRING' },
+  { label: 'All types', value: '' },
+  { label: 'Regular events', value: 'EVENT' },
+  { label: 'Recurring events', value: 'RECURRING' },
   { label: 'Availability', value: 'AVAILABILITY' },
-]
-
-const visibilityOptions = [
-  { label: 'All Events', value: 'both' },
-  { label: 'Visible Only', value: 'false' },
-  { label: 'Hidden Only', value: 'true' },
-]
-
-const archivedOptions = [
-  { label: 'Active & Upcoming', value: 'false' },
-  { label: 'All Events', value: 'both' },
-  { label: 'Archived Only', value: 'true' },
 ]
 
 const pageSizeOptions = [
@@ -428,16 +429,16 @@ const startItem = computed(() => Math.min(filters.skip + 1, total.value))
 const endItem = computed(() => Math.min(filters.skip + filters.limit, total.value))
 
 const hasActiveFilters = computed(() => {
-  return filters.search ||
-         filters.event_type ||
-         filters.include_hidden !== 'true' ||
-         filters.include_archived !== 'both' ||
-         filters.start_date ||
-         filters.end_date
+  return !!filters.search ||
+         !!filters.event_type ||
+         filters.include_hidden === false ||
+         filters.include_archived === true ||
+         !!filters.start_date ||
+         !!filters.end_date
 })
 
 const activeFilterChips = computed(() => {
-  const chips = []
+  const chips: { key: string; label: string }[] = []
 
   if (filters.search) {
     chips.push({ key: 'search', label: `Search: "${filters.search}"` })
@@ -448,14 +449,12 @@ const activeFilterChips = computed(() => {
     chips.push({ key: 'event_type', label: `Type: ${typeOption?.label}` })
   }
 
-  if (filters.include_hidden !== 'true') {
-    const visOption = visibilityOptions.find(opt => opt.value === filters.include_hidden)
-    chips.push({ key: 'include_hidden', label: `Visibility: ${visOption?.label}` })
+  if (filters.include_hidden === false) {
+    chips.push({ key: 'include_hidden', label: 'Hidden: excluded' })
   }
 
-  if (filters.include_archived !== 'both') {
-    const archOption = archivedOptions.find(opt => opt.value === filters.include_archived)
-    chips.push({ key: 'include_archived', label: `Status: ${archOption?.label}` })
+  if (filters.include_archived === true) {
+    chips.push({ key: 'include_archived', label: 'Archived: included' })
   }
 
   if (filters.start_date) {
@@ -514,17 +513,8 @@ const loadEvents = async () => {
       order_desc: filters.order_desc,
     }
 
-    if (filters.include_hidden !== 'both') {
-      params.include_hidden = filters.include_hidden === 'true'
-    } else {
-      params.include_hidden = true
-    }
-
-    if (filters.include_archived !== 'both') {
-      params.include_archived = filters.include_archived === 'true'
-    } else {
-      params.include_archived = true
-    }
+    params.include_hidden = !!filters.include_hidden
+    params.include_archived = !!filters.include_archived
 
     if (filters.search) {
       params.search = filters.search
@@ -583,8 +573,8 @@ const toggleSort = (field: string) => {
 const clearFilters = () => {
   filters.search = ''
   filters.event_type = ''
-  filters.include_hidden = 'true'
-  filters.include_archived = 'both'
+  filters.include_hidden = true
+  filters.include_archived = false
   filters.start_date = ''
   filters.end_date = ''
 }
@@ -598,10 +588,10 @@ const removeFilter = (key: string) => {
       filters.event_type = ''
       break
     case 'include_hidden':
-      filters.include_hidden = 'true'
+      filters.include_hidden = true
       break
     case 'include_archived':
-      filters.include_archived = 'both'
+      filters.include_archived = false
       break
     case 'start_date':
       filters.start_date = ''

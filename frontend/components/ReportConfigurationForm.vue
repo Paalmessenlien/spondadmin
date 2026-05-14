@@ -154,17 +154,11 @@ watch(localValue, () => {
 
       <div class="grid grid-cols-2 gap-4">
         <UFormGroup label="Start Date">
-          <UInput
-            v-model="localValue.configuration!.date_range!.start"
-            type="date"
-          />
+          <DateInputISO v-model="localValue.configuration!.date_range!.start" />
         </UFormGroup>
 
         <UFormGroup label="End Date">
-          <UInput
-            v-model="localValue.configuration!.date_range!.end"
-            type="date"
-          />
+          <DateInputISO v-model="localValue.configuration!.date_range!.end" />
         </UFormGroup>
       </div>
     </div>

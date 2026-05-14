@@ -64,6 +64,7 @@ async def init_db() -> None:
             database_backup,
             ai_provider_config,
             external_event,
+            training_session_type, training_shift, member_alias,
         )
 
         # Create all tables

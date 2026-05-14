@@ -2,8 +2,8 @@
 Event schemas for request/response validation
 """
 from typing import Optional, List, Literal
-from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class EventResponseProfile(BaseModel):
@@ -143,6 +143,22 @@ class EventFilters(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     search: Optional[str] = None  # Search in heading/description
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def _strip_tzinfo(cls, value):
+        """Normalize incoming datetimes to tz-naive UTC.
+
+        The frontend sends ISO strings with `Z`, which Pydantic parses into
+        tz-aware values. PostgreSQL `TIMESTAMP WITHOUT TIME ZONE` columns
+        (events.start_time / end_time) refuse those, so we shift to UTC and
+        drop the tzinfo. Matches the convention in our sync services.
+        """
+        if value is None:
+            return value
+        if isinstance(value, datetime) and value.tzinfo is not None:
+            return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value
 
 
 class EventStats(BaseModel):

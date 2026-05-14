@@ -114,18 +114,8 @@
           icon="i-heroicons-magnifying-glass"
           @input="debouncedLoad"
         />
-        <UInput
-          v-model="dateFrom"
-          type="date"
-          placeholder="Dato fra"
-          @change="loadEvents"
-        />
-        <UInput
-          v-model="dateTo"
-          type="date"
-          placeholder="Dato til"
-          @change="loadEvents"
-        />
+        <DateInputISO v-model="dateFrom" @change="loadEvents" />
+        <DateInputISO v-model="dateTo" @change="loadEvents" />
         <USelectMenu
           v-model="selectedCategory"
           :items="categoryOptions"

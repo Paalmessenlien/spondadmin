@@ -14,6 +14,40 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+# ============================================================
+# Upstream-compat shim: Spond.login endpoint moved
+# ============================================================
+# As of mid-2026, Spond's API moved login from /core/v1/login (404) to
+# /core/v1/auth2/login, and the response shape changed — the bearer token
+# now lives at `accessToken.token` instead of `loginToken`. The `spond`
+# library (1.2.0) hasn't been patched yet (Olen/Spond#229). Until that
+# ships, monkey-patch `_SpondBase.login` to hit the new URL and pull the
+# token from the new location. The Bearer-header flow downstream is
+# unchanged, so every other call (get_groups, get_events, …) keeps working.
+def _install_spond_login_shim() -> None:
+    from spond.base import _SpondBase
+    from spond import AuthenticationError
+
+    async def _patched_login(self) -> None:
+        login_url = f"{self.api_url}auth2/login"
+        data = {"email": self.username, "password": self.password}
+        async with self.clientsession.post(login_url, json=data) as r:
+            login_result = await r.json()
+            access = login_result.get("accessToken")
+            if isinstance(access, dict):
+                self.token = access.get("token")
+            if self.token is None:
+                raise AuthenticationError(
+                    f"Login failed. Response received: {login_result}"
+                )
+
+    _SpondBase.login = _patched_login
+    logger.info("Spond login shim installed (auth2/login → accessToken.token)")
+
+
+_install_spond_login_shim()
+
+
 class SpondService:
     """
     Service class for interacting with the Spond API
