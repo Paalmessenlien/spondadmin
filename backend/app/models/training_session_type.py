@@ -68,6 +68,13 @@ class TrainingSessionType(Base, TimestampMixin):
         JSON, nullable=True
     )
 
+    # Explicit list of `members.id` to invite when shifts of this type are
+    # published — takes precedence over `spond_subgroup_uids` in the
+    # publish flow. NULL → fall through to subgroup narrowing / whole group.
+    invited_member_ids: Mapped[Optional[list[int]]] = mapped_column(
+        JSON, nullable=True
+    )
+
     # Optional binding to a named pool of leaders. When set, the shift
     # editor narrows the leader picker to members of this group.
     leader_group_id: Mapped[Optional[int]] = mapped_column(

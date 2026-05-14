@@ -205,17 +205,22 @@ class SpondEventCreateService:
         # Audience precedence:
         #   1. shift.invited_member_ids — explicit per-shift list of members.
         #   2. shift.invited_subgroup_uids — per-shift subgroup overrides.
-        #   3. session_type.spond_subgroup_uids — session type's default subgroups.
-        #   4. None — Spond will invite the whole group.
+        #   3. session_type.invited_member_ids — session type's default member list.
+        #   4. session_type.spond_subgroup_uids — session type's default subgroups.
+        #   5. None — Spond will invite the whole group.
         invited_member_ids: Optional[list[str]] = None
 
-        if shift.invited_member_ids:
-            # Translate internal member ids → Spond member ids.
-            stmt = select(Member.spond_id).where(
-                Member.id.in_(list(shift.invited_member_ids))
-            )
+        # Resolve internal member ids → Spond member ids, used by the
+        # member-list branches below.
+        async def _resolve_member_ids(internal_ids: list[int]) -> list[str]:
+            stmt = select(Member.spond_id).where(Member.id.in_(internal_ids))
             rows = await db.execute(stmt)
-            invited_member_ids = [r for r, in rows.all()]
+            return [r for r, in rows.all()]
+
+        if shift.invited_member_ids:
+            invited_member_ids = await _resolve_member_ids(
+                list(shift.invited_member_ids)
+            )
             if not invited_member_ids:
                 logger.warning(
                     "shift.invited_member_ids=%r resolved to zero members; "
@@ -223,9 +228,8 @@ class SpondEventCreateService:
                     shift.invited_member_ids,
                 )
         else:
-            # Shift overrides the session type entirely. An empty list on the
-            # shift means "explicitly no subgroup narrowing on this shift" —
-            # we treat that the same as "use the session type's default".
+            # No shift-level member list — fall through subgroup overrides
+            # → session-type member list → session-type subgroups.
             target_subgroups: list[str]
             if shift.invited_subgroup_uids:
                 target_subgroups = list(shift.invited_subgroup_uids)
@@ -234,7 +238,20 @@ class SpondEventCreateService:
             else:
                 target_subgroups = []
 
-            if target_subgroups:
+            # Session-type member list wins over the session-type's own
+            # subgroup narrowing, but only when the shift didn't already
+            # pick its own subgroup override (which is more specific).
+            if not target_subgroups and session_type.invited_member_ids:
+                invited_member_ids = await _resolve_member_ids(
+                    list(session_type.invited_member_ids)
+                )
+                if not invited_member_ids:
+                    logger.warning(
+                        "session_type.invited_member_ids=%r resolved to zero "
+                        "members; falling back to whole group",
+                        session_type.invited_member_ids,
+                    )
+            elif target_subgroups:
                 target_set = set(target_subgroups)
                 # Restrict the invite to members of the named subgroups. The
                 # `recipients.groupMembers` field on a Spond event is a flat

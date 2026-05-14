@@ -122,7 +122,7 @@
                 <th class="text-left py-2 px-2 font-medium text-gray-500">Time</th>
                 <th class="text-left py-2 px-2 font-medium text-gray-500">Location</th>
                 <th class="text-left py-2 px-2 font-medium text-gray-500">Spond group</th>
-                <th class="text-left py-2 px-2 font-medium text-gray-500">Spond subgroup</th>
+                <th class="text-left py-2 px-2 font-medium text-gray-500">Invitees</th>
                 <th class="text-right py-2 px-2 font-medium text-gray-500">Actions</th>
               </tr>
             </thead>
@@ -398,11 +398,14 @@
             </select>
           </div>
 
+          <!-- Default audience for shifts of this session type.
+               Three-radio control parallel to the shift editor and the
+               Events feature. Shifts can override per-shift. -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Spond subgroups
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Default invitees
               <span class="ml-1 text-xs font-normal text-gray-400">
-                — leave all unchecked to invite the whole group.
+                — applies to every shift of this session type unless the shift overrides it.
               </span>
             </label>
             <div
@@ -411,30 +414,118 @@
             >
               Pick a Spond group first.
             </div>
-            <div
-              v-else-if="subgroupsForGroup(editingSessionType._editGroup).length === 0"
-              class="text-xs text-gray-500 italic"
-            >
-              This group has no subgroups.
-            </div>
-            <div
-              v-else
-              class="grid grid-cols-2 gap-x-4 gap-y-1.5 max-h-48 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 p-2"
-            >
-              <label
-                v-for="sg in subgroupsForGroup(editingSessionType._editGroup)"
-                :key="sg.uid"
-                class="inline-flex items-center gap-1.5 text-sm cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  :value="sg.uid"
-                  :checked="editingSessionType._editSubgroupUids?.includes(sg.uid)"
-                  class="rounded border-gray-300 dark:border-gray-600"
-                  @change="toggleSessionTypeSubgroup(editingSessionType, sg.uid, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ sg.name }}</span>
-              </label>
+            <div v-else class="space-y-2">
+              <div class="flex flex-wrap gap-3 text-sm">
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    v-model="editingSessionType._editAudienceMode"
+                    value="all"
+                  />
+                  <span>Whole group</span>
+                </label>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    v-model="editingSessionType._editAudienceMode"
+                    value="subgroup"
+                    :disabled="subgroupsForGroup(editingSessionType._editGroup).length === 0"
+                  />
+                  <span :class="subgroupsForGroup(editingSessionType._editGroup).length === 0 ? 'text-gray-400' : ''">
+                    Specific subgroups
+                  </span>
+                </label>
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    v-model="editingSessionType._editAudienceMode"
+                    value="members"
+                  />
+                  <span>Specific members</span>
+                </label>
+              </div>
+
+              <!-- Subgroup multi-checkbox -->
+              <div v-if="editingSessionType._editAudienceMode === 'subgroup'">
+                <div
+                  v-if="subgroupsForGroup(editingSessionType._editGroup).length === 0"
+                  class="text-xs text-gray-500 italic"
+                >
+                  This group has no subgroups.
+                </div>
+                <div
+                  v-else
+                  class="grid grid-cols-2 gap-x-4 gap-y-1.5 max-h-44 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 p-2"
+                >
+                  <label
+                    v-for="sg in subgroupsForGroup(editingSessionType._editGroup)"
+                    :key="sg.uid"
+                    class="inline-flex items-center gap-1.5 text-sm cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      :value="sg.uid"
+                      :checked="editingSessionType._editSubgroupUids?.includes(sg.uid)"
+                      class="rounded border-gray-300 dark:border-gray-600"
+                      @change="toggleSessionTypeSubgroup(editingSessionType, sg.uid, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ sg.name }}</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Specific members picker -->
+              <div v-if="editingSessionType._editAudienceMode === 'members'" class="space-y-2">
+                <div
+                  v-if="(editingSessionType._editInvitedMembers ?? []).length > 0"
+                  class="flex flex-wrap gap-1.5"
+                >
+                  <span
+                    v-for="m in (editingSessionType._editInvitedMembers ?? [])"
+                    :key="m.id"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs"
+                  >
+                    {{ m.first_name }} {{ m.last_name }}
+                    <button
+                      type="button"
+                      class="ml-1 text-blue-500 hover:text-blue-700"
+                      aria-label="Remove member"
+                      @click="removeSessionTypeMember(editingSessionType, m.id)"
+                    >×</button>
+                  </span>
+                </div>
+                <div class="max-w-md">
+                  <UInput
+                    v-model="editingSessionType._editMemberSearch"
+                    placeholder="Add member…"
+                    icon="i-heroicons-magnifying-glass"
+                    size="sm"
+                    class="w-full"
+                    :ui="{ base: 'w-full' }"
+                    @input="onSessionTypeMemberSearch(editingSessionType)"
+                  />
+                  <div
+                    v-if="editingSessionType._editMemberSearch?.trim() && (editingSessionType._editMemberResults ?? []).length > 0"
+                    class="mt-1 max-h-56 overflow-y-auto rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm"
+                  >
+                    <button
+                      v-for="m in (editingSessionType._editMemberResults ?? [])"
+                      :key="m.id"
+                      type="button"
+                      class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                      @click="addSessionTypeMember(editingSessionType, m)"
+                    >
+                      {{ m.first_name }} {{ m.last_name }}
+                    </button>
+                  </div>
+                  <p
+                    v-else-if="editingSessionType._editMemberSearch?.trim() && (editingSessionType._editMemberResults ?? []).length === 0"
+                    class="mt-1 text-xs text-gray-500"
+                  >
+                    No matches.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -546,6 +637,12 @@ const activePlanIdModel = computed<number | null>({
   set: (v) => authStore.setSelectedPlan(v),
 })
 
+interface SessionTypeMember {
+  id: number
+  first_name: string
+  last_name: string
+}
+
 interface SessionType {
   id: number
   name: string
@@ -555,6 +652,7 @@ interface SessionType {
   description: string | null
   group_id: number | null
   spond_subgroup_uids: string[] | null
+  invited_member_ids: number[] | null
   leader_group_id: number | null
   invite_lead_days: number | null
   invite_send_time: string | null
@@ -567,6 +665,13 @@ interface SessionType {
   _editDescription?: string
   _editGroup?: number | null
   _editSubgroupUids?: string[]
+  // 'all' = invite the whole group, 'subgroup' = use _editSubgroupUids,
+  // 'members' = use _editInvitedMembers (translated to ids on save).
+  _editAudienceMode?: 'all' | 'subgroup' | 'members'
+  _editInvitedMembers?: SessionTypeMember[]
+  _editMemberSearch?: string
+  _editMemberResults?: SessionTypeMember[]
+  _editMemberSearchTimer?: ReturnType<typeof setTimeout> | null
   _editLeaderGroup?: number | null
   _editInviteLeadDays?: number | null
   _editInviteSendTime?: string
@@ -648,9 +753,54 @@ const toggleSessionTypeSubgroup = (st: SessionType, uid: string, checked: boolea
   }
 }
 
+const onSessionTypeMemberSearch = (st: SessionType) => {
+  if (st._editMemberSearchTimer) clearTimeout(st._editMemberSearchTimer)
+  st._editMemberSearchTimer = setTimeout(() => runSessionTypeMemberSearch(st), 250)
+}
+
+const runSessionTypeMemberSearch = async (st: SessionType) => {
+  const q = (st._editMemberSearch ?? '').trim()
+  if (!q) {
+    st._editMemberResults = []
+    return
+  }
+  try {
+    // Scope the search to the bound Spond group when set, so admins don't
+    // accidentally invite members of an unrelated group.
+    const params: Record<string, any> = { search: q, limit: 20 }
+    const bound = groupOptions.value.find(g => g.id === st._editGroup)
+    if (bound) params.group_id = bound.spond_id
+    const resp: any = await api.getMembers(params)
+    const taken = new Set((st._editInvitedMembers ?? []).map(m => m.id))
+    st._editMemberResults = (resp.members || [])
+      .filter((m: any) => !taken.has(m.id))
+      .map((m: any) => ({ id: m.id, first_name: m.first_name, last_name: m.last_name }))
+  } catch (err) {
+    console.error('Session-type member search failed:', err)
+  }
+}
+
+const addSessionTypeMember = (st: SessionType, m: SessionTypeMember) => {
+  const list = st._editInvitedMembers ?? []
+  if (list.some(x => x.id === m.id)) return
+  st._editInvitedMembers = [...list, m]
+  st._editMemberSearch = ''
+  st._editMemberResults = []
+}
+
+const removeSessionTypeMember = (st: SessionType, id: number) => {
+  st._editInvitedMembers = (st._editInvitedMembers ?? []).filter(m => m.id !== id)
+}
+
 const formatTime = (t: string | null | undefined) => (t ? t.slice(0, 5) : '')
 
 const subgroupNameForSessionType = (st: SessionType): string => {
+  // Render summary parallel to the publish-service precedence: members
+  // first (most specific), then subgroups, then whole-group fallback.
+  const memberIds = st.invited_member_ids ?? []
+  if (memberIds.length > 0) {
+    return `${memberIds.length} specific member${memberIds.length === 1 ? '' : 's'}`
+  }
   const uids = st.spond_subgroup_uids ?? []
   if (uids.length === 0) return '— whole group —'
   const group = groupOptions.value.find(g => g.id === st.group_id)
@@ -661,7 +811,7 @@ const subgroupNameForSessionType = (st: SessionType): string => {
   return `${names.slice(0, 2).join(', ')} +${names.length - 2}`
 }
 
-const openEditSessionType = (st: SessionType) => {
+const openEditSessionType = async (st: SessionType) => {
   // Rehydrate the _edit* working copies from the canonical values so the
   // modal starts from the last saved state, not whatever was typed before.
   st._editName = st.name
@@ -674,8 +824,43 @@ const openEditSessionType = (st: SessionType) => {
   st._editLeaderGroup = st.leader_group_id ?? null
   st._editInviteLeadDays = st.invite_lead_days ?? null
   st._editInviteSendTime = (st.invite_send_time || '').slice(0, 5)
+
+  // Audience mode: members > subgroups > whole-group.
+  const memberIds = st.invited_member_ids ?? []
+  const subgroupUids = st.spond_subgroup_uids ?? []
+  if (memberIds.length > 0) {
+    st._editAudienceMode = 'members'
+    st._editInvitedMembers = await fetchSessionTypeMembers(memberIds)
+  } else if (subgroupUids.length > 0) {
+    st._editAudienceMode = 'subgroup'
+    st._editInvitedMembers = []
+  } else {
+    st._editAudienceMode = 'all'
+    st._editInvitedMembers = []
+  }
+  st._editMemberSearch = ''
+  st._editMemberResults = []
+
   editingSessionType.value = st
   editSessionTypeOpen.value = true
+}
+
+// Resolve internal member ids → {id, first_name, last_name} pills for
+// the editor. One request, then a local filter — the members list is
+// small enough that the search endpoint doesn't need an "ids in" param.
+const fetchSessionTypeMembers = async (ids: number[]): Promise<SessionTypeMember[]> => {
+  if (!ids.length) return []
+  try {
+    const resp: any = await api.getMembers({ limit: 1000 })
+    const lookup: Record<number, SessionTypeMember> = {}
+    for (const m of (resp.members || [])) {
+      lookup[m.id] = { id: m.id, first_name: m.first_name, last_name: m.last_name }
+    }
+    return ids.map(id => lookup[id]).filter(Boolean) as SessionTypeMember[]
+  } catch (err) {
+    console.error('Failed to resolve session-type members:', err)
+    return []
+  }
 }
 
 const openNewSessionType = () => {
@@ -690,6 +875,7 @@ const openNewSessionType = () => {
     description: null,
     group_id: null,
     spond_subgroup_uids: null,
+    invited_member_ids: null,
     leader_group_id: null,
     invite_lead_days: null,
     invite_send_time: null,
@@ -702,6 +888,10 @@ const openNewSessionType = () => {
     _editDescription: '',
     _editGroup: null,
     _editSubgroupUids: [],
+    _editAudienceMode: 'all',
+    _editInvitedMembers: [],
+    _editMemberSearch: '',
+    _editMemberResults: [],
     _editLeaderGroup: null,
     _editInviteLeadDays: null,
     _editInviteSendTime: '',
@@ -745,6 +935,7 @@ const createSessionTypeFromModal = async (st: SessionType): Promise<boolean> => 
     const startRaw = st._editStart || '17:00'
     const endRaw = st._editEnd || '19:00'
     const sendTimeRaw = st._editInviteSendTime?.trim() || ''
+    const mode = st._editAudienceMode ?? 'all'
     const body: Record<string, any> = {
       name: st._editName.trim(),
       plan_id: planId,
@@ -753,9 +944,14 @@ const createSessionTypeFromModal = async (st: SessionType): Promise<boolean> => 
       location: st._editLocation?.trim() ? st._editLocation.trim() : null,
       description: st._editDescription?.trim() ? st._editDescription : null,
       group_id: st._editGroup ?? null,
-      spond_subgroup_uids: (st._editSubgroupUids ?? []).length > 0
-        ? [...(st._editSubgroupUids ?? [])]
-        : null,
+      spond_subgroup_uids:
+        mode === 'subgroup' && (st._editSubgroupUids ?? []).length > 0
+          ? [...(st._editSubgroupUids ?? [])]
+          : null,
+      invited_member_ids:
+        mode === 'members' && (st._editInvitedMembers ?? []).length > 0
+          ? (st._editInvitedMembers ?? []).map(m => m.id)
+          : null,
       leader_group_id: st._editLeaderGroup ?? null,
       invite_lead_days:
         st._editInviteLeadDays !== null && st._editInviteLeadDays !== undefined && Number.isFinite(Number(st._editInviteLeadDays))
@@ -835,19 +1031,33 @@ const shiftMonth = (delta: number) => {
   loadMonth()
 }
 
-const hydrateSessionType = (st: any): SessionType => ({
-  ...st,
-  _editName: st.name,
-  _editStart: (st.default_start_time || '').slice(0, 5),
-  _editEnd: (st.default_end_time || '').slice(0, 5),
-  _editLocation: st.location || '',
-  _editDescription: st.description || '',
-  _editGroup: st.group_id ?? null,
-  _editSubgroupUids: [...(st.spond_subgroup_uids ?? [])],
-  _editLeaderGroup: st.leader_group_id ?? null,
-  _editInviteLeadDays: st.invite_lead_days ?? null,
-  _editInviteSendTime: (st.invite_send_time || '').slice(0, 5),
-})
+const hydrateSessionType = (st: any): SessionType => {
+  const memberIds: number[] = st.invited_member_ids ?? []
+  const subgroupUids: string[] = st.spond_subgroup_uids ?? []
+  const audienceMode: 'all' | 'subgroup' | 'members' =
+    memberIds.length > 0
+      ? 'members'
+      : (subgroupUids.length > 0 ? 'subgroup' : 'all')
+  return {
+    ...st,
+    _editName: st.name,
+    _editStart: (st.default_start_time || '').slice(0, 5),
+    _editEnd: (st.default_end_time || '').slice(0, 5),
+    _editLocation: st.location || '',
+    _editDescription: st.description || '',
+    _editGroup: st.group_id ?? null,
+    _editSubgroupUids: [...subgroupUids],
+    _editAudienceMode: audienceMode,
+    // Filled in lazily when the edit modal opens — fetching all member
+    // pills for every list row would be wasteful.
+    _editInvitedMembers: [],
+    _editMemberSearch: '',
+    _editMemberResults: [],
+    _editLeaderGroup: st.leader_group_id ?? null,
+    _editInviteLeadDays: st.invite_lead_days ?? null,
+    _editInviteSendTime: (st.invite_send_time || '').slice(0, 5),
+  }
+}
 
 const loadSessionTypes = async () => {
   const planId = authStore.selectedPlanId
@@ -1050,9 +1260,15 @@ const saveSessionType = async (st: SessionType): Promise<boolean> => {
     body.location = st._editLocation?.trim() ? st._editLocation.trim() : null
     body.description = st._editDescription?.trim() ? st._editDescription : null
     body.group_id = st._editGroup ?? null
-    body.spond_subgroup_uids = (st._editSubgroupUids ?? []).length > 0
-      ? [...(st._editSubgroupUids ?? [])]
-      : null
+    const mode = st._editAudienceMode ?? 'all'
+    body.spond_subgroup_uids =
+      mode === 'subgroup' && (st._editSubgroupUids ?? []).length > 0
+        ? [...(st._editSubgroupUids ?? [])]
+        : null
+    body.invited_member_ids =
+      mode === 'members' && (st._editInvitedMembers ?? []).length > 0
+        ? (st._editInvitedMembers ?? []).map(m => m.id)
+        : null
     body.leader_group_id = st._editLeaderGroup ?? null
     body.invite_lead_days =
       st._editInviteLeadDays !== null && st._editInviteLeadDays !== undefined && Number.isFinite(Number(st._editInviteLeadDays))
@@ -1071,6 +1287,15 @@ const saveSessionType = async (st: SessionType): Promise<boolean> => {
     st._editDescription = updated.description || ''
     st._editGroup = updated.group_id ?? null
     st._editSubgroupUids = [...(updated.spond_subgroup_uids ?? [])]
+    st._editInvitedMembers = await fetchSessionTypeMembers(updated.invited_member_ids ?? [])
+    // Recompute audience mode from the freshly-saved values so the UI
+    // doesn't drift if the backend normalized anything.
+    const updatedMemberIds: number[] = updated.invited_member_ids ?? []
+    const updatedSubgroupUids: string[] = updated.spond_subgroup_uids ?? []
+    st._editAudienceMode =
+      updatedMemberIds.length > 0
+        ? 'members'
+        : (updatedSubgroupUids.length > 0 ? 'subgroup' : 'all')
     st._editLeaderGroup = updated.leader_group_id ?? null
     st._editInviteLeadDays = updated.invite_lead_days ?? null
     st._editInviteSendTime = (updated.invite_send_time || '').slice(0, 5)

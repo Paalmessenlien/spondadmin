@@ -209,11 +209,15 @@ class SpondService:
             import copy
             event_payload = copy.deepcopy(Spond._EVENT_TEMPLATE)
 
-            # Direct field updates (these field names match the template)
+            # Direct field updates (these field names match the template).
+            # `inviteTime` is Spond's "send later" field — when set, the
+            # event sits in scheduled state on Spond until that timestamp.
+            # When omitted, Spond sends invitations immediately.
             direct_fields = [
                 "heading", "description", "spondType",
                 "startTimestamp", "endTimestamp", "maxAccepted",
-                "commentsDisabled", "autoAccept", "visibility"
+                "commentsDisabled", "autoAccept", "visibility",
+                "inviteTime",
             ]
             for field in direct_fields:
                 if field in event_data and event_data[field] is not None:
@@ -270,9 +274,24 @@ class SpondService:
             if "id" in event_payload and event_payload["id"] is None:
                 del event_payload["id"]
 
-            # Log the payload for debugging
-            logger.info(f"Creating event with payload: heading={event_payload.get('heading')}, "
-                       f"start={event_payload.get('startTimestamp')}, group={group_id}")
+            # Log the payload for debugging — explicitly include inviteTime
+            # and the number of invitees so we can verify send-later flows.
+            recipients_block = event_payload.get("recipients") or {}
+            group_members = (
+                recipients_block.get("groupMembers")
+                if isinstance(recipients_block, dict)
+                else None
+            ) or []
+            logger.info(
+                "Creating event with payload: heading=%r start=%s end=%s "
+                "group=%s inviteTime=%s invitees=%d",
+                event_payload.get("heading"),
+                event_payload.get("startTimestamp"),
+                event_payload.get("endTimestamp"),
+                group_id,
+                event_payload.get("inviteTime"),
+                len(group_members),
+            )
 
             # POST to create new event
             url = f"{client.api_url}sponds"

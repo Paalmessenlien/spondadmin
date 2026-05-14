@@ -138,8 +138,11 @@ class TrainingSessionTypeBase(BaseModel):
     location: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
     group_id: Optional[int] = None
-    # NULL or empty list → invite the whole bound group on publish.
+    # NULL or empty list → fall through to invited_member_ids / whole group.
     spond_subgroup_uids: Optional[List[str]] = None
+    # Explicit member ids (members.id, internal). Takes precedence over
+    # spond_subgroup_uids in the publish flow.
+    invited_member_ids: Optional[List[int]] = None
     leader_group_id: Optional[int] = None
     # Default invite scheduling — see model docstring for semantics.
     invite_lead_days: Optional[int] = Field(default=None, ge=0, le=365)
@@ -161,6 +164,7 @@ class TrainingSessionTypeUpdate(BaseModel):
     description: Optional[str] = None
     group_id: Optional[int] = None
     spond_subgroup_uids: Optional[List[str]] = None
+    invited_member_ids: Optional[List[int]] = None
     leader_group_id: Optional[int] = None
     invite_lead_days: Optional[int] = Field(default=None, ge=0, le=365)
     invite_send_time: Optional[time] = None
