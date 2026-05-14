@@ -165,13 +165,12 @@ class SpondEventCreateService:
         start_iso = _local_oslo_to_utc_iso(shift.date, start_time)
         end_iso = _local_oslo_to_utc_iso(shift.date, end_time)
 
-        # Heading and description.
-        if leader is not None:
-            heading = f"{session_type.name} — {leader.first_name} {leader.last_name}"
-        elif shift.raw_initials:
-            heading = f"{session_type.name} — {shift.raw_initials}"
-        else:
-            heading = session_type.name
+        # Heading. Use the session type name verbatim — the leader's name
+        # appears in the description ("Vakt: ...") and as the Spond
+        # organizer; doubling it in the title looks like a mistake to
+        # recipients. raw_initials likewise stays out of the title and
+        # only surfaces in the editor's "unresolved initials" badge.
+        heading = session_type.name
 
         description_parts: list[str] = []
         if leader is not None:
@@ -372,13 +371,12 @@ class SpondEventCreateService:
     # ============================================================
 
     def _prepare_for_owner_fallback(self, payload: SpondCreatePayload) -> None:
-        """Mutate payload so leader name is in the description text."""
-        leader_hint = payload.event_data.get("heading") or ""
-        existing_desc = payload.event_data.get("description") or ""
-        if leader_hint and leader_hint not in existing_desc:
-            payload.event_data["description"] = (
-                f"{leader_hint}\n\n{existing_desc}".rstrip()
-            )
+        """Drop owner_ids so Spond falls back to the authenticated account.
+
+        The leader is already mentioned in the description ("Vakt: …") via
+        build_payload_from_shift, so no additional rewriting is needed
+        here — recipients still see who's leading.
+        """
         payload.owner_ids = None
 
     def _profile_id_for(self, member: Member) -> Optional[str]:
