@@ -1,0 +1,57 @@
+# Caddy reverse-proxy config for spondadmin.
+#
+# Install:  copy to /etc/caddy/Caddyfile on the server (replacing the
+# placeholder), then `systemctl reload caddy`. Caddy will obtain and renew
+# the TLS cert on its own as soon as the domain resolves to this host.
+#
+# Layout: a single virtual host. `/api/*` goes to the FastAPI backend on
+# port 8001, everything else to the Nuxt frontend on port 3000. Both
+# upstreams are bound to 127.0.0.1 by docker-compose.prod.yml.
+
+admin.lillehammerbueskyttere.no {
+    encode gzip zstd
+
+    # Backend API + OpenAPI docs.
+    @api path /api/* /health /docs /redoc /openapi.json
+    handle @api {
+        reverse_proxy 127.0.0.1:8001
+    }
+
+    # Frontend (Nuxt SSR). The handle is unconditional so it matches every
+    # other path — Caddy evaluates blocks top-down, so the `@api` matcher
+    # above wins for API routes.
+    handle {
+        reverse_proxy 127.0.0.1:3000
+    }
+
+    # Long-running SSE endpoints (bulk AI analysis) need a higher response
+    # timeout than Caddy's default. Override per-route to avoid raising it
+    # globally.
+    @sse path /api/v1/external-events/analyze-all
+    handle @sse {
+        reverse_proxy 127.0.0.1:8001 {
+            flush_interval -1
+            transport http {
+                response_header_timeout 10m
+            }
+        }
+    }
+
+    # Reasonable security headers. Caddy already adds HSTS via auto-https,
+    # but this makes the rest explicit so they're easy to audit.
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Drop the Server header — fingerprinting nuisance.
+        -Server
+    }
+
+    log {
+        output file /var/log/caddy/spondadmin.log {
+            roll_size 10MiB
+            roll_keep 5
+        }
+        format json
+    }
+}

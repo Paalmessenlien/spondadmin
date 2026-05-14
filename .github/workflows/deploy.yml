@@ -15,7 +15,7 @@ name: Deploy to production
 #
 # Optional repo variable:
 #   PROJECT_DIR      — server-side path to the cloned repo. Defaults to
-#                      /opt/spondadmin if not set.
+#                      /srv/app if not set (matches the standard server prep).
 #
 # App-level secrets (DB password, Spond credentials, Bunny CDN keys) live in
 # the server's .env file. They are intentionally NOT in GitHub Actions so a
@@ -129,7 +129,7 @@ jobs:
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
-          PROJECT_DIR: ${{ vars.PROJECT_DIR || '/opt/spondadmin' }}
+          PROJECT_DIR: ${{ vars.PROJECT_DIR || '/srv/app' }}
         run: |
           ssh "$SSH_USER@$SSH_HOST" "cd '$PROJECT_DIR' && ./scripts/deploy.sh"
 
@@ -137,8 +137,10 @@ jobs:
         # Poll /health for up to 2 minutes. Deploy is considered a failure
         # if the service is still unhealthy after restart — the job turns
         # red and the user sees it in the Actions tab. The endpoint is
-        # nginx → backend FastAPI `/health` which returns 200 when the DB
-        # is reachable.
+        # Caddy → backend FastAPI `/health` which returns 200 when the DB
+        # is reachable. Caddy auto-provisions TLS on first request, so
+        # this only starts working once the domain's A record points at
+        # the server.
         run: |
           for i in $(seq 1 24); do
             if curl -fsS --max-time 5 https://admin.lillehammerbueskyttere.no/health >/dev/null; then
