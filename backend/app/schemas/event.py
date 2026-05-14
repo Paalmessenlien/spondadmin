@@ -2,7 +2,7 @@
 Event schemas for request/response validation
 """
 from typing import Optional, List, Literal
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
@@ -59,6 +59,10 @@ class EventBase(BaseModel):
     location_latitude: Optional[float] = None
     location_longitude: Optional[float] = None
     max_accepted: int = 0
+    # Audience override + scheduling intent — see model docstring.
+    invited_subgroup_uids: Optional[List[str]] = None
+    invite_lead_days: Optional[int] = Field(default=None, ge=0, le=365)
+    invite_send_time: Optional[time] = None
 
 
 class EventResponse(EventBase):
@@ -74,6 +78,11 @@ class EventResponse(EventBase):
     last_synced_at: datetime
     created_at: datetime
     updated_at: datetime
+    # ID of the training_shift that published this Spond event, if any.
+    # Computed at query time via LEFT JOIN on training_shifts.spond_event_id
+    # — never stored on the events row. None for events that weren't
+    # produced from a training shift.
+    linked_shift_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -107,7 +116,11 @@ class EventCreate(BaseModel):
     group_id: Optional[str] = None  # Group spond_id to associate event with
     # Attendee and owner management
     invited_member_ids: Optional[List[str]] = None  # Spond member IDs to invite (None = all group members)
+    invited_subgroup_uids: Optional[List[str]] = None  # Subgroup uids — invite members in any
     owner_ids: Optional[List[str]] = None  # Profile IDs for responsible persons
+    # Invite scheduling — see model docstring. Both NULL → send immediately.
+    invite_lead_days: Optional[int] = Field(default=None, ge=0, le=365)
+    invite_send_time: Optional[time] = None
 
 
 class EventUpdate(BaseModel):
@@ -127,7 +140,10 @@ class EventUpdate(BaseModel):
     sync_to_spond: bool = False  # Whether to immediately sync changes to Spond
     # Attendee and owner management
     invited_member_ids: Optional[List[str]] = None  # Spond member IDs to invite
+    invited_subgroup_uids: Optional[List[str]] = None
     owner_ids: Optional[List[str]] = None  # Profile IDs for responsible persons
+    invite_lead_days: Optional[int] = Field(default=None, ge=0, le=365)
+    invite_send_time: Optional[time] = None
 
 
 class EventFilters(BaseModel):

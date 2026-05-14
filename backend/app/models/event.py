@@ -1,8 +1,9 @@
 """
 Event model for caching Spond events
 """
-from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, Text, JSON, func, ForeignKey, Integer
+from datetime import datetime, time
+from typing import Optional
+from sqlalchemy import String, Boolean, DateTime, Text, Time, JSON, func, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -48,6 +49,19 @@ class Event(Base, TimestampMixin):
 
     # Participants
     max_accepted: Mapped[int] = mapped_column(default=0, nullable=False)
+
+    # Audience override — list of Spond subgroup uids to narrow the invite
+    # to. NULL / empty → invite the whole group. Mirrors
+    # training_shifts.invited_subgroup_uids.
+    invited_subgroup_uids: Mapped[Optional[list[str]]] = mapped_column(
+        JSON, nullable=True
+    )
+
+    # Invite scheduling intent. NULL on either field → send immediately on
+    # publish. The resolved absolute datetime is written to `invite_time`
+    # above and sent to Spond as `inviteTime`. Mirrors training_shifts.
+    invite_lead_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    invite_send_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
 
     # Responses (stored as JSON)
     responses: Mapped[dict] = mapped_column(JSON, nullable=True)

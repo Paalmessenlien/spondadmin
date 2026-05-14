@@ -9,8 +9,12 @@ from sqlalchemy import select, func, or_, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.event import Event
+from app.models.group import Group
+from app.models.group_member import GroupMember
 from app.models.member import Member
+from app.models.training_shift import TrainingShift
 from app.schemas.event import EventCreate, EventUpdate, EventFilters
+from app.services.spond_event_create_service import _compute_invite_send_at
 from app.services.spond_service import SpondService
 import uuid
 
@@ -43,7 +47,33 @@ class EventService:
         if event and enrich_responses:
             event = await EventService._enrich_event_responses(db, event)
 
+        if event is not None:
+            await EventService._attach_linked_shift_ids(db, [event])
+
         return event
+
+    @staticmethod
+    async def _attach_linked_shift_ids(
+        db: AsyncSession, events: List[Event]
+    ) -> None:
+        """Look up training_shifts by spond_event_id and attach a transient
+        `linked_shift_id` attribute on each event so EventResponse picks it
+        up via from_attributes. Single batch query, O(1) extra SQL.
+        """
+        spond_ids = [e.spond_id for e in events if e.spond_id]
+        if not spond_ids:
+            for e in events:
+                e.linked_shift_id = None
+            return
+
+        result = await db.execute(
+            select(TrainingShift.id, TrainingShift.spond_event_id).where(
+                TrainingShift.spond_event_id.in_(spond_ids)
+            )
+        )
+        lookup = {row.spond_event_id: row.id for row in result.all()}
+        for e in events:
+            e.linked_shift_id = lookup.get(e.spond_id)
 
     @staticmethod
     async def _enrich_event_responses(db: AsyncSession, event: Event) -> Event:
@@ -176,6 +206,9 @@ class EventService:
         result = await db.execute(query)
         events = list(result.scalars().all())
 
+        # Attach linked_shift_id (computed at query time — no FK column).
+        await EventService._attach_linked_shift_ids(db, events)
+
         return events, total
 
     @staticmethod
@@ -299,6 +332,22 @@ class EventService:
             event.hidden = update_data.hidden
             has_changes = True
 
+        # Audience override (multi-subgroup) — local-only on PUT. Pushed to
+        # Spond by the separate `/push-to-spond` action so admins always opt
+        # in explicitly. Same semantics as start_time / heading updates.
+        if update_data.invited_subgroup_uids is not None:
+            event.invited_subgroup_uids = update_data.invited_subgroup_uids or None
+            has_changes = True
+
+        # Invite scheduling intent — same local-only-on-PUT semantics.
+        if update_data.invite_lead_days is not None:
+            event.invite_lead_days = update_data.invite_lead_days
+            has_changes = True
+
+        if update_data.invite_send_time is not None:
+            event.invite_send_time = update_data.invite_send_time
+            has_changes = True
+
         # Handle attendees and owners updates if syncing to Spond
         if update_data.sync_to_spond and spond_service and event.sync_status != "local_only":
             # Update attendees if provided
@@ -383,6 +432,44 @@ class EventService:
         return True
 
     @staticmethod
+    async def _resolve_subgroup_member_ids(
+        db: AsyncSession, group_spond_id: str, subgroup_uids: List[str]
+    ) -> List[str]:
+        """Return the Spond member ids of every member of `group_spond_id`
+        whose `group_members.subgroup_uids` intersects `subgroup_uids`.
+
+        Mirrors the audience-resolution logic in
+        spond_event_create_service.build_payload_from_shift so the events
+        flow and the training flow narrow the same way.
+        """
+        if not subgroup_uids:
+            return []
+
+        target_set = set(subgroup_uids)
+        # Resolve the local Group row from its Spond id.
+        result = await db.execute(
+            select(Group.id).where(Group.spond_id == group_spond_id)
+        )
+        local_group_id = result.scalar_one_or_none()
+        if local_group_id is None:
+            logger.warning(
+                "Cannot resolve subgroup audience: group %s not in DB",
+                group_spond_id,
+            )
+            return []
+
+        rows = await db.execute(
+            select(Member.spond_id, GroupMember.subgroup_uids)
+            .join(GroupMember, GroupMember.member_id == Member.id)
+            .where(GroupMember.group_id == local_group_id)
+        )
+        return [
+            spond_id
+            for spond_id, subs in rows.all()
+            if subs and target_set.intersection(subs)
+        ]
+
+    @staticmethod
     async def create(
         db: AsyncSession,
         create_data: EventCreate,
@@ -408,6 +495,44 @@ class EventService:
         sync_status = "local_only"
         spond_id = temp_spond_id
 
+        # Resolve the effective invitee list. Precedence:
+        #   1. explicit invited_member_ids (already Spond ids)
+        #   2. subgroup_uids → union of members in those subgroups
+        #   3. None → invite whole group
+        effective_member_ids: Optional[List[str]] = create_data.invited_member_ids
+        if (
+            effective_member_ids is None
+            and create_data.invited_subgroup_uids
+            and create_data.group_id
+        ):
+            effective_member_ids = await EventService._resolve_subgroup_member_ids(
+                db, create_data.group_id, create_data.invited_subgroup_uids
+            )
+            if not effective_member_ids:
+                # Misconfigured subgroup uids — better to invite the whole
+                # group than send to nobody. Same behavior as the training
+                # publish flow.
+                logger.warning(
+                    "Subgroup uids %r resolved to zero members; inviting "
+                    "the whole group",
+                    create_data.invited_subgroup_uids,
+                )
+                effective_member_ids = None
+
+        # Resolve the absolute send-at from the scheduling intent.
+        invite_time_iso = _compute_invite_send_at(
+            create_data.start_time.date(),
+            create_data.invite_lead_days,
+            create_data.invite_send_time,
+        )
+        resolved_invite_time: Optional[datetime] = None
+        if invite_time_iso:
+            # Parse the trailing-Z ISO string back to a tz-naive UTC datetime
+            # so it round-trips into PostgreSQL TIMESTAMP WITHOUT TIME ZONE.
+            resolved_invite_time = datetime.fromisoformat(
+                invite_time_iso.replace("Z", "+00:00")
+            ).astimezone(timezone.utc).replace(tzinfo=None)
+
         # Create event in Spond if requested
         if create_data.sync_to_spond and spond_service:
             try:
@@ -432,11 +557,15 @@ class EventService:
                 if create_data.max_accepted > 0:
                     spond_data["maxAccepted"] = create_data.max_accepted
 
-                # Create in Spond with optional attendee and owner selection
+                # Send-later schedule
+                if invite_time_iso:
+                    spond_data["inviteTime"] = invite_time_iso
+
+                # Create in Spond with the resolved invitee list
                 result = await spond_service.create_event(
                     spond_data,
                     group_id=create_data.group_id,
-                    invited_member_ids=create_data.invited_member_ids,
+                    invited_member_ids=effective_member_ids,
                     owner_ids=create_data.owner_ids
                 )
                 spond_id = result.get("id", temp_spond_id)
@@ -468,7 +597,7 @@ class EventService:
             start_time=create_data.start_time,
             end_time=create_data.end_time,
             created_time=now,
-            invite_time=None,
+            invite_time=resolved_invite_time,
             location_address=create_data.location_address,
             location_latitude=create_data.location_latitude,
             location_longitude=create_data.location_longitude,
@@ -476,6 +605,9 @@ class EventService:
             cancelled=create_data.cancelled,
             hidden=create_data.hidden,
             group_id=create_data.group_id,
+            invited_subgroup_uids=create_data.invited_subgroup_uids,
+            invite_lead_days=create_data.invite_lead_days,
+            invite_send_time=create_data.invite_send_time,
             sync_status=sync_status,
             sync_error=None,
             last_synced_at=now,
@@ -543,25 +675,57 @@ class EventService:
                     "longitude": event.location_longitude,
                 }
 
+            # Schedule the invitation if the user set the lead-days/send-time
+            # pair. Recompute on every push so a date change after creation
+            # still produces the right inviteTime.
+            invite_time_iso = _compute_invite_send_at(
+                event.start_time.date(),
+                event.invite_lead_days,
+                event.invite_send_time,
+            )
+            if invite_time_iso:
+                spond_data["inviteTime"] = invite_time_iso
+
             # Extract group_id from raw_data if available
-            group_id = None
-            if event.raw_data and isinstance(event.raw_data, dict):
+            group_id = event.group_id
+            if not group_id and event.raw_data and isinstance(event.raw_data, dict):
                 recipients = event.raw_data.get("recipients", {})
                 if isinstance(recipients, dict):
                     group = recipients.get("group", {})
                     if isinstance(group, dict):
                         group_id = group.get("id")
 
-            # Extract invited_member_ids and owner_ids from raw_data if available
+            # Audience precedence:
+            #   1. event.invited_subgroup_uids → resolve to members of those
+            #      subgroups within the chosen group
+            #   2. raw_data.recipients.groupMembers (the realized roster from
+            #      a previous sync — preserves whatever was last invited)
+            #   3. None → Spond invites the whole group
             invited_member_ids = None
-            owner_ids = None
-            if event.raw_data and isinstance(event.raw_data, dict):
+            if event.invited_subgroup_uids and group_id:
+                invited_member_ids = (
+                    await EventService._resolve_subgroup_member_ids(
+                        db, group_id, list(event.invited_subgroup_uids)
+                    )
+                )
+                if not invited_member_ids:
+                    logger.warning(
+                        "Subgroup uids %r resolved to zero members on push; "
+                        "falling back to whole group",
+                        event.invited_subgroup_uids,
+                    )
+                    invited_member_ids = None
+            if invited_member_ids is None and event.raw_data and isinstance(
+                event.raw_data, dict
+            ):
                 recipients = event.raw_data.get("recipients", {})
                 if isinstance(recipients, dict):
                     group_members = recipients.get("groupMembers")
                     if group_members:
                         invited_member_ids = group_members
 
+            owner_ids = None
+            if event.raw_data and isinstance(event.raw_data, dict):
                 owners = event.raw_data.get("owners", [])
                 if owners:
                     owner_ids = [o.get("id") for o in owners if o.get("id")]
@@ -592,6 +756,13 @@ class EventService:
                 # Update existing event in Spond
                 await spond_service.update_event(event.spond_id, spond_data)
                 logger.info(f"Updated event in Spond: {event.spond_id}")
+
+            # Persist the freshly-computed invite_time locally so the row
+            # reflects what we sent to Spond.
+            if invite_time_iso:
+                event.invite_time = datetime.fromisoformat(
+                    invite_time_iso.replace("Z", "+00:00")
+                ).astimezone(timezone.utc).replace(tzinfo=None)
 
             # Update sync status
             event.sync_status = "synced"

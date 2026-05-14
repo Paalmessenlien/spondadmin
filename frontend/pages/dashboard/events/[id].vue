@@ -9,6 +9,30 @@
           ]"
         />
 
+        <!-- Banner when this event originated from a training shift.
+             linked_shift_id is computed at query time on the backend, so
+             this banner appears automatically once the synced event lands. -->
+        <div
+          v-if="event && event.linked_shift_id"
+          class="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3 flex items-start gap-3"
+        >
+          <UIcon name="i-heroicons-academic-cap" class="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+          <div class="flex-1 text-sm">
+            <p class="text-amber-800 dark:text-amber-300 font-medium">
+              Published from a training shift
+            </p>
+            <p class="text-amber-700 dark:text-amber-400 mt-0.5">
+              This event was created via the training-plan publish flow.
+              <NuxtLink
+                :to="`/dashboard/training?shift=${event.linked_shift_id}`"
+                class="underline hover:no-underline"
+              >
+                Open in the training calendar →
+              </NuxtLink>
+            </p>
+          </div>
+        </div>
+
         <!-- Loading State -->
         <div v-if="loading" class="flex justify-center py-12">
           <UIcon name="i-heroicons-arrow-path" class="animate-spin h-8 w-8" />
@@ -189,20 +213,20 @@
           </UCard>
         </template>
 
-        <!-- Edit Modal -->
-        <UModal v-model="isEditModalOpen">
-          <UCard>
-            <template #header>
-              <div class="flex justify-between items-center">
-                <h3 class="text-lg font-semibold">Edit Event</h3>
-                <UButton
-                  color="gray"
-                  variant="ghost"
-                  icon="i-heroicons-x-mark"
-                  @click="isEditModalOpen = false"
-                />
-              </div>
-            </template>
+        <!-- Edit Modal — opens only via the Edit button. The default
+             detail page is read-only. -->
+        <UModal v-model:open="isEditModalOpen" :ui="{ content: 'max-w-2xl' }">
+          <template #content>
+          <div class="p-6">
+            <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 class="text-lg font-semibold">Edit Event</h3>
+              <UButton
+                color="neutral"
+                variant="ghost"
+                icon="i-heroicons-x-mark"
+                @click="isEditModalOpen = false"
+              />
+            </div>
 
             <UForm :schema="editSchema" :state="editState" @submit="handleEditSubmit" class="space-y-4">
               <!-- Basic Information -->
@@ -278,27 +302,92 @@
                 />
               </UFormField>
 
-              <!-- Attendees & Owners (only show if event has a group) -->
-              <div v-if="eventGroupId" class="space-y-4 border-t pt-4">
+              <!-- Audience (only when event has a group) -->
+              <div v-if="eventGroupId" class="space-y-3 border-t pt-4">
                 <h4 class="font-semibold text-gray-900 dark:text-white">
-                  Attendees & Responsible Persons
+                  Audience
                 </h4>
 
-                <UFormField label="Invited Members" name="invited_member_ids">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Who is invited?
+                  </label>
+                  <div class="flex flex-wrap gap-3 text-sm">
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        v-model="editAudienceMode"
+                        value="all"
+                        :disabled="editLoading"
+                      />
+                      <span>Whole group</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        v-model="editAudienceMode"
+                        value="subgroup"
+                        :disabled="editLoading || editSubgroupOptions.length === 0"
+                      />
+                      <span :class="editSubgroupOptions.length === 0 ? 'text-gray-400' : ''">
+                        Specific subgroups
+                      </span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        v-model="editAudienceMode"
+                        value="members"
+                        :disabled="editLoading"
+                      />
+                      <span>Specific members</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div v-if="editAudienceMode === 'subgroup'">
+                  <div
+                    v-if="editSubgroupOptions.length === 0"
+                    class="text-xs text-gray-500 italic"
+                  >
+                    This group has no subgroups.
+                  </div>
+                  <div
+                    v-else
+                    class="grid grid-cols-2 gap-x-4 gap-y-1.5 max-h-44 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 p-2"
+                  >
+                    <label
+                      v-for="sg in editSubgroupOptions"
+                      :key="sg.uid"
+                      class="inline-flex items-center gap-1.5 text-sm cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        :value="sg.uid"
+                        :checked="editInvitedSubgroupUids.includes(sg.uid)"
+                        class="rounded border-gray-300 dark:border-gray-600"
+                        :disabled="editLoading"
+                        @change="toggleEditSubgroup(sg.uid, ($event.target as HTMLInputElement).checked)"
+                      />
+                      <span>{{ sg.name }}</span>
+                    </label>
+                  </div>
+                </div>
+
+                <UFormField
+                  v-if="editAudienceMode === 'members'"
+                  label="Invited members"
+                  name="invited_member_ids"
+                >
                   <MemberSelect
                     v-model="editInvitedMemberIds"
                     :group-id="eventGroupId"
                     placeholder="Select members to invite..."
                     :disabled="editLoading"
                   />
-                  <template #help>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      Update which members are invited to this event.
-                    </p>
-                  </template>
                 </UFormField>
 
-                <UFormField label="Responsible Persons" name="owner_ids">
+                <UFormField label="Responsible persons" name="owner_ids">
                   <MemberSelect
                     v-model="editOwnerIds"
                     :group-id="eventGroupId"
@@ -306,12 +395,33 @@
                     placeholder="Select responsible persons..."
                     :disabled="editLoading"
                   />
-                  <template #help>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      Update who is responsible for this event.
-                    </p>
-                  </template>
                 </UFormField>
+              </div>
+
+              <!-- Invite scheduling -->
+              <div class="space-y-2 border-t pt-4">
+                <h4 class="font-semibold text-gray-900 dark:text-white">
+                  Send invitation
+                </h4>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  Leave blank to send immediately on push to Spond.
+                </p>
+                <div class="flex flex-wrap items-center gap-2 text-sm">
+                  <UInput
+                    v-model.number="editInviteLeadDays"
+                    type="number"
+                    min="0"
+                    max="365"
+                    placeholder="—"
+                    class="w-24"
+                    :ui="{ base: 'w-24' }"
+                    :disabled="editLoading"
+                  />
+                  <span class="text-gray-600 dark:text-gray-400">days before, at</span>
+                  <TimeInputHHMM v-model="editInviteSendTime" :disabled="editLoading" />
+                  <span class="text-gray-500 text-xs">(Europe/Oslo)</span>
+                </div>
+                <p class="text-xs text-gray-500">{{ editInviteScheduleSummary }}</p>
               </div>
 
               <UFormField name="sync_to_spond">
@@ -350,7 +460,8 @@
                 </UButton>
               </div>
             </UForm>
-          </UCard>
+          </div>
+          </template>
         </UModal>
   </div>
 </template>
@@ -389,9 +500,7 @@ const editSchema = z.object({
   max_accepted: z.number().min(0).optional(),
   cancelled: z.boolean().optional(),
   hidden: z.boolean().optional(),
-  sync_to_spond: z.boolean().optional(),
-  invited_member_ids: z.array(z.string()).optional(),
-  owner_ids: z.array(z.string()).optional()
+  sync_to_spond: z.boolean().optional()
 })
 
 type EditSchema = z.output<typeof editSchema>
@@ -406,14 +515,24 @@ const editState = reactive<EditSchema>({
   max_accepted: 0,
   cancelled: false,
   hidden: false,
-  sync_to_spond: false,
-  invited_member_ids: undefined,
-  owner_ids: undefined
+  sync_to_spond: false
 })
 
-// Member selection state for edit modal
+// --- Audience controls for the edit modal ------------------------------
+interface GroupOption {
+  id: number
+  spond_id: string
+  name: string
+  subgroups: { uid: string; name: string }[]
+}
+const groupOptions = ref<GroupOption[]>([])
+type EditAudienceMode = 'all' | 'subgroup' | 'members'
+const editAudienceMode = ref<EditAudienceMode>('all')
 const editInvitedMemberIds = ref<string[]>([])
+const editInvitedSubgroupUids = ref<string[]>([])
 const editOwnerIds = ref<string[]>([])
+const editInviteLeadDays = ref<number | null>(null)
+const editInviteSendTime = ref<string>('')
 
 // Get group_id from event (prefer direct group_id, fallback to raw_data)
 const eventGroupId = computed(() => {
@@ -424,6 +543,65 @@ const eventGroupId = computed(() => {
   return null
 })
 
+const editActiveGroup = computed<GroupOption | null>(() => {
+  if (!eventGroupId.value) return null
+  return groupOptions.value.find(g => g.spond_id === eventGroupId.value) ?? null
+})
+const editSubgroupOptions = computed(() => editActiveGroup.value?.subgroups ?? [])
+
+const toggleEditSubgroup = (uid: string, checked: boolean) => {
+  if (checked) {
+    if (!editInvitedSubgroupUids.value.includes(uid)) {
+      editInvitedSubgroupUids.value = [...editInvitedSubgroupUids.value, uid]
+    }
+  } else {
+    editInvitedSubgroupUids.value = editInvitedSubgroupUids.value.filter(u => u !== uid)
+  }
+}
+
+const editInviteScheduleSummary = computed(() => {
+  const lead = editInviteLeadDays.value
+  const sendTime = (editInviteSendTime.value || '').slice(0, 5)
+  if (lead === null || lead === undefined || !sendTime) {
+    return 'Sends immediately when pushed to Spond'
+  }
+  if (!editState.start_time) return `${lead} day(s) before, ${sendTime}`
+  try {
+    const dt = new Date(editState.start_time)
+    dt.setDate(dt.getDate() - lead)
+    const y = dt.getFullYear()
+    const m = String(dt.getMonth() + 1).padStart(2, '0')
+    const d = String(dt.getDate()).padStart(2, '0')
+    return `Sends on ${y}-${m}-${d} ${sendTime} (Europe/Oslo)`
+  } catch {
+    return `${lead} day(s) before, ${sendTime}`
+  }
+})
+
+const loadEditGroups = async () => {
+  try {
+    const resp: any = await api.getGroups()
+    const list: any[] = Array.isArray(resp) ? resp : (resp?.groups || [])
+    const detailed = await Promise.all(
+      list.map(g => api.getGroup(g.id).catch(() => null))
+    )
+    groupOptions.value = list.map((g, idx) => {
+      const full: any = detailed[idx] ?? g
+      return {
+        id: g.id,
+        spond_id: g.spond_id || full?.spond_id,
+        name: g.name || full?.name,
+        subgroups: (full?.subgroups || []).map((sg: any) => ({
+          uid: sg.spond_id || sg.uid || sg.id,
+          name: sg.name,
+        })),
+      } as GroupOption
+    })
+  } catch (err) {
+    console.warn('Could not load groups for edit:', err)
+  }
+}
+
 const tabs = [
   { label: 'All', value: 'all' },
   { label: 'Accepted', value: 'accepted' },
@@ -432,7 +610,7 @@ const tabs = [
 ]
 
 onMounted(async () => {
-  await loadEvent()
+  await Promise.all([loadEvent(), loadEditGroups()])
 })
 
 const loadEvent = async () => {
@@ -461,26 +639,61 @@ const openEditModal = () => {
   editState.hidden = event.value.hidden || false
   editState.sync_to_spond = false
 
-  // Populate member selections from raw_data
-  // Extract current invited members (groupMembers from recipients)
+  // Hydrate the audience controls. Precedence:
+  //   • stored invited_subgroup_uids → "subgroup" mode
+  //   • else stored/raw_data invited_member_ids → "members" mode
+  //   • else "all" (whole group)
   const rawData = event.value.raw_data
-  if (rawData?.recipients?.groupMembers && Array.isArray(rawData.recipients.groupMembers)) {
-    editInvitedMemberIds.value = [...rawData.recipients.groupMembers]
+  const storedSubgroupUids: string[] | null = event.value.invited_subgroup_uids ?? null
+  const storedMemberIds: string[] | null = rawData?.recipients?.groupMembers ?? null
+
+  if (storedSubgroupUids && storedSubgroupUids.length > 0) {
+    editAudienceMode.value = 'subgroup'
+    editInvitedSubgroupUids.value = [...storedSubgroupUids]
+    editInvitedMemberIds.value = []
+  } else if (storedMemberIds && storedMemberIds.length > 0) {
+    editAudienceMode.value = 'members'
+    editInvitedSubgroupUids.value = []
+    editInvitedMemberIds.value = [...storedMemberIds]
   } else {
+    editAudienceMode.value = 'all'
+    editInvitedSubgroupUids.value = []
     editInvitedMemberIds.value = []
   }
 
-  // Extract current owners
+  // Owners from raw_data
   if (rawData?.owners && Array.isArray(rawData.owners)) {
     editOwnerIds.value = rawData.owners.map((o: any) => o.id).filter((id: any) => id)
   } else {
     editOwnerIds.value = []
   }
 
+  // Invite scheduling fields from the event row
+  editInviteLeadDays.value = event.value.invite_lead_days ?? null
+  editInviteSendTime.value = (event.value.invite_send_time || '').slice(0, 5) || ''
+
   isEditModalOpen.value = true
 }
 
 const handleEditSubmit = async (submitEvent: FormSubmitEvent<EditSchema>) => {
+  // Audience validation up-front (parallel to create.vue).
+  if (editAudienceMode.value === 'subgroup' && editInvitedSubgroupUids.value.length === 0) {
+    toast.add({
+      title: 'Pick at least one subgroup',
+      description: 'Subgroup audience requires at least one selection. Switch to "Whole group" to invite everyone.',
+      color: 'amber',
+    })
+    return
+  }
+  if (editAudienceMode.value === 'members' && editInvitedMemberIds.value.length === 0) {
+    toast.add({
+      title: 'Pick at least one member',
+      description: 'Specific-members audience requires at least one selection. Switch to "Whole group" to invite everyone.',
+      color: 'amber',
+    })
+    return
+  }
+
   editLoading.value = true
   try {
     // Prepare update data
@@ -496,16 +709,33 @@ const handleEditSubmit = async (submitEvent: FormSubmitEvent<EditSchema>) => {
     if (submitEvent.data.hidden !== undefined) updateData.hidden = submitEvent.data.hidden
     if (submitEvent.data.sync_to_spond !== undefined) updateData.sync_to_spond = submitEvent.data.sync_to_spond
 
-    // Include member selections if syncing to Spond
-    if (submitEvent.data.sync_to_spond) {
-      // Only include if there are values (empty array means no one invited)
-      if (editInvitedMemberIds.value.length > 0) {
-        updateData.invited_member_ids = editInvitedMemberIds.value
-      }
-      if (editOwnerIds.value.length > 0) {
-        updateData.owner_ids = editOwnerIds.value
-      }
+    // Audience — always send so explicit clears (e.g. removing all subgroups
+    // by switching to "whole group") propagate to the DB.
+    if (editAudienceMode.value === 'subgroup') {
+      updateData.invited_subgroup_uids = [...editInvitedSubgroupUids.value]
+      updateData.invited_member_ids = null
+    } else if (editAudienceMode.value === 'members') {
+      updateData.invited_subgroup_uids = null
+      updateData.invited_member_ids = [...editInvitedMemberIds.value]
+    } else {
+      updateData.invited_subgroup_uids = null
+      updateData.invited_member_ids = null
     }
+
+    if (submitEvent.data.sync_to_spond && editOwnerIds.value.length > 0) {
+      updateData.owner_ids = editOwnerIds.value
+    }
+
+    // Invite scheduling — always send so blanking the inputs clears the
+    // stored intent.
+    const sendTimeRaw = (editInviteSendTime.value || '').trim()
+    updateData.invite_lead_days =
+      editInviteLeadDays.value !== null && editInviteLeadDays.value !== undefined && Number.isFinite(Number(editInviteLeadDays.value))
+        ? Number(editInviteLeadDays.value)
+        : null
+    updateData.invite_send_time = sendTimeRaw
+      ? (sendTimeRaw.length === 5 ? `${sendTimeRaw}:00` : sendTimeRaw)
+      : null
 
     await api.updateEvent(Number(eventId.value), updateData)
 

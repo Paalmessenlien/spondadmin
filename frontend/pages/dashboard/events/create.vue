@@ -25,9 +25,7 @@ const schema = z.object({
   max_accepted: z.number().min(0).default(0),
   cancelled: z.boolean().default(false),
   hidden: z.boolean().default(false),
-  sync_to_spond: z.boolean().default(false),
-  invited_member_ids: z.array(z.string()).optional(),
-  owner_ids: z.array(z.string()).optional()
+  sync_to_spond: z.boolean().default(false)
 })
 
 type Schema = z.output<typeof schema>
@@ -44,23 +42,120 @@ const state = reactive<Schema>({
   max_accepted: 0,
   cancelled: false,
   hidden: false,
-  sync_to_spond: false,
-  invited_member_ids: undefined,
-  owner_ids: undefined
+  sync_to_spond: false
 })
 
-// Member selection state (separate from form state for v-model binding)
-const invitedMemberIds = ref<string[]>([])
+// --- Audience controls -------------------------------------------------
+// The Spond-group binding drives subgroup filtering. Default to the
+// header-selected group; admin can override per-event.
+interface GroupOption {
+  id: number
+  spond_id: string
+  name: string
+  subgroups: { uid: string; name: string }[]
+  member_count?: number
+}
+const groupOptions = ref<GroupOption[]>([])
+const selectedGroupSpondId = ref<string | null>(authStore.selectedGroupId || null)
+
+// inherit/subgroup/members — mirrors TrainingShiftEditor semantics minus
+// the "inherit" option (there's no session type to inherit from here).
+type AudienceMode = 'all' | 'subgroup' | 'members'
+const audienceMode = ref<AudienceMode>('all')
+const invitedMemberIds = ref<string[]>([])    // Spond member ids (strings)
+const invitedSubgroupUids = ref<string[]>([]) // Spond subgroup uids
 const ownerIds = ref<string[]>([])
 
-// Event type options
+const activeGroup = computed<GroupOption | null>(() => {
+  if (!selectedGroupSpondId.value) return null
+  return groupOptions.value.find(g => g.spond_id === selectedGroupSpondId.value) ?? null
+})
+const subgroupOptions = computed(() => activeGroup.value?.subgroups ?? [])
+
+const toggleSubgroup = (uid: string, checked: boolean) => {
+  if (checked) {
+    if (!invitedSubgroupUids.value.includes(uid)) {
+      invitedSubgroupUids.value = [...invitedSubgroupUids.value, uid]
+    }
+  } else {
+    invitedSubgroupUids.value = invitedSubgroupUids.value.filter(u => u !== uid)
+  }
+}
+
+// --- Invite scheduling -------------------------------------------------
+const inviteLeadDays = ref<number | null>(null)
+const inviteSendTime = ref<string>('')  // 'HH:MM' or ''
+
+const inviteScheduleSummary = computed(() => {
+  const lead = inviteLeadDays.value
+  const sendTime = (inviteSendTime.value || '').slice(0, 5)
+  if (lead === null || lead === undefined || !sendTime) {
+    return 'Sends immediately when synced to Spond'
+  }
+  if (!state.start_time) return `${lead} day(s) before, ${sendTime}`
+  try {
+    const dt = new Date(state.start_time)
+    dt.setDate(dt.getDate() - lead)
+    const y = dt.getFullYear()
+    const m = String(dt.getMonth() + 1).padStart(2, '0')
+    const d = String(dt.getDate()).padStart(2, '0')
+    return `Sends on ${y}-${m}-${d} ${sendTime} (Europe/Oslo)`
+  } catch {
+    return `${lead} day(s) before, ${sendTime}`
+  }
+})
+
+// --- Event type options ------------------------------------------------
 const eventTypeOptions = [
   { value: 'EVENT', label: 'Event' },
   { value: 'RECURRING', label: 'Recurring' },
   { value: 'AVAILABILITY', label: 'Availability' }
 ]
 
-// Set default date/time (tomorrow at 10:00)
+// --- Lifecycle ---------------------------------------------------------
+const loadGroups = async () => {
+  try {
+    const resp: any = await api.getGroups()
+    const list: any[] = Array.isArray(resp) ? resp : (resp?.groups || [])
+    const detailed = await Promise.all(
+      list.map(g => api.getGroup(g.id).catch(() => null))
+    )
+    groupOptions.value = list
+      .map((g, idx) => {
+        const full: any = detailed[idx] ?? g
+        return {
+          id: g.id,
+          spond_id: g.spond_id || full?.spond_id,
+          name: g.name || full?.name,
+          subgroups: (full?.subgroups || []).map((sg: any) => ({
+            uid: sg.spond_id || sg.uid || sg.id,
+            name: sg.name,
+          })),
+          member_count: g.member_count,
+        } as GroupOption
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    if (!selectedGroupSpondId.value && groupOptions.value.length > 0) {
+      selectedGroupSpondId.value = groupOptions.value[0].spond_id
+    }
+  } catch (err) {
+    console.warn('Could not load groups:', err)
+  }
+}
+
+const onGroupChanged = () => {
+  // Subgroup uids only make sense within their parent group.
+  invitedSubgroupUids.value = []
+  invitedMemberIds.value = []
+}
+
+onMounted(async () => {
+  loadGroups()
+})
+
+// Set default date/time (tomorrow at 10:00). Run on mount so SSR/hydration
+// don't differ.
 onMounted(() => {
   const tomorrow = new Date()
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -74,23 +169,53 @@ onMounted(() => {
 })
 
 async function onSubmit(event: FormSubmitEvent<Schema>) {
+  // Validate audience before kicking off the API call.
+  if (audienceMode.value === 'subgroup' && invitedSubgroupUids.value.length === 0) {
+    toast.add({
+      title: 'Pick at least one subgroup',
+      description: 'Subgroup audience requires at least one selection. Switch to "Whole group" instead to invite everyone.',
+      color: 'amber',
+    })
+    return
+  }
+  if (audienceMode.value === 'members' && invitedMemberIds.value.length === 0) {
+    toast.add({
+      title: 'Pick at least one member',
+      description: 'Specific-members audience requires at least one selection. Switch to "Whole group" to invite everyone.',
+      color: 'amber',
+    })
+    return
+  }
+
   loading.value = true
 
   try {
-    // Include member selections only if they have values
+    const sendTimeRaw = (inviteSendTime.value || '').trim()
     const payload: any = {
       ...event.data,
       start_time: new Date(event.data.start_time).toISOString(),
       end_time: new Date(event.data.end_time).toISOString(),
-      group_id: authStore.selectedGroupId || undefined
+      group_id: selectedGroupSpondId.value || undefined,
+      invite_lead_days:
+        inviteLeadDays.value !== null && inviteLeadDays.value !== undefined && Number.isFinite(Number(inviteLeadDays.value))
+          ? Number(inviteLeadDays.value)
+          : null,
+      invite_send_time: sendTimeRaw
+        ? (sendTimeRaw.length === 5 ? `${sendTimeRaw}:00` : sendTimeRaw)
+        : null,
     }
 
-    // Add invited members if any selected (empty array or non-empty)
-    if (invitedMemberIds.value.length > 0) {
-      payload.invited_member_ids = invitedMemberIds.value
+    if (audienceMode.value === 'subgroup') {
+      payload.invited_subgroup_uids = [...invitedSubgroupUids.value]
+      payload.invited_member_ids = null
+    } else if (audienceMode.value === 'members') {
+      payload.invited_member_ids = [...invitedMemberIds.value]
+      payload.invited_subgroup_uids = null
+    } else {
+      payload.invited_subgroup_uids = null
+      payload.invited_member_ids = null
     }
 
-    // Add owners if any selected
     if (ownerIds.value.length > 0) {
       payload.owner_ids = ownerIds.value
     }
@@ -105,7 +230,6 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       color: 'green'
     })
 
-    // Navigate to the event detail page
     router.push(`/dashboard/events/${response.id}`)
   } catch (error: any) {
     toast.add({
@@ -212,33 +336,117 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
           </UFormField>
         </div>
 
-        <!-- Attendees & Owners -->
-        <div v-if="authStore.selectedGroupId" class="space-y-4">
+        <!-- Audience -->
+        <div class="space-y-4">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-            Attendees & Responsible Persons
+            Audience
           </h3>
 
-          <UFormField label="Invite Members" name="invited_member_ids">
-            <MemberSelect
-              v-model="invitedMemberIds"
-              :group-id="authStore.selectedGroupId"
-              placeholder="Select members to invite (leave empty for all)..."
+          <UFormField label="Spond group" name="group_id">
+            <select
+              v-model="selectedGroupSpondId"
+              class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
               :disabled="loading"
-            />
-            <template #help>
-              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Leave empty to invite all group members. Only applies when syncing to Spond.
-              </p>
-            </template>
+              @change="onGroupChanged"
+            >
+              <option :value="null">— pick a group —</option>
+              <option v-for="g in groupOptions" :key="g.id" :value="g.spond_id">
+                {{ g.name }}
+              </option>
+            </select>
           </UFormField>
 
-          <UFormField label="Responsible Persons" name="owner_ids">
+          <div v-if="selectedGroupSpondId">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Who is invited?
+            </label>
+            <div class="flex flex-wrap gap-3 text-sm">
+              <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  v-model="audienceMode"
+                  value="all"
+                  :disabled="loading"
+                />
+                <span>Whole group</span>
+              </label>
+              <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  v-model="audienceMode"
+                  value="subgroup"
+                  :disabled="loading || subgroupOptions.length === 0"
+                />
+                <span :class="subgroupOptions.length === 0 ? 'text-gray-400' : ''">
+                  Specific subgroups
+                </span>
+              </label>
+              <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  v-model="audienceMode"
+                  value="members"
+                  :disabled="loading"
+                />
+                <span>Specific members</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Subgroup checkbox grid -->
+          <div v-if="audienceMode === 'subgroup' && selectedGroupSpondId">
+            <div
+              v-if="subgroupOptions.length === 0"
+              class="text-xs text-gray-500 italic"
+            >
+              This group has no subgroups.
+            </div>
+            <div
+              v-else
+              class="grid grid-cols-2 gap-x-4 gap-y-1.5 max-h-44 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 p-2"
+            >
+              <label
+                v-for="sg in subgroupOptions"
+                :key="sg.uid"
+                class="inline-flex items-center gap-1.5 text-sm cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  :value="sg.uid"
+                  :checked="invitedSubgroupUids.includes(sg.uid)"
+                  class="rounded border-gray-300 dark:border-gray-600"
+                  :disabled="loading"
+                  @change="toggleSubgroup(sg.uid, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ sg.name }}</span>
+              </label>
+            </div>
+            <p class="mt-2 text-xs text-gray-500">
+              Members of any checked subgroup will be invited.
+            </p>
+          </div>
+
+          <!-- Member picker -->
+          <UFormField
+            v-if="audienceMode === 'members' && selectedGroupSpondId"
+            label="Invited members"
+            name="invited_member_ids"
+          >
+            <MemberSelect
+              v-model="invitedMemberIds"
+              :group-id="selectedGroupSpondId"
+              placeholder="Select members to invite..."
+              :disabled="loading"
+            />
+          </UFormField>
+
+          <UFormField label="Responsible persons" name="owner_ids">
             <MemberSelect
               v-model="ownerIds"
-              :group-id="authStore.selectedGroupId"
+              :group-id="selectedGroupSpondId || undefined"
               :use-profile-id="true"
               placeholder="Select responsible persons..."
-              :disabled="loading"
+              :disabled="loading || !selectedGroupSpondId"
             />
             <template #help>
               <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -248,13 +456,30 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
           </UFormField>
         </div>
 
-        <div v-else class="space-y-4">
+        <!-- Invite scheduling -->
+        <div class="space-y-3">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-            Attendees & Responsible Persons
+            Send invitation
           </h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            Select a group from the header to enable attendee and owner selection.
+          <p class="text-xs text-gray-500 dark:text-gray-400 -mt-2">
+            Leave blank to send immediately when synced to Spond.
           </p>
+          <div class="flex flex-wrap items-center gap-2 text-sm">
+            <UInput
+              v-model.number="inviteLeadDays"
+              type="number"
+              min="0"
+              max="365"
+              placeholder="—"
+              class="w-24"
+              :ui="{ base: 'w-24' }"
+              :disabled="loading"
+            />
+            <span class="text-gray-600 dark:text-gray-400">days before, at</span>
+            <TimeInputHHMM v-model="inviteSendTime" :disabled="loading" />
+            <span class="text-gray-500 text-xs">(Europe/Oslo)</span>
+          </div>
+          <p class="text-xs text-gray-500">{{ inviteScheduleSummary }}</p>
         </div>
 
         <!-- Settings -->

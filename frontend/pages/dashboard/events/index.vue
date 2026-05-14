@@ -222,8 +222,24 @@
                     @click="navigateTo(`/dashboard/events/${event.id}`)"
                   >
                     <td class="px-6 py-4">
-                      <div class="text-sm font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400">
-                        {{ event.heading }}
+                      <div class="flex items-center gap-1.5">
+                        <div class="text-sm font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400">
+                          {{ event.heading }}
+                        </div>
+                        <!-- Badge for events that originated from a training shift.
+                             linked_shift_id is computed at query time on the
+                             backend (LEFT JOIN training_shifts on spond_id). -->
+                        <UBadge
+                          v-if="event.linked_shift_id"
+                          color="amber"
+                          variant="subtle"
+                          size="xs"
+                          class="gap-1 shrink-0"
+                          :title="`Published from training shift #${event.linked_shift_id}`"
+                        >
+                          <UIcon name="i-heroicons-academic-cap" class="w-3 h-3" />
+                          Vakt
+                        </UBadge>
                       </div>
                       <div
                         v-if="event.description"
