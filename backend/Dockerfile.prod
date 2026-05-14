@@ -26,4 +26,8 @@ EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8001/health || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "4"]
+# --proxy-headers makes uvicorn honor X-Forwarded-Proto/For/Host so FastAPI
+# builds redirect Location headers with the real https:// scheme behind Caddy.
+# --forwarded-allow-ips=* trusts any source — safe here because the container
+# port is published only on 127.0.0.1 (see docker-compose.prod.yml).
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "4", "--proxy-headers", "--forwarded-allow-ips=*"]
