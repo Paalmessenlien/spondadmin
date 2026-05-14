@@ -253,7 +253,7 @@ class TrainingImportService:
     """Imports vaktliste .xlsx rows into training_shifts."""
 
     async def import_xlsx(
-        self, db: AsyncSession, file_bytes: bytes
+        self, db: AsyncSession, file_bytes: bytes, plan_id: int
     ) -> ImportReport:  # noqa: C901 — single orchestration method, kept linear for readability
         rows = _parse_xlsx_sheet1(file_bytes)
         if not rows:
@@ -285,14 +285,24 @@ class TrainingImportService:
             a.initials.upper(): a for a in aliases_result.scalars().all()
         }
 
-        # Pre-load session types into a name-keyed dict (case-insensitive).
-        st_result = await db.execute(select(TrainingSessionType))
+        # Pre-load session types for THIS plan only — dedup is now scoped
+        # to (plan_id, name) so two plans can carry the same names.
+        st_result = await db.execute(
+            select(TrainingSessionType).where(
+                TrainingSessionType.plan_id == plan_id
+            )
+        )
         session_types: dict[str, TrainingSessionType] = {
             s.name.lower(): s for s in st_result.scalars().all()
         }
 
-        # Pre-load existing shifts keyed by (session_type_id, date).
-        shifts_result = await db.execute(select(TrainingShift))
+        # Pre-load existing shifts for this plan's session types, keyed by
+        # (session_type_id, date).
+        shifts_result = await db.execute(
+            select(TrainingShift)
+            .join(TrainingSessionType)
+            .where(TrainingSessionType.plan_id == plan_id)
+        )
         existing_shifts: dict[tuple[int, date_type], TrainingShift] = {
             (s.session_type_id, s.date): s for s in shifts_result.scalars().all()
         }
@@ -319,6 +329,7 @@ class TrainingImportService:
                     session_types,
                     existing_shifts,
                     report,
+                    plan_id=plan_id,
                 )
             except Exception as exc:  # noqa: BLE001 — we want to keep going
                 logger.exception("Failed to process vaktliste row %s", row)
@@ -338,6 +349,7 @@ class TrainingImportService:
         session_types: dict[str, TrainingSessionType],
         existing_shifts: dict[tuple[int, date_type], TrainingShift],
         report: ImportReport,
+        plan_id: int,
     ) -> None:
         # Empty / external-competition rows -> skip silently.
         if not row.vakttype:
@@ -352,11 +364,12 @@ class TrainingImportService:
             )
             return
 
-        # Resolve/create the session type.
+        # Resolve/create the session type — scoped to this plan only.
         session_type = session_types.get(row.vakttype.lower())
         if session_type is None:
             session_type = TrainingSessionType(
                 name=row.vakttype,
+                plan_id=plan_id,
                 default_start_time=_DEFAULT_START,
                 default_end_time=_DEFAULT_END,
                 location=None,

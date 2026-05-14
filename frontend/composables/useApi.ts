@@ -537,7 +537,14 @@ export const useApi = () => {
 
   // Training: session types
   const getTrainingSessionTypes = async () => {
+    // Argless call → backwards-compatible. Pass {plan_id} to scope.
     return makeRequest<{ items: any[]; total: number }>('/training/session-types')
+  }
+
+  const getTrainingSessionTypesForPlan = async (planId: number) => {
+    return makeRequest<{ items: any[]; total: number }>(
+      `/training/session-types?plan_id=${planId}`
+    )
   }
 
   const createTrainingSessionType = async (body: any) => {
@@ -593,15 +600,56 @@ export const useApi = () => {
     })
   }
 
-  // Training: import xlsx (multipart upload)
-  const importTrainingXlsx = async (file: File) => {
+  // Training: plans (the period container for session types)
+  const getTrainingPlans = async () => {
+    return makeRequest<{ items: any[]; total: number }>('/training/plans')
+  }
+
+  const createTrainingPlan = async (body: any) => {
+    return makeRequest<any>('/training/plans', { method: 'POST', body })
+  }
+
+  const updateTrainingPlan = async (id: number, body: any) => {
+    return makeRequest<any>(`/training/plans/${id}`, { method: 'PATCH', body })
+  }
+
+  const deleteTrainingPlan = async (id: number) => {
+    return makeRequest(`/training/plans/${id}`, { method: 'DELETE' })
+  }
+
+  // Returns a Blob of the rendered PDF — call URL.createObjectURL on it
+  // or pipe through an <a download> anchor. Doesn't go through makeRequest
+  // because $fetch with responseType:'blob' is the cleanest path and
+  // we don't want the JSON-parsing assumption getting in the way.
+  const exportTrainingPlanPdf = async (id: number): Promise<Blob> => {
+    const headers: Record<string, string> = {}
+    if (authStore.token) {
+      headers['Authorization'] = `Bearer ${authStore.token}`
+    }
+    return await $fetch<Blob>(`/training/plans/${id}/export.pdf`, {
+      baseURL: config.public.apiBase,
+      method: 'GET',
+      headers,
+      responseType: 'blob',
+      onResponseError({ response }) {
+        if (response.status === 401) {
+          authStore.logout()
+          navigateTo('/login')
+        }
+      },
+    })
+  }
+
+  // Training: import xlsx (multipart upload). Always goes into a specific
+  // plan now — dedup is (plan_id, name)-scoped on the backend.
+  const importTrainingXlsx = async (planId: number, file: File) => {
     const formData = new FormData()
     formData.append('file', file)
     const headers: Record<string, string> = {}
     if (authStore.token) {
       headers['Authorization'] = `Bearer ${authStore.token}`
     }
-    return $fetch<any>('/training/import', {
+    return $fetch<any>(`/training/plans/${planId}/import`, {
       baseURL: config.public.apiBase,
       method: 'POST',
       body: formData,
@@ -751,9 +799,15 @@ export const useApi = () => {
     deleteTrainingShift,
     publishTrainingShift,
     getTrainingSessionTypes,
+    getTrainingSessionTypesForPlan,
     createTrainingSessionType,
     updateTrainingSessionType,
     deleteTrainingSessionType,
+    getTrainingPlans,
+    createTrainingPlan,
+    updateTrainingPlan,
+    deleteTrainingPlan,
+    exportTrainingPlanPdf,
     getTrainingAliases,
     createTrainingAlias,
     updateTrainingAlias,

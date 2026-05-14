@@ -20,12 +20,16 @@ export const useAuthStore = defineStore('auth', {
     user: null as User | null,
     loading: false,
     selectedGroupId: null as string | null,
+    // Active training plan — mirror of selectedGroupId. Persists across
+    // sessions in localStorage. Set null = no plan picked yet.
+    selectedPlanId: null as number | null,
   }),
 
   getters: {
     isAuthenticated: (state) => !!state.token,
     isLoading: (state) => state.loading,
     hasSelectedGroup: (state) => !!state.selectedGroupId,
+    hasSelectedPlan: (state) => state.selectedPlanId !== null,
     isAdmin: (state) => state.user?.role === 'admin',
     canEdit: (state) => ['admin', 'editor'].includes(state.user?.role ?? ''),
     canManageSystem: (state) => state.user?.role === 'admin',
@@ -71,10 +75,12 @@ export const useAuthStore = defineStore('auth', {
       this.token = null
       this.user = null
       this.selectedGroupId = null
+      this.selectedPlanId = null
 
       if (import.meta.client) {
         localStorage.removeItem('auth_token')
         localStorage.removeItem('selected_group_id')
+        localStorage.removeItem('selected_plan_id')
       }
 
       navigateTo('/login')
@@ -92,8 +98,20 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    setSelectedPlan(planId: number | null) {
+      this.selectedPlanId = planId
+
+      if (import.meta.client) {
+        if (planId !== null) {
+          localStorage.setItem('selected_plan_id', String(planId))
+        } else {
+          localStorage.removeItem('selected_plan_id')
+        }
+      }
+    },
+
     async initAuth() {
-      // Try to restore token and selected group from localStorage
+      // Try to restore token and selected group / plan from localStorage
       if (import.meta.client) {
         const token = localStorage.getItem('auth_token')
         if (token) {
@@ -104,6 +122,12 @@ export const useAuthStore = defineStore('auth', {
         const selectedGroupId = localStorage.getItem('selected_group_id')
         if (selectedGroupId) {
           this.selectedGroupId = selectedGroupId
+        }
+
+        const selectedPlanId = localStorage.getItem('selected_plan_id')
+        if (selectedPlanId) {
+          const n = parseInt(selectedPlanId, 10)
+          if (Number.isFinite(n)) this.selectedPlanId = n
         }
       }
     },

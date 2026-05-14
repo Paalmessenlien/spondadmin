@@ -6,7 +6,7 @@ start/end times unless the shift overrides them.
 from datetime import time
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text, Time
+from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
@@ -14,19 +14,34 @@ from app.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from app.models.group import Group
     from app.models.leader_group import LeaderGroup
+    from app.models.training_plan import TrainingPlan
     from app.models.training_shift import TrainingShift
 
 
 class TrainingSessionType(Base, TimestampMixin):
     __tablename__ = "training_session_types"
     __table_args__ = (
+        # Names are unique *within a plan* — two plans may carry the same
+        # session-type name (e.g. each quarter has its own "Barn & Ungdom").
+        UniqueConstraint(
+            "plan_id", "name", name="uq_training_session_types_plan_id_name"
+        ),
+        Index("ix_training_session_types_plan_id", "plan_id"),
         Index("ix_training_session_types_group_id", "group_id"),
         Index("ix_training_session_types_leader_group_id", "leader_group_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
-    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    # Which training plan this session type belongs to. RESTRICT keeps the
+    # plan around as long as it has session types — admins must reassign or
+    # delete the children first.
+    plan_id: Mapped[int] = mapped_column(
+        ForeignKey("training_plans.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
 
     default_start_time: Mapped[time] = mapped_column(Time, nullable=False)
     default_end_time: Mapped[time] = mapped_column(Time, nullable=False)
@@ -68,6 +83,7 @@ class TrainingSessionType(Base, TimestampMixin):
     invite_lead_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     invite_send_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
 
+    plan: Mapped["TrainingPlan"] = relationship(back_populates="session_types")
     group: Mapped[Optional["Group"]] = relationship(foreign_keys=[group_id])
     leader_group: Mapped[Optional["LeaderGroup"]] = relationship(
         foreign_keys=[leader_group_id]

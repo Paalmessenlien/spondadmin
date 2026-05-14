@@ -15,6 +15,7 @@ from fastapi import (
     File,
     HTTPException,
     Query,
+    Response,
     UploadFile,
     status,
 )
@@ -33,6 +34,7 @@ from app.models.admin import Admin
 from app.models.leader_group import LeaderGroup, LeaderGroupMember
 from app.models.member import Member
 from app.models.member_alias import MemberAlias
+from app.models.training_plan import TrainingPlan
 from app.models.training_session_type import TrainingSessionType
 from app.models.training_shift import TrainingShift
 from app.schemas.training import (
@@ -46,6 +48,10 @@ from app.schemas.training import (
     MemberAliasListResponse,
     MemberAliasResponse,
     MemberAliasUpdate,
+    TrainingPlanCreate,
+    TrainingPlanListResponse,
+    TrainingPlanResponse,
+    TrainingPlanUpdate,
     TrainingSessionTypeCreate,
     TrainingSessionTypeListResponse,
     TrainingSessionTypeResponse,
@@ -61,6 +67,7 @@ from app.services.spond_event_create_service import (
 )
 from app.services.spond_service import get_spond_service
 from app.services.training_import_service import training_import_service
+from app.services.training_pdf_service import render_plan_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -107,23 +114,214 @@ async def _ensure_member_exists(db: AsyncSession, member_id: int) -> None:
 
 
 # ============================================================
+# Training plans
+# ============================================================
+
+
+async def _get_plan_or_404(db: AsyncSession, plan_id: int) -> TrainingPlan:
+    result = await db.execute(
+        select(TrainingPlan).where(TrainingPlan.id == plan_id)
+    )
+    obj = result.scalar_one_or_none()
+    if obj is None:
+        raise HTTPException(status_code=404, detail="Training plan not found")
+    return obj
+
+
+async def _plan_to_response(
+    db: AsyncSession, plan: TrainingPlan
+) -> TrainingPlanResponse:
+    """Build a TrainingPlanResponse with the two count fields populated."""
+    session_type_count = (
+        await db.scalar(
+            select(func.count(TrainingSessionType.id)).where(
+                TrainingSessionType.plan_id == plan.id
+            )
+        )
+    ) or 0
+    shift_count = (
+        await db.scalar(
+            select(func.count(TrainingShift.id))
+            .join(TrainingSessionType)
+            .where(TrainingSessionType.plan_id == plan.id)
+        )
+    ) or 0
+    payload = TrainingPlanResponse.model_validate(plan).model_dump()
+    payload["session_type_count"] = session_type_count
+    payload["shift_count"] = shift_count
+    return TrainingPlanResponse(**payload)
+
+
+@router.get("/plans", response_model=TrainingPlanListResponse)
+async def list_plans(
+    current_user: Admin = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List training plans, newest-period first."""
+    result = await db.execute(
+        select(TrainingPlan).order_by(
+            TrainingPlan.period_start.desc(), TrainingPlan.id.desc()
+        )
+    )
+    plans = result.scalars().all()
+    items = [await _plan_to_response(db, p) for p in plans]
+    return TrainingPlanListResponse(items=items, total=len(items))
+
+
+@router.post(
+    "/plans",
+    response_model=TrainingPlanResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_plan(
+    data: TrainingPlanCreate,
+    current_user: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new training plan (admin only)."""
+    obj = TrainingPlan(**data.model_dump())
+    db.add(obj)
+    try:
+        await db.flush()
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"A training plan named {data.name!r} already exists",
+        )
+    await db.refresh(obj)
+    return await _plan_to_response(db, obj)
+
+
+@router.patch("/plans/{plan_id}", response_model=TrainingPlanResponse)
+async def update_plan(
+    plan_id: int,
+    data: TrainingPlanUpdate,
+    current_user: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a training plan (admin only)."""
+    obj = await _get_plan_or_404(db, plan_id)
+    changes = data.model_dump(exclude_unset=True)
+    for key, value in changes.items():
+        setattr(obj, key, value)
+    if obj.period_end < obj.period_start:
+        raise HTTPException(
+            status_code=400,
+            detail="period_end must not be before period_start",
+        )
+    try:
+        await db.flush()
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Plan name conflicts with another plan",
+        )
+    await db.refresh(obj)
+    return await _plan_to_response(db, obj)
+
+
+@router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_plan(
+    plan_id: int,
+    current_user: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a training plan (admin only). Refuses if any session types
+    still reference it — the FK is ON DELETE RESTRICT for safety."""
+    obj = await _get_plan_or_404(db, plan_id)
+    st_count = await db.scalar(
+        select(func.count(TrainingSessionType.id)).where(
+            TrainingSessionType.plan_id == plan_id
+        )
+    )
+    if st_count:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Cannot delete plan — {st_count} session type(s) still "
+                "reference it. Remove or reassign those first."
+            ),
+        )
+    await db.delete(obj)
+    await db.commit()
+    return None
+
+
+@router.get("/plans/{plan_id}/export.pdf")
+async def export_plan_pdf(
+    plan_id: int,
+    current_user: Admin = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Render a chronological-shift-list PDF for one plan.
+
+    Available to any authenticated user (admin/editor/viewer) — printing
+    the plan is a read action.
+    """
+    plan = await _get_plan_or_404(db, plan_id)
+
+    # Load every shift in the plan + the leader + session_type needed by
+    # the renderer. One round-trip with selectinload — avoids N+1 lazy
+    # loads inside render_plan_pdf.
+    result = await db.execute(
+        select(TrainingShift)
+        .join(TrainingSessionType)
+        .where(TrainingSessionType.plan_id == plan_id)
+        .options(
+            selectinload(TrainingShift.session_type),
+            selectinload(TrainingShift.leader),
+        )
+        .order_by(TrainingShift.date.asc(), TrainingSessionType.name.asc())
+    )
+    shifts = list(result.scalars().all())
+
+    pdf_bytes = render_plan_pdf(plan, shifts)
+
+    # Sanitize the filename — strip newlines and constrain to ASCII-ish
+    # so Content-Disposition stays well-formed across browsers.
+    safe_name = (
+        plan.name.replace("\n", " ").replace("\r", " ").replace('"', "")
+        if plan.name
+        else f"plan-{plan_id}"
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_name}.pdf"',
+        },
+    )
+
+
+# ============================================================
 # Training session types
 # ============================================================
 
 @router.get("/session-types", response_model=TrainingSessionTypeListResponse)
 async def list_session_types(
+    plan_id: Optional[int] = Query(
+        None,
+        description=(
+            "Filter to a single training plan. When omitted, returns "
+            "session types from every plan."
+        ),
+    ),
     current_user: Admin = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all training session types (admin/editor/viewer)."""
-    result = await db.execute(
-        select(TrainingSessionType)
-        .options(
-            selectinload(TrainingSessionType.group),
-            selectinload(TrainingSessionType.leader_group),
-        )
-        .order_by(TrainingSessionType.name.asc())
+    """List training session types, optionally scoped to one plan."""
+    stmt = select(TrainingSessionType).options(
+        selectinload(TrainingSessionType.group),
+        selectinload(TrainingSessionType.leader_group),
     )
+    if plan_id is not None:
+        stmt = stmt.where(TrainingSessionType.plan_id == plan_id)
+    stmt = stmt.order_by(TrainingSessionType.name.asc())
+    result = await db.execute(stmt)
     items = result.scalars().all()
     return TrainingSessionTypeListResponse(
         items=[TrainingSessionTypeResponse.model_validate(o) for o in items],
@@ -377,6 +575,13 @@ async def list_shifts(
     month: Optional[str] = Query(
         None, description="Filter to a single month, format YYYY-MM"
     ),
+    plan_id: Optional[int] = Query(
+        None,
+        description=(
+            "Filter to a single training plan via the shifts' session_type. "
+            "When omitted, returns shifts from every plan."
+        ),
+    ),
     session_type_id: Optional[int] = Query(
         None, description="Filter by session type id"
     ),
@@ -408,7 +613,10 @@ async def list_shifts(
         stmt = stmt.where(TrainingShift.leader_member_id == leader_member_id)
     if status_filter:
         stmt = stmt.where(TrainingShift.status == status_filter)
-    stmt = stmt.join(TrainingSessionType).order_by(
+    stmt = stmt.join(TrainingSessionType)
+    if plan_id is not None:
+        stmt = stmt.where(TrainingSessionType.plan_id == plan_id)
+    stmt = stmt.order_by(
         TrainingShift.date.asc(),
         TrainingSessionType.name.asc(),
     )
@@ -556,19 +764,28 @@ async def delete_shift(
 # Excel importer
 # ============================================================
 
-@router.post("/import", response_model=ImportReport)
+@router.post("/plans/{plan_id}/import", response_model=ImportReport)
 async def import_xlsx(
+    plan_id: int,
     file: UploadFile = File(..., description="Vaktliste .xlsx file"),
     current_user: Admin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Import a vaktliste .xlsx (admin only). Wave-2 source of truth bootstrap."""
+    """Import a vaktliste .xlsx into a specific training plan (admin only).
+
+    Session-type dedup is scoped to `(plan_id, name)` — importing the same
+    xlsx shape into two different plans creates parallel session-type sets.
+    """
+    await _get_plan_or_404(db, plan_id)
+
     contents = await file.read()
     if not contents:
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
     try:
-        report = await training_import_service.import_xlsx(db, contents)
+        report = await training_import_service.import_xlsx(
+            db, contents, plan_id=plan_id
+        )
         await db.commit()
         return report
     except ValueError as exc:

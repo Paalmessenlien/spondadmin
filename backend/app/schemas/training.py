@@ -12,6 +12,52 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ============================================================
+# TrainingPlan
+# ============================================================
+
+class TrainingPlanBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    period_start: date
+    period_end: date
+    description: Optional[str] = None
+    is_active: bool = True
+
+    @model_validator(mode="after")
+    def _check_period(self) -> "TrainingPlanBase":
+        if self.period_end < self.period_start:
+            raise ValueError("period_end must not be before period_start")
+        return self
+
+
+class TrainingPlanCreate(TrainingPlanBase):
+    pass
+
+
+class TrainingPlanUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    period_start: Optional[date] = None
+    period_end: Optional[date] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class TrainingPlanResponse(TrainingPlanBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    # Counts populated at query time; never persisted on the row.
+    session_type_count: int = 0
+    shift_count: int = 0
+
+
+class TrainingPlanListResponse(BaseModel):
+    items: List[TrainingPlanResponse]
+    total: int
+
+
+# ============================================================
 # LeaderGroup
 # ============================================================
 
@@ -86,6 +132,7 @@ class TrainingSessionTypeGroup(BaseModel):
 
 class TrainingSessionTypeBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
+    plan_id: int  # The TrainingPlan this session type belongs to.
     default_start_time: time
     default_end_time: time
     location: Optional[str] = Field(default=None, max_length=255)
@@ -105,6 +152,9 @@ class TrainingSessionTypeCreate(TrainingSessionTypeBase):
 
 class TrainingSessionTypeUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    # Moving a session type between plans isn't expected day-to-day, but
+    # keep it possible — useful if an admin imports into the wrong plan.
+    plan_id: Optional[int] = None
     default_start_time: Optional[time] = None
     default_end_time: Optional[time] = None
     location: Optional[str] = Field(default=None, max_length=255)

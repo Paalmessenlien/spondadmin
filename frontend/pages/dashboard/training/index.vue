@@ -12,11 +12,39 @@
           Monthly schedule for training shifts, with one-click publish to Spond.
         </p>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap items-end gap-2">
+        <!-- Plan switcher. The active plan drives which session types +
+             shifts are loaded. Persisted in auth.selectedPlanId via
+             localStorage so reload remembers the choice. -->
+        <div class="min-w-[220px]">
+          <label class="block text-xs font-medium text-gray-500 mb-1">Active plan</label>
+          <select
+            v-model.number="activePlanIdModel"
+            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+            @change="onPlanChange"
+          >
+            <option v-if="plans.length === 0" :value="null">
+              — no plans —
+            </option>
+            <option v-for="p in plans" :key="p.id" :value="p.id">
+              {{ p.name }}
+            </option>
+          </select>
+        </div>
+
+        <UButton
+          color="neutral"
+          variant="outline"
+          icon="i-heroicons-cog-6-tooth"
+          to="/dashboard/training/plans"
+        >
+          Manage plans
+        </UButton>
         <UButton
           v-if="canEdit"
           color="primary"
           icon="i-heroicons-plus"
+          :disabled="!authStore.hasSelectedPlan"
           @click="openNewShift"
         >
           New shift
@@ -35,6 +63,8 @@
           color="neutral"
           variant="outline"
           icon="i-heroicons-arrow-up-tray"
+          :disabled="!authStore.hasSelectedPlan"
+          :title="authStore.hasSelectedPlan ? '' : 'Pick or create a plan first'"
           @click="importModalOpen = true"
         >
           Import xlsx
@@ -498,7 +528,23 @@ definePageMeta({ middleware: 'auth', layout: 'dashboard' })
 
 const api = useApi()
 const toast = useToast()
+const authStore = useAuthStore()
 const { canEdit, isAdmin } = usePermissions()
+
+interface PlanRow {
+  id: number
+  name: string
+  period_start: string
+  period_end: string
+}
+const plans = ref<PlanRow[]>([])
+
+// Two-way binding for the plan <select>. Reads from auth store; writes
+// go through setSelectedPlan so localStorage stays in sync.
+const activePlanIdModel = computed<number | null>({
+  get: () => authStore.selectedPlanId,
+  set: (v) => authStore.setSelectedPlan(v),
+})
 
 interface SessionType {
   id: number
@@ -686,12 +732,22 @@ const createSessionTypeFromModal = async (st: SessionType): Promise<boolean> => 
     return false
   }
   st._saving = true
+  const planId = authStore.selectedPlanId
+  if (planId === null) {
+    toast.add({
+      title: 'No active plan',
+      description: 'Pick or create a training plan first.',
+      color: 'amber',
+    })
+    return false
+  }
   try {
     const startRaw = st._editStart || '17:00'
     const endRaw = st._editEnd || '19:00'
     const sendTimeRaw = st._editInviteSendTime?.trim() || ''
     const body: Record<string, any> = {
       name: st._editName.trim(),
+      plan_id: planId,
       default_start_time: startRaw.length === 5 ? `${startRaw}:00` : startRaw,
       default_end_time: endRaw.length === 5 ? `${endRaw}:00` : endRaw,
       location: st._editLocation?.trim() ? st._editLocation.trim() : null,
@@ -794,8 +850,13 @@ const hydrateSessionType = (st: any): SessionType => ({
 })
 
 const loadSessionTypes = async () => {
+  const planId = authStore.selectedPlanId
+  if (planId === null) {
+    sessionTypes.value = []
+    return
+  }
   try {
-    const data = await api.getTrainingSessionTypes()
+    const data = await api.getTrainingSessionTypesForPlan(planId)
     sessionTypes.value = (data.items || []).map(hydrateSessionType)
   } catch (err) {
     console.error('Failed to load session types:', err)
@@ -803,11 +864,24 @@ const loadSessionTypes = async () => {
 }
 
 const loadMonth = async () => {
+  const planId = authStore.selectedPlanId
+  if (planId === null) {
+    sessionTypes.value = []
+    shifts.value = []
+    loading.value = false
+    return
+  }
   loading.value = true
   try {
     const [stResp, shResp] = await Promise.all([
-      sessionTypes.value.length === 0 ? api.getTrainingSessionTypes() : Promise.resolve({ items: sessionTypes.value }),
-      api.getTrainingShifts({ month: monthString.value, limit: 500 }),
+      sessionTypes.value.length === 0
+        ? api.getTrainingSessionTypesForPlan(planId)
+        : Promise.resolve({ items: sessionTypes.value }),
+      api.getTrainingShifts({
+        month: monthString.value,
+        limit: 500,
+        plan_id: planId,
+      }),
     ])
     if (sessionTypes.value.length === 0) {
       sessionTypes.value = ((stResp as any).items || []).map(hydrateSessionType)
@@ -823,6 +897,45 @@ const loadMonth = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadPlans = async () => {
+  try {
+    const resp: any = await api.getTrainingPlans()
+    plans.value = (resp.items || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      period_start: p.period_start,
+      period_end: p.period_end,
+    }))
+    // First-time visit: snap to the newest plan so the calendar isn't empty.
+    if (
+      authStore.selectedPlanId === null &&
+      plans.value.length > 0
+    ) {
+      authStore.setSelectedPlan(plans.value[0].id)
+    }
+  } catch (err) {
+    console.warn('Could not load training plans:', err)
+  }
+}
+
+const onPlanChange = async () => {
+  // Wipe loaded data so the calendar doesn't flash stale shifts.
+  sessionTypes.value = []
+  shifts.value = []
+  // Jump to the plan's start month one-shot — admin can navigate away after.
+  const planId = authStore.selectedPlanId
+  if (planId !== null) {
+    const p = plans.value.find(pp => pp.id === planId)
+    if (p?.period_start) {
+      const [y, m] = p.period_start.split('-').map(Number)
+      if (Number.isFinite(y) && Number.isFinite(m)) {
+        currentMonth.value = { year: y, month: m }
+      }
+    }
+  }
+  await loadMonth()
 }
 
 const loadGroups = async () => {
@@ -895,10 +1008,19 @@ const onFilePicked = (e: Event) => {
 
 const handleImport = async () => {
   if (!importFile.value) return
+  const planId = authStore.selectedPlanId
+  if (planId === null) {
+    toast.add({
+      title: 'No active plan',
+      description: 'Pick or create a training plan first.',
+      color: 'amber',
+    })
+    return
+  }
   importing.value = true
   importReport.value = null
   try {
-    const report: any = await api.importTrainingXlsx(importFile.value)
+    const report: any = await api.importTrainingXlsx(planId, importFile.value)
     importReport.value = report
     toast.add({
       title: 'Import complete',
@@ -981,6 +1103,9 @@ const loadLeaderGroups = async () => {
 }
 
 onMounted(async () => {
+  // Plans must load before the calendar so we know which plan is active.
+  // Once selectedPlanId is set, loadMonth uses it.
+  await loadPlans()
   await Promise.all([loadMonth(), loadGroups(), loadLeaderGroups()])
 })
 </script>
