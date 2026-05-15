@@ -1,6 +1,7 @@
 """
 Backup service - pg_dump + Bunny CDN upload
 """
+import asyncio
 import logging
 import os
 import subprocess
@@ -126,16 +127,29 @@ class BackupService:
         upload_url = f"{base_url}/{storage_zone}/{cdn_path}"
 
         try:
-            with open(backup.file_path, "rb") as f:
-                file_data = f.read()
+            # Stream the file to Bunny in 1 MiB chunks instead of reading
+            # the whole dump into memory — backups grow with the DB and the
+            # backend container only has ~1G to play with across 4 workers.
+            # httpx.AsyncClient requires an async iterator for `content`.
+            file_size = Path(backup.file_path).stat().st_size
+
+            async def _iter_file(path: str, chunk_size: int = 1024 * 1024):
+                loop = asyncio.get_running_loop()
+                with open(path, "rb") as f:
+                    while True:
+                        chunk = await loop.run_in_executor(None, f.read, chunk_size)
+                        if not chunk:
+                            break
+                        yield chunk
 
             async with httpx.AsyncClient(timeout=300) as client:
                 response = await client.put(
                     upload_url,
-                    content=file_data,
+                    content=_iter_file(backup.file_path),
                     headers={
                         "AccessKey": settings.BUNNY_STORAGE_API_KEY,
                         "Content-Type": "application/octet-stream",
+                        "Content-Length": str(file_size),
                     },
                 )
                 response.raise_for_status()
