@@ -68,6 +68,11 @@ test-results/
 *.sqlite
 *.sqlite3
 
+# Local DB dumps — pg_dump output from scripts/backup.sh and the
+# admin backup API. Full database snapshots; must never be committed.
+backups/
+*.dump
+
 # Logs
 logs/
 *.log
