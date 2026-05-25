@@ -312,10 +312,8 @@ onMounted(async () => {
   }
 })
 
-// Create headers with auth token
-const headers = computed(() => ({
-  Authorization: authStore.token ? `Bearer ${authStore.token}` : ''
-}))
+// Auth headers reactively tied to Clerk's token
+const { headers } = useAuthHeaders()
 
 // Build query params for group and category filtering
 const groupQuery = computed(() => {
@@ -337,7 +335,7 @@ const analyticsQuery = computed(() => {
 // Fetch analytics summary
 const { data: summary, pending: summaryPending, refresh: refreshSummary } = await useFetch('/analytics/summary', {
   baseURL: config.public.apiBase,
-  headers: headers.value,
+  headers: headers,
   query: groupQuery,
   lazy: true,
   key: 'analytics-summary',
@@ -354,7 +352,7 @@ const { data: attendanceTrends, pending: trendsPending, refresh: refreshTrends }
   '/analytics/attendance-trends',
   {
     baseURL: config.public.apiBase,
-    headers: headers.value,
+    headers: headers,
     query: trendsQuery,
     lazy: true,
     key: 'attendance-trends',
@@ -365,7 +363,7 @@ const { data: attendanceTrends, pending: trendsPending, refresh: refreshTrends }
 // Fetch response rates
 const { data: responseRates, pending: ratesPending, refresh: refreshRates } = await useFetch('/analytics/response-rates', {
   baseURL: config.public.apiBase,
-  headers: headers.value,
+  headers: headers,
   query: groupQuery,
   lazy: true,
   key: 'response-rates',
@@ -375,7 +373,7 @@ const { data: responseRates, pending: ratesPending, refresh: refreshRates } = aw
 // Fetch event type distribution
 const { data: eventTypes, pending: typesPending, refresh: refreshEventTypes } = await useFetch<any[]>('/analytics/event-types', {
   baseURL: config.public.apiBase,
-  headers: headers.value,
+  headers: headers,
   query: groupQuery,
   lazy: true,
   key: 'event-types',
@@ -393,7 +391,7 @@ const { data: memberParticipation, pending: membersPending, refresh: refreshMemb
   '/analytics/member-participation',
   {
     baseURL: config.public.apiBase,
-    headers: headers.value,
+    headers: headers,
     query: membersQuery,
     lazy: true,
     key: 'member-participation',
@@ -413,7 +411,7 @@ const { data: organizerStats, pending: organizersPending, refresh: refreshOrgani
   '/analytics/organizers',
   {
     baseURL: config.public.apiBase,
-    headers: headers.value,
+    headers: headers,
     query: organizersQuery,
     lazy: true,
     key: 'organizer-stats',
@@ -436,7 +434,7 @@ const { data: categoryDistribution, pending: categoryDistPending, refresh: refre
   '/analytics/categories/distribution',
   {
     baseURL: config.public.apiBase,
-    headers: headers.value,
+    headers: headers,
     query: analyticsQuery,
     lazy: true,
     key: 'category-distribution',
@@ -449,7 +447,7 @@ const { data: categoryComparison, pending: categoryCompPending, refresh: refresh
   '/analytics/categories/attendance',
   {
     baseURL: config.public.apiBase,
-    headers: headers.value,
+    headers: headers,
     query: analyticsQuery,
     lazy: true,
     key: 'category-comparison',

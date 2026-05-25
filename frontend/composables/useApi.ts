@@ -15,6 +15,8 @@ interface ApiOptions {
 export const useApi = () => {
   const config = useRuntimeConfig()
   const authStore = useAuthStore()
+  const { getToken } = useAuth()
+  const clerk = useClerk()
 
   // Helper to inject group_id from auth store into params
   const withGroupFilter = (params: Record<string, any> = {}): Record<string, any> => {
@@ -24,49 +26,41 @@ export const useApi = () => {
     return params
   }
 
+  const handleUnauthorized = async () => {
+    authStore.clearLocalState()
+    try {
+      if (clerk.value) await clerk.value.signOut()
+    } catch { /* ignore */ }
+    navigateTo('/login')
+  }
+
   const makeRequest = async <T>(endpoint: string, options: ApiOptions = {}): Promise<T> => {
     const { method = 'GET', body, headers = {} } = options
 
-    // Add auth token if available
-    if (authStore.token) {
-      headers['Authorization'] = `Bearer ${authStore.token}`
+    const token = await getToken.value()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
     }
 
-    try {
-      const response = await $fetch<T>(endpoint, {
-        baseURL: config.public.apiBase,
-        method,
-        body, // $fetch automatically handles JSON stringification
-        headers,
-        onResponseError({ response }) {
-          // Handle 401 unauthorized
-          if (response.status === 401) {
-            authStore.logout()
-            navigateTo('/login')
-          }
-        },
-      })
-
-      return response
-    } catch (error) {
-      throw error
-    }
-  }
-
-  // Authentication
-  const login = async (username: string, password: string) => {
-    const response = await makeRequest<{ access_token: string; token_type: string }>(
-      '/auth/login',
-      {
-        method: 'POST',
-        body: { username, password },
-      }
-    )
-    return response
+    return await $fetch<T>(endpoint, {
+      baseURL: config.public.apiBase,
+      method,
+      body,
+      headers,
+      onResponseError({ response }) {
+        if (response.status === 401) {
+          handleUnauthorized()
+        }
+      },
+    })
   }
 
   const getCurrentUser = async () => {
     return makeRequest('/auth/me')
+  }
+
+  const inviteAdmin = async (payload: { email: string; full_name?: string; role: string }) => {
+    return makeRequest('/auth/invite', { method: 'POST', body: payload })
   }
 
   // Events
@@ -400,8 +394,11 @@ export const useApi = () => {
     return makeRequest<any>(`/auth/admins/${id}`)
   }
 
+  // Legacy local-account create. Clerk-based onboarding uses ``inviteAdmin``
+  // above; this is kept only for one transition release and will be removed
+  // alongside the /auth/register backend route in the cleanup task.
   const createAdmin = async (data: any) => {
-    return makeRequest<any>('/auth/register', {
+    return makeRequest<any>('/auth/invite', {
       method: 'POST',
       body: data,
     })
@@ -494,9 +491,11 @@ export const useApi = () => {
     return makeRequest(`/external-events/${id}/analyze`, { method: 'POST' })
   }
 
-  const analyzeAllExternalEvents = () => {
-    // Returns the full URL for SSE streaming - caller handles EventSource
-    const token = authStore.token
+  const analyzeAllExternalEvents = async () => {
+    // Returns the full URL for SSE streaming - caller handles EventSource.
+    // Token is fetched fresh from Clerk because EventSource has no headers,
+    // so the caller has to append it to the URL or use a fetch stream.
+    const token = await getToken.value()
     return { url: `${config.public.apiBase}/external-events/analyze-all`, token }
   }
 
@@ -623,8 +622,9 @@ export const useApi = () => {
   // we don't want the JSON-parsing assumption getting in the way.
   const exportTrainingPlanPdf = async (id: number): Promise<Blob> => {
     const headers: Record<string, string> = {}
-    if (authStore.token) {
-      headers['Authorization'] = `Bearer ${authStore.token}`
+    const token = await getToken.value()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
     }
     return await $fetch<Blob>(`/training/plans/${id}/export.pdf`, {
       baseURL: config.public.apiBase,
@@ -633,8 +633,7 @@ export const useApi = () => {
       responseType: 'blob',
       onResponseError({ response }) {
         if (response.status === 401) {
-          authStore.logout()
-          navigateTo('/login')
+          handleUnauthorized()
         }
       },
     })
@@ -646,8 +645,9 @@ export const useApi = () => {
     const formData = new FormData()
     formData.append('file', file)
     const headers: Record<string, string> = {}
-    if (authStore.token) {
-      headers['Authorization'] = `Bearer ${authStore.token}`
+    const token = await getToken.value()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
     }
     return $fetch<any>(`/training/plans/${planId}/import`, {
       baseURL: config.public.apiBase,
@@ -656,8 +656,7 @@ export const useApi = () => {
       headers,
       onResponseError({ response }) {
         if (response.status === 401) {
-          authStore.logout()
-          navigateTo('/login')
+          handleUnauthorized()
         }
       },
     })

@@ -8,11 +8,6 @@
 </template>
 
 <script setup lang="ts">
-const authStore = useAuthStore()
-const route = useRoute()
-
-// Initialize auth on mount
-onMounted(() => {
-  authStore.initAuth()
-})
+// Auth init (session loading) is owned by @clerk/nuxt; per-route fetch
+// of the local admin row happens in middleware/auth.ts.
 </script>

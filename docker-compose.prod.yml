@@ -73,6 +73,14 @@ services:
       dockerfile: Dockerfile.prod
       args:
         NUXT_PUBLIC_API_BASE: /api/v1
+        # Baked into the client bundle at build time — must be a real key
+        # in production. Sourced from the server's .env via compose-substitution.
+        NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
+    environment:
+      # SSR / Nuxt server middleware also needs the secret key to verify
+      # incoming requests on server-rendered pages.
+      - NUXT_CLERK_SECRET_KEY=${NUXT_CLERK_SECRET_KEY:-}
+      - NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
     ports:
       # Bind to loopback only — the host's Caddy proxies to this port.
       - "127.0.0.1:3000:3000"

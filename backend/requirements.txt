@@ -14,9 +14,11 @@ aiosqlite==0.20.0
 asyncpg==0.30.0
 
 # Authentication & Security
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-bcrypt==4.0.1
+# Clerk JWTs are verified with pyjwt + the cryptography backend. The Fernet
+# encryption for AI provider secrets (app/core/encryption.py) also uses
+# cryptography. passlib/bcrypt/python-jose were dropped with the Clerk
+# migration — no local password hashing or HS256 JWTs anymore.
+pyjwt[crypto]==2.10.1
 python-dotenv==1.0.1
 cryptography==44.0.0
 

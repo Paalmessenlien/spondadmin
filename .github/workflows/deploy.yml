@@ -68,6 +68,12 @@ jobs:
         env:
           NODE_ENV: production
           NUXT_PUBLIC_API_BASE: https://admin.lillehammerbueskyttere.no/api/v1
+          # Build-time Clerk publishable key. The verify build only needs
+          # a parseable placeholder; the real production build runs on the
+          # server via docker-compose.prod.yml, which injects the value
+          # from the server's .env file (NOT from GitHub Actions secrets).
+          NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+          NUXT_CLERK_SECRET_KEY: sk_test_ci_placeholder_not_used_at_runtime
 
       # Backend smoke check.
       - name: Setup Python

@@ -122,16 +122,14 @@ const schedulerLoading = ref(true)
 const schedulerStatus = ref<any>(null)
 const triggeringJob = ref<string | null>(null)
 
-const headers = computed(() => ({
-  Authorization: authStore.token ? `Bearer ${authStore.token}` : ''
-}))
+const { headers } = useAuthHeaders()
 
 // Fetch scheduler status
 onMounted(async () => {
   try {
     schedulerStatus.value = await $fetch('/scheduler/status', {
       baseURL: config.public.apiBase,
-      headers: headers.value,
+      headers: headers,
     })
   } catch {
     // Scheduler might not be running
@@ -154,7 +152,7 @@ const triggerJob = async (jobId: string) => {
     await $fetch(`/scheduler/jobs/${jobId}/trigger`, {
       baseURL: config.public.apiBase,
       method: 'POST',
-      headers: headers.value,
+      headers: headers,
     })
     toast.add({ title: 'Success', description: `Job "${jobId}" triggered`, color: 'green' })
   } catch {

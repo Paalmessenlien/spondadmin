@@ -90,29 +90,29 @@ const memberItems = computed<MemberItem[]>(() => {
   }))
 })
 
+const { getToken } = useAuth()
+
 // Load members for the group
 const loadMembers = async () => {
   const groupToLoad = props.groupId || authStore.selectedGroupId
 
-  if (!authStore.token) {
-    console.log('[MemberSelect] No token, skipping load')
+  const token = await getToken.value()
+  if (!token) {
     return
   }
 
   if (!groupToLoad) {
-    console.log('[MemberSelect] No group selected, skipping load')
     members.value = []
     return
   }
 
-  console.log('[MemberSelect] Loading members for group:', groupToLoad)
   loading.value = true
 
   try {
     const response = await $fetch<any>('/members/', {
       baseURL: config.public.apiBase,
       headers: {
-        Authorization: `Bearer ${authStore.token}`
+        Authorization: `Bearer ${token}`
       },
       query: {
         group_id: groupToLoad,

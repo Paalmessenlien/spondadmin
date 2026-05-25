@@ -43,21 +43,25 @@ const groupItems = computed(() => {
   return [allGroupsOption, ...items]
 })
 
+const { getToken, isSignedIn, isLoaded } = useAuth()
+
 // Load groups function
 const loadGroups = async () => {
-  if (!authStore.token) {
-    console.log('[GroupSelector] No token, skipping load')
+  if (!isLoaded.value || !isSignedIn.value) {
+    return
+  }
+  const token = await getToken.value()
+  if (!token) {
     return
   }
 
-  console.log('[GroupSelector] Loading groups...')
   loading.value = true
 
   try {
     const response = await $fetch<any>('/groups/', {
       baseURL: config.public.apiBase,
       headers: {
-        Authorization: `Bearer ${authStore.token}`
+        Authorization: `Bearer ${token}`
       },
       query: { limit: 100 },
     })
@@ -97,29 +101,16 @@ const loadGroups = async () => {
   }
 }
 
-// Initialize on mount
+// Initialize on mount once Clerk has settled
 onMounted(async () => {
-  console.log('[GroupSelector] Component mounted')
-
-  // Initialize auth if needed
-  if (!authStore.token) {
-    console.log('[GroupSelector] Initializing auth from localStorage')
-    await authStore.initAuth()
-  }
-
-  // Load groups if we have a token
-  if (authStore.token) {
+  if (isLoaded.value && isSignedIn.value) {
     await loadGroups()
-  } else {
-    console.log('[GroupSelector] No token after init, cannot load groups')
   }
 })
 
-// Watch for token changes (e.g., when user logs in)
-watch(() => authStore.token, (newToken, oldToken) => {
-  console.log('[GroupSelector] Token changed:', { had: !!oldToken, has: !!newToken })
-  if (newToken && !oldToken) {
-    // Token was just added (user logged in)
+// Refresh groups when Clerk reports a fresh sign-in
+watch([isLoaded, isSignedIn], ([loaded, signedIn]) => {
+  if (loaded && signedIn) {
     loadGroups()
   }
 })

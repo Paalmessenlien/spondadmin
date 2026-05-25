@@ -71,7 +71,7 @@ def main():
     files = [
         ("app/main.py", "FastAPI application"),
         ("app/core/config.py", "Configuration"),
-        ("app/core/security.py", "Security utilities"),
+        ("app/core/clerk.py", "Clerk JWT verifier"),
         ("app/core/deps.py", "Dependencies"),
         ("app/db/session.py", "Database session"),
         ("app/models/admin.py", "Admin model"),
@@ -84,7 +84,7 @@ def main():
         ("app/api/v1/events.py", "Events API"),
         ("requirements.txt", "Dependencies"),
         (".env", "Environment config"),
-        ("create_admin.py", "Admin creation script"),
+        ("seed_first_admin.py", "First-admin bootstrap script"),
     ]
     for file_path, desc in files:
         result = check_file(file_path, desc)
@@ -111,7 +111,7 @@ def main():
 
     modules_to_check = [
         ("app.core.config", "Configuration module"),
-        ("app.core.security", "Security module"),
+        ("app.core.clerk", "Clerk JWT verifier"),
         ("app.models.admin", "Admin model"),
         ("app.models.event", "Event model"),
         ("app.schemas.admin", "Admin schemas"),

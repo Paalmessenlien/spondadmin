@@ -249,15 +249,14 @@ export const useReportStore = defineStore('report', {
 
         // Trigger download with proper authentication
         if (import.meta.client) {
-          const authStore = useAuthStore()
+          const { getToken } = useAuth()
           const config = useRuntimeConfig()
+          const token = await getToken.value()
 
           // Fetch the file with authentication header
           const response = await fetch(`${config.public.apiBase}/reports/${id}/export?format=${format}`, {
             method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${authStore.token}`
-            }
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
           })
 
           if (!response.ok) {

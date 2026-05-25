@@ -53,6 +53,25 @@ sleep 5
 echo "[6/9] Running database migrations..."
 docker compose -f "$COMPOSE_FILE" run --rm backend alembic upgrade head
 
+# Step 6b: Bootstrap the first admin (idempotent — safe to re-run on every deploy).
+# Source .env so BOOTSTRAP_ADMIN_* are available to this shell.
+if [ -f "${PROJECT_DIR}/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "${PROJECT_DIR}/.env"
+    set +a
+fi
+if [ -n "${BOOTSTRAP_ADMIN_EMAIL:-}" ]; then
+    echo "[6b] Seeding bootstrap admin (${BOOTSTRAP_ADMIN_EMAIL})..."
+    docker compose -f "$COMPOSE_FILE" run --rm backend python3 seed_first_admin.py \
+        --email "${BOOTSTRAP_ADMIN_EMAIL}" \
+        --role "${BOOTSTRAP_ADMIN_ROLE:-admin}" \
+        ${BOOTSTRAP_ADMIN_FULL_NAME:+--full-name "${BOOTSTRAP_ADMIN_FULL_NAME}"} \
+        || echo "  WARNING: bootstrap admin seeding failed (see output above); continuing."
+else
+    echo "[6b] BOOTSTRAP_ADMIN_EMAIL not set — skipping admin seed step."
+fi
+
 # Step 7: Start all services
 echo "[7/9] Starting all services..."
 docker compose -f "$COMPOSE_FILE" up -d

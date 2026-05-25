@@ -234,10 +234,6 @@ onMounted(async () => {
   mobileMenuOpen.value = false
   userMenuOpen.value = false
 
-  if (!authStore.token) {
-    await authStore.initAuth()
-  }
-
   try {
     const config = useRuntimeConfig()
     const data = await $fetch<{ club_name: string }>('/config/public', {
@@ -339,10 +335,17 @@ const isActive = (item: NavItem): boolean => {
   return route.path.startsWith(item.to)
 }
 
-const handleLogout = () => {
-  authStore.logout()
+const clerk = useClerk()
+const handleLogout = async () => {
   mobileMenuOpen.value = false
   userMenuOpen.value = false
+  authStore.clearLocalState()
+  try {
+    if (clerk.value) await clerk.value.signOut()
+  } catch (e) {
+    console.error('Sign-out failed', e)
+  }
+  navigateTo('/login')
 }
 
 const getInitials = (name: string | undefined) => {

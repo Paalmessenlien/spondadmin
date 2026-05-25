@@ -6,8 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin import Admin
-from app.schemas.admin import AdminCreate, AdminUpdate
-from app.core.security import get_password_hash, verify_password
+from app.schemas.admin import AdminCreate, AdminInvite, AdminUpdate
 
 
 class AdminService:
@@ -67,6 +66,64 @@ class AdminService:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def get_by_clerk_user_id(
+        db: AsyncSession, clerk_user_id: str
+    ) -> Optional[Admin]:
+        """Look up an admin by its linked Clerk user ID."""
+        result = await db.execute(
+            select(Admin).where(Admin.clerk_user_id == clerk_user_id)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def link_clerk_user(
+        db: AsyncSession, admin_id: int, clerk_user_id: str
+    ) -> Optional[Admin]:
+        """Write ``clerk_user_id`` onto an existing admin row."""
+        admin = await AdminService.get_by_id(db, admin_id)
+        if admin is None:
+            return None
+        admin.clerk_user_id = clerk_user_id
+        await db.flush()
+        await db.refresh(admin)
+        return admin
+
+    @staticmethod
+    async def create_invited(db: AsyncSession, data: AdminInvite) -> Admin:
+        """
+        Create a pending admin row for an invited user.
+
+        The row carries ``is_active=False`` and a placeholder username
+        derived from the email until the user finishes Clerk sign-in,
+        at which point ``link_clerk_user`` writes ``clerk_user_id`` and
+        ``is_active`` flips to True.
+        """
+        existing = await AdminService.get_by_email(db, data.email)
+        if existing:
+            raise ValueError(f"Email {data.email} is already invited or registered")
+
+        username_base = data.email.split("@", 1)[0][:50] or "user"
+        username = username_base
+        suffix = 1
+        while await AdminService.get_by_username(db, username):
+            suffix += 1
+            username = f"{username_base[:46]}-{suffix}"
+
+        admin = Admin(
+            email=data.email,
+            username=username,
+            hashed_password=None,
+            full_name=data.full_name,
+            is_active=False,
+            is_superuser=(data.role == "admin"),
+            role=data.role,
+        )
+        db.add(admin)
+        await db.flush()
+        await db.refresh(admin)
+        return admin
+
+    @staticmethod
     async def get_all(
         db: AsyncSession,
         skip: int = 0,
@@ -115,14 +172,10 @@ class AdminService:
         if existing:
             raise ValueError(f"Username {admin_data.username} is already taken")
 
-        # Hash password
-        hashed_password = get_password_hash(admin_data.password)
-
-        # Create admin
         admin = Admin(
             email=admin_data.email,
             username=admin_data.username,
-            hashed_password=hashed_password,
+            hashed_password=None,  # authentication is delegated to Clerk
             full_name=admin_data.full_name,
             is_active=admin_data.is_active,
             is_superuser=admin_data.is_superuser,
@@ -173,10 +226,6 @@ class AdminService:
                 raise ValueError(f"Username {admin_data.username} is already taken")
             admin.username = admin_data.username
 
-        # Update password if provided
-        if admin_data.password is not None:
-            admin.hashed_password = get_password_hash(admin_data.password)
-
         # Update other fields
         if admin_data.full_name is not None:
             admin.full_name = admin_data.full_name
@@ -212,32 +261,3 @@ class AdminService:
         await db.flush()
 
         return True
-
-    @staticmethod
-    async def authenticate(
-        db: AsyncSession,
-        username: str,
-        password: str
-    ) -> Optional[Admin]:
-        """
-        Authenticate an admin by username and password
-
-        Args:
-            db: Database session
-            username: Admin username
-            password: Plain text password
-
-        Returns:
-            Admin if authenticated, None otherwise
-        """
-        admin = await AdminService.get_by_username(db, username)
-        if not admin:
-            return None
-
-        if not verify_password(password, admin.hashed_password):
-            return None
-
-        if not admin.is_active:
-            return None
-
-        return admin

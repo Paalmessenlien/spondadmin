@@ -61,6 +61,12 @@ jobs:
           # NUXT_PUBLIC_API_BASE on the server. Set a placeholder so SSR
           # doesn't error trying to hit localhost during prerender.
           NUXT_PUBLIC_API_BASE: https://admin.example.invalid/api/v1
+          # @clerk/nuxt requires a parseable publishable key at build time
+          # (it base64-decodes the hostname). This placeholder decodes to
+          # 'clerk.example.com$' — never used at runtime; production injects
+          # the real key from .env via docker-compose.prod.yml build args.
+          NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+          NUXT_CLERK_SECRET_KEY: sk_test_ci_placeholder_not_used_at_runtime
 
   backend:
     name: Backend smoke check

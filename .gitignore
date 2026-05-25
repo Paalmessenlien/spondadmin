@@ -47,6 +47,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Local Docker overrides (per-machine workarounds, e.g. host networking
+# on Docker 29 + nftables). Never committed.
+docker-compose.override.yml
+docker-compose.override.*.yml
+
 # IDE
 .vscode/
 .idea/

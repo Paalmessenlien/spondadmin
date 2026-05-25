@@ -6,12 +6,12 @@ export default defineNuxtConfig({
   modules: [
     '@nuxt/ui',
     '@pinia/nuxt',
+    '@clerk/nuxt',
   ],
 
   css: ['~/assets/css/main.css'],
 
   runtimeConfig: {
-    // Public keys (exposed to client)
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8001/api/v1'
     }

@@ -120,10 +120,7 @@ definePageMeta({
 
 const config = useRuntimeConfig()
 const authStore = useAuthStore()
-
-const headers = computed(() => ({
-  Authorization: authStore.token ? `Bearer ${authStore.token}` : ''
-}))
+const { headers } = useAuthHeaders()
 
 const statsQuery = computed(() => {
   if (authStore.selectedGroupId) {
@@ -134,7 +131,7 @@ const statsQuery = computed(() => {
 
 const { data: eventStats } = await useFetch('/events/stats', {
   baseURL: config.public.apiBase,
-  headers: headers.value,
+  headers: headers,
   query: statsQuery,
   lazy: true,
   key: 'event-stats',
@@ -143,14 +140,14 @@ const { data: eventStats } = await useFetch('/events/stats', {
 
 const { data: groupStats } = await useFetch('/groups/stats', {
   baseURL: config.public.apiBase,
-  headers: headers.value,
+  headers: headers,
   lazy: true,
   key: 'group-stats',
 })
 
 const { data: memberStats } = await useFetch('/members/stats', {
   baseURL: config.public.apiBase,
-  headers: headers.value,
+  headers: headers,
   query: statsQuery,
   lazy: true,
   key: 'member-stats',

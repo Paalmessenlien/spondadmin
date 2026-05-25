@@ -36,12 +36,14 @@ class Settings(BaseSettings):
     )
 
     # Security
+    # SECRET_KEY is still required: app/core/encryption.py derives a Fernet
+    # key from it to encrypt AI provider API keys in the database.
+    # JWT issuance is gone (Clerk handles tokens now), so the legacy
+    # ALGORITHM / ACCESS_TOKEN_EXPIRE_MINUTES knobs were removed.
     SECRET_KEY: str = Field(
-        ...,  # Required, no default
-        description="Secret key for JWT tokens (minimum 32 characters)"
+        ...,
+        description="Secret key used for Fernet-encrypted secrets (min 32 chars)"
     )
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour (reduced from 7 days for security)
 
     @field_validator('SECRET_KEY')
     @classmethod
@@ -58,6 +60,28 @@ class Settings(BaseSettings):
                 "Generate a secure key with: openssl rand -hex 32"
             )
         return v
+
+    # Clerk Auth
+    CLERK_PUBLISHABLE_KEY: str = Field(
+        default="",
+        description="Clerk publishable key (pk_test_... or pk_live_...)"
+    )
+    CLERK_SECRET_KEY: str = Field(
+        default="",
+        description="Clerk secret key (sk_test_... or sk_live_...) - server-side only"
+    )
+    CLERK_ISSUER: str = Field(
+        default="",
+        description="Clerk issuer URL, e.g. https://your-instance.clerk.accounts.dev"
+    )
+    CLERK_AUTHORIZED_PARTIES: List[str] = Field(
+        default=["http://localhost:3000"],
+        description="Allowed origins for the azp claim in Clerk tokens"
+    )
+    CLERK_API_BASE: str = Field(
+        default="https://api.clerk.com/v1",
+        description="Clerk backend API base URL"
+    )
 
     # Spond API Credentials
     SPOND_USERNAME: str = Field(

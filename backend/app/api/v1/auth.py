@@ -1,160 +1,34 @@
 """
-Authentication API endpoints
+Authentication API endpoints.
+
+Identity is owned by Clerk. The legacy ``/login`` and ``/refresh``
+routes have been removed — sign-in happens at the Clerk hosted page
+and the frontend supplies Clerk's session JWT as a bearer token.
 """
-from datetime import timedelta
+import logging
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.core.config import settings
-from app.core.security import create_access_token, create_refresh_token, decode_access_token
+from app.core.clerk import clerk_api
 from app.core.deps import get_current_user, get_current_superuser, get_current_admin
 from app.db.session import get_db
 from app.models.admin import Admin
 from app.schemas.admin import (
-    AdminCreate,
+    AdminInvite,
     AdminUpdate,
     AdminResponse,
-    AdminLogin,
 )
-from app.schemas.token import Token, RefreshTokenRequest
 from app.services.admin_service import AdminService
+
+logger_auth = logging.getLogger(__name__)
 
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
-
-
-@router.post("/login", response_model=Token)
-@limiter.limit("5/minute")  # Allow 5 login attempts per minute per IP
-async def login(
-    request: Request,
-    login_data: AdminLogin,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Login endpoint - authenticate and return JWT token
-
-    Rate limit: 5 attempts per minute per IP address
-
-    Args:
-        request: FastAPI request object (required for rate limiting)
-        login_data: Login credentials (username and password)
-        db: Database session
-
-    Returns:
-        JWT access token
-
-    Raises:
-        HTTPException: If credentials are invalid
-    """
-    admin = await AdminService.authenticate(
-        db,
-        username=login_data.username,
-        password=login_data.password
-    )
-
-    if not admin:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Create access token and refresh token
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(admin.id)},
-        expires_delta=access_token_expires
-    )
-
-    refresh_token = create_refresh_token(
-        data={"sub": str(admin.id)}
-    )
-
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        refresh_token=refresh_token
-    )
-
-
-@router.post("/refresh", response_model=Token)
-@limiter.limit("10/minute")  # Allow 10 refresh attempts per minute per IP
-async def refresh_token(
-    request: Request,
-    refresh_request: RefreshTokenRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Refresh access token using a refresh token
-
-    Rate limit: 10 attempts per minute per IP address
-
-    Args:
-        request: FastAPI request object (required for rate limiting)
-        refresh_request: Refresh token request containing the refresh token
-        db: Database session
-
-    Returns:
-        New access token and refresh token
-
-    Raises:
-        HTTPException: If refresh token is invalid or expired
-    """
-    # Decode and verify refresh token
-    payload = decode_access_token(refresh_request.refresh_token)
-
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Verify token type
-    if payload.get("type") != "refresh":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Get user ID from token
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Verify user still exists and is active
-    admin = await AdminService.get_by_id(db, int(user_id))
-    if not admin or not admin.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Create new access token and refresh token
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(admin.id)},
-        expires_delta=access_token_expires
-    )
-
-    new_refresh_token = create_refresh_token(
-        data={"sub": str(admin.id)}
-    )
-
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        refresh_token=new_refresh_token
-    )
 
 
 @router.get("/me", response_model=AdminResponse)
@@ -215,40 +89,48 @@ async def update_current_user(
         )
 
 
-@router.post("/register", response_model=AdminResponse, status_code=status.HTTP_201_CREATED)
-@limiter.limit("10/hour")  # Allow 10 admin registrations per hour per IP
-async def register_admin(
+@router.post("/invite", response_model=AdminResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/hour")
+async def invite_admin(
     request: Request,
-    admin_data: AdminCreate,
+    invite: AdminInvite,
     db: AsyncSession = Depends(get_db),
     current_user: Admin = Depends(get_current_superuser),
 ):
     """
-    Register a new admin (superuser only)
+    Invite a new admin via Clerk.
 
-    Rate limit: 10 registrations per hour per IP address
+    Creates a pending ``admins`` row (is_active=False, no
+    clerk_user_id yet) and issues a Clerk invitation email. The user
+    is auto-linked + activated on their first successful Clerk
+    sign-in (see ``deps._resolve_via_clerk``).
 
-    Args:
-        request: FastAPI request object (required for rate limiting)
-        admin_data: Admin creation data
-        db: Database session
-        current_user: Current superuser
-
-    Returns:
-        Created admin data
-
-    Raises:
-        HTTPException: If creation fails
+    Rate limit: 10 invitations per hour per IP.
     """
     try:
-        admin = await AdminService.create(db, admin_data)
-        await db.commit()
-        return admin
+        admin = await AdminService.create_invited(db, invite)
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    redirect_url = str(request.headers.get("origin") or "").rstrip("/") + "/login"
+    payload = {
+        "email_address": invite.email,
+        "public_metadata": {"role": invite.role},
+        "notify": True,
+    }
+    if redirect_url and redirect_url != "/login":
+        payload["redirect_url"] = redirect_url
+
+    try:
+        await clerk_api("POST", "invitations", json=payload)
+    except HTTPException as exc:
+        await db.rollback()
+        logger_auth.warning("Clerk invitation failed for %s: %s", invite.email, exc.detail)
+        raise
+
+    await db.commit()
+    await db.refresh(admin)
+    return admin
 
 
 @router.get("/admins", response_model=List[AdminResponse])
@@ -365,10 +247,22 @@ async def delete_admin(
             detail="Cannot delete your own account"
         )
 
-    success = await AdminService.delete(db, admin_id)
-    if not success:
+    admin = await AdminService.get_by_id(db, admin_id)
+    if not admin:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Admin not found"
         )
+
+    clerk_user_id = admin.clerk_user_id
+    await AdminService.delete(db, admin_id)
     await db.commit()
+
+    if clerk_user_id and settings.CLERK_SECRET_KEY:
+        try:
+            await clerk_api("DELETE", f"users/{clerk_user_id}")
+        except HTTPException as exc:
+            logger_auth.warning(
+                "Clerk user %s delete failed (local row already removed): %s",
+                clerk_user_id, exc.detail,
+            )
