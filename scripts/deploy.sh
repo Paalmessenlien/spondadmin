@@ -54,14 +54,21 @@ echo "[6/9] Running database migrations..."
 docker compose -f "$COMPOSE_FILE" run --rm backend alembic upgrade head
 
 # Step 6b: Bootstrap the first admin (idempotent — safe to re-run on every deploy).
-# Source .env so BOOTSTRAP_ADMIN_* are available to this shell.
-if [ -f "${PROJECT_DIR}/.env" ]; then
-    set -a
-    # shellcheck disable=SC1091
-    . "${PROJECT_DIR}/.env"
-    set +a
-fi
-if [ -n "${BOOTSTRAP_ADMIN_EMAIL:-}" ]; then
+# Read just the BOOTSTRAP_ADMIN_* keys from .env using grep. Bash-sourcing the
+# .env file (`. .env`) is unsafe — values may contain spaces, quotes, or other
+# shell metacharacters (e.g. `PROJECT_NAME=Spond Admin API` would make bash
+# try to run "Admin" as a command). Docker compose reads .env natively without
+# this hazard; this loop here only needs three specific keys.
+_env_get() {
+    # _env_get FILE KEY → prints the unquoted value (or empty if absent).
+    [ -f "$1" ] || return 0
+    grep -E "^$2=" "$1" | tail -1 | cut -d= -f2- | sed -E 's/^"(.*)"$/\1/;s/^'\''(.*)'\''$/\1/'
+}
+ENV_FILE="${PROJECT_DIR}/.env"
+BOOTSTRAP_ADMIN_EMAIL="$(_env_get "$ENV_FILE" BOOTSTRAP_ADMIN_EMAIL)"
+BOOTSTRAP_ADMIN_ROLE="$(_env_get "$ENV_FILE" BOOTSTRAP_ADMIN_ROLE)"
+BOOTSTRAP_ADMIN_FULL_NAME="$(_env_get "$ENV_FILE" BOOTSTRAP_ADMIN_FULL_NAME)"
+if [ -n "${BOOTSTRAP_ADMIN_EMAIL}" ]; then
     echo "[6b] Seeding bootstrap admin (${BOOTSTRAP_ADMIN_EMAIL})..."
     docker compose -f "$COMPOSE_FILE" run --rm backend python3 seed_first_admin.py \
         --email "${BOOTSTRAP_ADMIN_EMAIL}" \
@@ -69,7 +76,7 @@ if [ -n "${BOOTSTRAP_ADMIN_EMAIL:-}" ]; then
         ${BOOTSTRAP_ADMIN_FULL_NAME:+--full-name "${BOOTSTRAP_ADMIN_FULL_NAME}"} \
         || echo "  WARNING: bootstrap admin seeding failed (see output above); continuing."
 else
-    echo "[6b] BOOTSTRAP_ADMIN_EMAIL not set — skipping admin seed step."
+    echo "[6b] BOOTSTRAP_ADMIN_EMAIL not set in $ENV_FILE — skipping admin seed step."
 fi
 
 # Step 7: Start all services
