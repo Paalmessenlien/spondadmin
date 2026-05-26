@@ -38,6 +38,13 @@ services:
       - backend/.env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-spond_admin}
+      # Clerk auth — sourced from the compose-level .env (substituted at
+      # parse time) rather than backend/.env, so the secret lives in one
+      # place alongside DB password, Bunny CDN key, etc.
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY:-}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY:-}
+      - CLERK_ISSUER=${CLERK_ISSUER:-}
+      - CLERK_AUTHORIZED_PARTIES=${CLERK_AUTHORIZED_PARTIES:-["https://admin.lillehammerbueskyttere.no"]}
     ports:
       # Bind to loopback only — the host's Caddy proxies to this port.
       # Never expose 8001 publicly; UFW would block it anyway.
