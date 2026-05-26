@@ -3,7 +3,8 @@
  * Handles all HTTP requests to the backend API
  *
  * Note: For data fetching in components, prefer using useFetch or useAsyncData directly.
- * This composable is mainly for imperative operations (login, sync, mutations).
+ * This composable is mainly for imperative operations (sync, mutations, invitations).
+ * Sign-in itself is owned by Clerk — see pages/login/index.vue.
  */
 
 interface ApiOptions {
@@ -685,8 +686,8 @@ export const useApi = () => {
 
   return {
     // Auth
-    login,
     getCurrentUser,
+    inviteAdmin,
     // Events
     getEvents,
     syncEvents,
