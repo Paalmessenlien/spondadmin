@@ -1,7 +1,7 @@
 """
 Scraping Config service - singleton config management
 """
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,7 @@ class ScrapingConfigService:
         result = await db.execute(select(ScrapingConfig).limit(1))
         config = result.scalar_one_or_none()
         if not config:
-            now = datetime.now(timezone.utc)
+            now = datetime.utcnow()
             config = ScrapingConfig(
                 created_at=now,
                 updated_at=now,
@@ -35,6 +35,6 @@ class ScrapingConfigService:
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(config, key, value)
-        config.updated_at = datetime.now(timezone.utc)
+        config.updated_at = datetime.utcnow()
         await db.flush()
         return config

@@ -8,7 +8,7 @@ import asyncio
 import logging
 import re
 import time
-from datetime import datetime, date, timezone
+from datetime import datetime, date
 from typing import Optional, List, Dict
 
 from sqlalchemy import select, func, update, delete
@@ -565,7 +565,7 @@ class BueskytingScraperService:
     async def _create_log(
         db: AsyncSession, scrape_type: str, status: str = "running", **kwargs
     ) -> BueskytingScrapeLog:
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         log = BueskytingScrapeLog(
             scrape_type=scrape_type,
             status=status,
@@ -607,7 +607,7 @@ class BueskytingScraperService:
                     if profile_result.scalar_one_or_none():
                         continue  # Already matched
 
-                    now = datetime.now(timezone.utc)
+                    now = datetime.utcnow()
                     unmatched = UnmatchedArcher(
                         bueskyting_id=ext_id,
                         name=archer_data["name"],
@@ -620,7 +620,7 @@ class BueskytingScraperService:
                 else:
                     existing.name = archer_data["name"]
                     existing.is_active = archer_data["is_active"]
-                    existing.updated_at = datetime.now(timezone.utc)
+                    existing.updated_at = datetime.utcnow()
                     updated += 1
 
             log.status = "completed"
@@ -671,7 +671,7 @@ class BueskytingScraperService:
 
         # Store results
         results_added = 0
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         for result_data in data["results"]:
             # Check for duplicates
             existing_q = await db.execute(
@@ -863,7 +863,7 @@ class BueskytingScraperService:
                 "mode": mode,
             }
 
-            config.last_results_scrape = datetime.now(timezone.utc)
+            config.last_results_scrape = datetime.utcnow()
             await db.commit()
 
             return {
@@ -905,7 +905,7 @@ class BueskytingScraperService:
                 update(ArcheryRecord).values(is_current=False)
             )
 
-            now = datetime.now(timezone.utc)
+            now = datetime.utcnow()
             created = 0
             updated = 0
 

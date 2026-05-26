@@ -293,21 +293,34 @@ class SpondService:
                 len(group_members),
             )
 
-            # POST to create new event
+            # POST to create new event. Spond access tokens expire, but the
+            # client is a long-lived singleton that only logs in when token
+            # is unset — so a stale token yields a 401 tokenExpired. Re-login
+            # once and retry with a fresh Bearer header before giving up.
+            import json
             url = f"{client.api_url}sponds"
-            async with client.clientsession.post(
-                url, json=event_payload, headers=client.auth_headers
-            ) as r:
-                response_text = await r.text()
+            for attempt in range(2):
+                async with client.clientsession.post(
+                    url, json=event_payload, headers=client.auth_headers
+                ) as r:
+                    response_text = await r.text()
 
-                if r.status >= 400:
-                    logger.error(f"Spond API error {r.status}: {response_text}")
-                    raise Exception(f"Spond API error {r.status}: {response_text}")
+                    if r.status == 401 and attempt == 0:
+                        logger.info(
+                            "Spond returned 401 (token expired); "
+                            "re-authenticating and retrying event creation"
+                        )
+                        client.token = None
+                        await client.login()
+                        continue
 
-                import json
-                result = json.loads(response_text)
-                logger.info(f"Created event in Spond: {result.get('id')}")
-                return result
+                    if r.status >= 400:
+                        logger.error(f"Spond API error {r.status}: {response_text}")
+                        raise Exception(f"Spond API error {r.status}: {response_text}")
+
+                    result = json.loads(response_text)
+                    logger.info(f"Created event in Spond: {result.get('id')}")
+                    return result
 
         except Exception as e:
             logger.error(f"Error creating event: {e}")

@@ -17,8 +17,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Create non-root user
-RUN useradd --create-home appuser && chown -R appuser:appuser /app
+# Create non-root user. Pre-create /app/backups and chown it so a fresh
+# `backup_data` named volume inherits appuser ownership on first mount —
+# otherwise the volume is root:root and pg_dump from the API fails with
+# "Permission denied".
+RUN useradd --create-home appuser \
+    && mkdir -p /app/backups \
+    && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8001
