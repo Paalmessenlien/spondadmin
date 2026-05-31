@@ -125,8 +125,8 @@ class SpondEventCreateService:
         start_time = shift.start_time_override or session_type.default_start_time
         end_time = shift.end_time_override or session_type.default_end_time
 
-        start_iso = _local_oslo_to_utc_iso(shift.date, start_time)
-        end_iso = _local_oslo_to_utc_iso(shift.date, end_time)
+        start_iso = local_oslo_to_utc_iso(shift.date, start_time)
+        end_iso = local_oslo_to_utc_iso(shift.date, end_time)
 
         # Heading. Use the session type name verbatim — the leader's name
         # appears in the description ("Vakt: ...") and as the Spond
