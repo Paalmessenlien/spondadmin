@@ -11,6 +11,18 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // The dashboard is a client-authed SPA: the auth middleware bails out on the
+  // server (`if (import.meta.server) return`), so SSR can only ever render a
+  // logged-out shell that the client immediately corrects — which is exactly
+  // what produces hydration mismatches on every role-gated element (sidebar
+  // user menu, admin-only header buttons, etc.). Rendering these routes
+  // client-side only removes that whole class of warning. No SEO cost: the
+  // app sits entirely behind Clerk auth. Public routes (/login, /) keep SSR.
+  routeRules: {
+    '/dashboard': { ssr: false },
+    '/dashboard/**': { ssr: false },
+  },
+
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8001/api/v1'
