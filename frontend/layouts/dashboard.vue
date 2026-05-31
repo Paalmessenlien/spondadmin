@@ -111,7 +111,8 @@
 
     <!-- Mobile Navigation Drawer -->
     <ClientOnly>
-      <USlideover v-model="mobileMenuOpen" side="left" class="md:hidden">
+      <USlideover v-model:open="mobileMenuOpen" side="left">
+        <template #content>
         <div class="flex flex-col h-full">
           <div class="flex justify-between items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center space-x-3">
@@ -168,12 +169,14 @@
             <GroupSelector />
           </div>
         </div>
+        </template>
       </USlideover>
     </ClientOnly>
 
     <!-- Mobile User Menu -->
     <ClientOnly>
-      <USlideover v-model="userMenuOpen" side="right" class="md:hidden">
+      <USlideover v-model:open="userMenuOpen" side="right">
+        <template #content>
         <div class="p-4 space-y-4">
           <div class="flex justify-between items-center mb-6">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Account</h2>
@@ -214,6 +217,7 @@
             </UButton>
           </div>
         </div>
+        </template>
       </USlideover>
     </ClientOnly>
 
