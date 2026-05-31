@@ -329,6 +329,12 @@ class TrainingShiftResponse(BaseModel):
     status: ShiftStatus
     spond_event_id: Optional[str]
     published_at: Optional[datetime]
+    last_reverse_synced_at: Optional[datetime] = None
+    # Local Event row id for this shift's published Spond event, if that event
+    # has been synced into the events table. Computed at query time via
+    # Event.spond_id == TrainingShift.spond_event_id — the inverse of the
+    # event side's `linked_shift_id`. None when not published / not yet synced.
+    linked_event_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     session_type: TrainingSessionTypeResponse

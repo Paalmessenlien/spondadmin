@@ -81,7 +81,13 @@
               <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ record.round_type }}</td>
               <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ record.distance || '-' }}</td>
               <td class="py-2 px-2 font-medium text-gray-900 dark:text-white">
-                {{ record.record_type === 'team' ? 'Team' : (record.archer_name || 'Unknown') }}
+                <NuxtLink
+                  v-if="record.record_type !== 'team' && record.member_id"
+                  :to="`/dashboard/members/${record.member_id}`"
+                  class="text-blue-600 dark:text-blue-400 hover:underline"
+                  title="View member profile"
+                >{{ record.archer_name || 'Unknown' }}</NuxtLink>
+                <span v-else>{{ record.record_type === 'team' ? 'Team' : (record.archer_name || 'Unknown') }}</span>
                 <div v-if="record.team_members?.members" class="text-xs text-gray-500">
                   {{ record.team_members.members }}
                 </div>

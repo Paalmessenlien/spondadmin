@@ -3,7 +3,7 @@ External Event model - upcoming competitions from bueskyting.no terminliste
 """
 from datetime import date, datetime
 from typing import Optional
-from sqlalchemy import String, Date, DateTime, Text, Float, Boolean
+from sqlalchemy import String, Date, DateTime, Text, Float, Boolean, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
@@ -40,6 +40,16 @@ class ExternalEvent(Base, TimestampMixin):
     ai_event_category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     ai_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_analyzed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    # Cross-links to local entities (advisory; confirmed in the UI). A local
+    # Spond Event the club created for this competition, and/or the Competition
+    # row holding its results. Both ON DELETE SET NULL via the migration.
+    linked_event_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("events.id", ondelete="SET NULL"), nullable=True
+    )
+    linked_competition_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("competitions.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

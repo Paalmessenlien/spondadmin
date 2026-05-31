@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.admin import Admin
+from app.models.member import Member
 from app.models.competition import Competition
 from app.models.competition_result import CompetitionResult
 from app.models.archery_record import ArcheryRecord
@@ -38,6 +39,26 @@ from app.schemas.archer_statistics import (
 from app.schemas.scrape import ScoresSummaryResponse
 
 router = APIRouter()
+
+
+async def _attach_member_ids(db: AsyncSession, rows: list) -> None:
+    """Resolve each row's ``spond_id`` to a local ``members.id`` and attach it
+    as a transient ``member_id`` attribute, so the response schemas can expose
+    a deep-link target for the member detail page. One batch query.
+
+    Works for any row carrying a ``spond_id`` (CompetitionResult, ArcheryRecord,
+    ArcherStatistics).
+    """
+    spond_ids = {getattr(r, "spond_id", None) for r in rows}
+    spond_ids.discard(None)
+    lookup: dict[str, int] = {}
+    if spond_ids:
+        result = await db.execute(
+            select(Member.spond_id, Member.id).where(Member.spond_id.in_(spond_ids))
+        )
+        lookup = {spond_id: member_id for spond_id, member_id in result.all()}
+    for r in rows:
+        r.member_id = lookup.get(getattr(r, "spond_id", None))
 
 
 # ──────────────────────────────────────────────
@@ -76,6 +97,7 @@ async def list_results(
         limit=limit,
     )
     results, total = await CompetitionService.get_results(db, filters)
+    await _attach_member_ids(db, list(results))
     return CompetitionResultListResponse(
         results=[CompetitionResultResponse.model_validate(r) for r in results],
         total=total,
@@ -94,6 +116,7 @@ async def get_result(
     result = await CompetitionService.get_result_by_id(db, result_id)
     if not result:
         raise HTTPException(status_code=404, detail="Result not found")
+    await _attach_member_ids(db, [result])
     return CompetitionResultResponse.model_validate(result)
 
 
@@ -140,6 +163,7 @@ async def get_competition(
     if not comp:
         raise HTTPException(status_code=404, detail="Competition not found")
     results = await CompetitionService.get_competition_results(db, comp_id)
+    await _attach_member_ids(db, list(results))
     return {
         "competition": CompetitionResponse.model_validate(comp),
         "results": [CompetitionResultResponse.model_validate(r) for r in results],
@@ -168,6 +192,7 @@ async def list_records(
         limit=limit,
     )
     records, total = await ArcheryRecordService.get_records(db, filters)
+    await _attach_member_ids(db, list(records))
     return ArcheryRecordListResponse(
         records=[ArcheryRecordResponse.model_validate(r) for r in records],
         total=total,
@@ -210,6 +235,7 @@ async def list_statistics(
 
     result = await db.execute(query)
     stats = result.scalars().all()
+    await _attach_member_ids(db, list(stats))
 
     return ArcherStatisticsListResponse(
         statistics=[ArcherStatisticsResponse.model_validate(s) for s in stats],

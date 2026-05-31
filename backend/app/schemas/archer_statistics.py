@@ -11,6 +11,7 @@ class ArcherStatisticsResponse(BaseModel):
 
     id: int
     spond_id: Optional[str] = None
+    member_id: Optional[int] = None
     bueskyting_archer_id: Optional[str] = None
     archer_name: str
     year: int

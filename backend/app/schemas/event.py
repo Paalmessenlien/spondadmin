@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 class EventResponseProfile(BaseModel):
     """Profile data within a response"""
     id: Optional[str] = None
+    # Local members.id (resolved from the Spond uid) so the UI can link to the
+    # member detail page. None when the attendee isn't a synced local member.
+    member_id: Optional[int] = None
     firstName: Optional[str] = None
     lastName: Optional[str] = None
     email: Optional[str] = None

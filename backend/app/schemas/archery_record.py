@@ -11,6 +11,7 @@ class ArcheryRecordResponse(BaseModel):
 
     id: int
     spond_id: Optional[str] = None
+    member_id: Optional[int] = None
     archer_name: Optional[str] = None
     division: str
     category: str

@@ -90,47 +90,37 @@ class EventService:
         if not event.responses:
             return event
 
-        # Collect all member IDs from responses
-        member_ids = set()
         responses_array = event.responses.get("responses", [])
 
-        for response in responses_array:
-            profile = response.get("profile", {})
-            if profile and profile.get("id"):
-                member_ids.add(profile["id"])
+        # The group-member id lives on each response's top-level `id` — that's
+        # what matches Member.spond_id. (profile.id is a *different*, profile
+        # identifier and does not match the members table.)
+        member_spond_ids = {r.get("id") for r in responses_array if r.get("id")}
+        members: dict = {}
+        if member_spond_ids:
+            result = await db.execute(
+                select(Member).where(Member.spond_id.in_(member_spond_ids))
+            )
+            members = {m.spond_id: m for m in result.scalars().all()}
 
-        if not member_ids:
-            return event
-
-        # Fetch member data from database
-        result = await db.execute(
-            select(Member).where(Member.spond_id.in_(member_ids))
-        )
-        members = {m.spond_id: m for m in result.scalars().all()}
-
-        # Enrich responses with member data
         enriched_responses = []
         for response in responses_array:
-            profile = response.get("profile", {})
-            member_id = profile.get("id") if profile else None
-
-            if member_id and member_id in members:
-                member = members[member_id]
-                enriched_profile = {
-                    "id": member_id,
-                    "firstName": member.first_name,
-                    "lastName": member.last_name,
-                    "email": member.email,
-                }
-            else:
-                enriched_profile = profile
-
+            member = members.get(response.get("id"))
+            profile = dict(response.get("profile") or {})
+            if member is not None:
+                # Local members.id so the UI can deep-link to the member detail
+                # page (/dashboard/members/{member_id}).
+                profile["member_id"] = member.id
+                # Fall back to authoritative local names/email when the synced
+                # profile is missing them.
+                profile.setdefault("firstName", member.first_name)
+                profile.setdefault("lastName", member.last_name)
+                profile.setdefault("email", member.email)
             enriched_responses.append({
                 "answer": response.get("answer"),
-                "profile": enriched_profile,
+                "profile": profile,
             })
 
-        # Create enriched responses dict
         enriched = dict(event.responses)
         enriched["responses"] = enriched_responses
         event.responses = enriched

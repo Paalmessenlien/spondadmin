@@ -116,6 +116,14 @@ class Settings(BaseSettings):
         default=500,
         description="Maximum events to sync per run"
     )
+    SYNC_REVERSE_TO_TRAINING_ENABLED: bool = Field(
+        default=True,
+        description=(
+            "After syncing events from Spond, reconcile linked training shifts "
+            "from the Spond event (time, cancellation, leader, audience). "
+            "Set false to keep events sync read-only into the events table."
+        ),
+    )
 
     # Groups sync
     SYNC_GROUPS_ENABLED: bool = Field(

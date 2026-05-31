@@ -11,6 +11,9 @@ class CompetitionResultResponse(BaseModel):
 
     id: int
     spond_id: Optional[str] = None
+    # Local members.id resolved from spond_id, so the UI can deep-link to the
+    # member detail page. None when the archer isn't a matched Spond member.
+    member_id: Optional[int] = None
     archer_name: str
     bueskyting_archer_id: Optional[str] = None
     competition_id: Optional[int] = None

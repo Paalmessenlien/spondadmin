@@ -504,6 +504,23 @@ export const useApi = () => {
     return makeRequest(`/external-events/analyze-stop/${taskId}`, { method: 'POST' })
   }
 
+  // Heuristic link suggestions (Spond events / competitions) for an external event.
+  const getExternalEventLinkSuggestions = async (id: number) => {
+    return makeRequest(`/external-events/${id}/link-suggestions`)
+  }
+
+  // Confirm/clear the link. Only keys included in `body` are changed
+  // (pass an explicit null to clear that side).
+  const setExternalEventLink = async (
+    id: number,
+    body: { event_id?: number | null; competition_id?: number | null },
+  ) => {
+    return makeRequest(`/external-events/${id}/link`, {
+      method: 'POST',
+      body,
+    })
+  }
+
   // Training: shifts
   const getTrainingShifts = async (params: Record<string, any> = {}) => {
     const query = new URLSearchParams(
@@ -785,6 +802,8 @@ export const useApi = () => {
     analyzeExternalEvent,
     analyzeAllExternalEvents,
     stopExternalEventAnalysis,
+    getExternalEventLinkSuggestions,
+    setExternalEventLink,
     // AI Providers
     getAIProviders,
     getAIProvider,

@@ -11,10 +11,28 @@
           </UBadge>
         </div>
 
-        <div v-if="form.spond_event_id" class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-          <UIcon name="i-heroicons-check-badge" class="w-4 h-4 text-green-600" />
-          Spond event id:
-          <code class="font-mono text-[11px]">{{ form.spond_event_id }}</code>
+        <div v-if="form.spond_event_id" class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="flex items-center gap-1">
+              <UIcon name="i-heroicons-check-badge" class="w-4 h-4 text-green-600" />
+              Spond event id:
+              <code class="font-mono text-[11px]">{{ form.spond_event_id }}</code>
+            </span>
+            <UButton
+              v-if="props.shift?.linked_event_id"
+              :to="`/dashboard/events/${props.shift.linked_event_id}`"
+              size="xs"
+              color="primary"
+              variant="soft"
+              icon="i-heroicons-arrow-top-right-on-square"
+            >
+              View Spond event
+            </UButton>
+          </div>
+          <div v-if="reverseSyncedLabel" class="flex items-center gap-1 text-[11px] text-gray-400">
+            <UIcon name="i-heroicons-arrow-path" class="w-3.5 h-3.5" />
+            Updated from Spond {{ reverseSyncedLabel }}
+          </div>
         </div>
 
         <form class="space-y-4" @submit.prevent="handleSave">
@@ -55,9 +73,14 @@
             <!-- When a leader is already placed, show the pill on its own.
                  Click the X to clear → search input reappears. -->
             <div v-if="form.leader_member_id" class="flex items-center gap-2 text-sm">
-              <span class="inline-flex items-center px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+              <NuxtLink
+                :to="`/dashboard/members/${form.leader_member_id}`"
+                class="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                title="View member profile"
+              >
                 {{ selectedLeaderLabel }}
-              </span>
+                <UIcon name="i-heroicons-arrow-top-right-on-square" class="w-3.5 h-3.5 opacity-70" />
+              </NuxtLink>
               <UButton
                 size="xs"
                 color="neutral"
@@ -472,6 +495,8 @@ interface ShiftLike {
   invite_send_time?: string | null
   status?: 'draft' | 'published' | 'cancelled'
   spond_event_id?: string | null
+  linked_event_id?: number | null
+  last_reverse_synced_at?: string | null
 }
 
 interface GroupSummary {
@@ -568,6 +593,15 @@ const statusColor = computed(() => {
 const selectedSessionTypeName = computed(() => {
   const st = props.sessionTypes.find(s => s.id === form.value.session_type_id)
   return st?.name || 'this session'
+})
+
+// Human-readable "updated from Spond" timestamp for the reverse-sync badge.
+const reverseSyncedLabel = computed(() => {
+  const ts = props.shift?.last_reverse_synced_at
+  if (!ts) return ''
+  const d = new Date(ts.endsWith('Z') ? ts : `${ts}Z`)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' })
 })
 
 const normalizeTime = (t: string | null | undefined): string => (t ? t.slice(0, 5) : '')

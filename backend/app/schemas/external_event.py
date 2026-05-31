@@ -35,8 +35,41 @@ class ExternalEventResponse(BaseModel):
     ai_summary: Optional[str] = None
     ai_analyzed_at: Optional[datetime] = None
     is_active: bool
+    # Cross-links to local entities (confirmed in the UI). The *_label fields
+    # are resolved at query time for display; navigation uses the ids.
+    linked_event_id: Optional[int] = None
+    linked_event_heading: Optional[str] = None
+    linked_competition_id: Optional[int] = None
+    linked_competition_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+
+class EventLinkSuggestion(BaseModel):
+    """A candidate local Spond event for an external competition."""
+    event_id: int
+    heading: str
+    start_time: Optional[datetime] = None
+    score: float  # fuzzy name-match score 0-100
+
+
+class CompetitionLinkSuggestion(BaseModel):
+    """A candidate local competition (results) for an external competition."""
+    competition_id: int
+    name: str
+    date: Optional[DateType] = None
+    score: float
+
+
+class ExternalEventLinkSuggestions(BaseModel):
+    events: List[EventLinkSuggestion] = []
+    competitions: List[CompetitionLinkSuggestion] = []
+
+
+class ExternalEventLinkRequest(BaseModel):
+    """Confirm/clear a link. Pass null to clear that side."""
+    event_id: Optional[int] = None
+    competition_id: Optional[int] = None
 
 
 class ExternalEventListResponse(BaseModel):

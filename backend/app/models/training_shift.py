@@ -96,6 +96,13 @@ class TrainingShift(Base, TimestampMixin):
     spond_event_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
+    # Last time the reverse-sync (Spond event → this shift) wrote anything here.
+    # NULL = never reconciled from Spond. Surfaced in the UI so admins can see
+    # that a shift's time/leader/audience was updated from a Spond-side edit.
+    last_reverse_synced_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+
     session_type: Mapped["TrainingSessionType"] = relationship(back_populates="shifts")
     leader: Mapped[Optional["Member"]] = relationship(foreign_keys=[leader_member_id])
 

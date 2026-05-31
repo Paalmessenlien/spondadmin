@@ -63,7 +63,15 @@
                     #{{ result.ranking }}
                   </UBadge>
                 </td>
-                <td class="py-2 px-2 font-medium text-gray-900 dark:text-white">{{ result.archer_name }}</td>
+                <td class="py-2 px-2 font-medium text-gray-900 dark:text-white">
+                  <NuxtLink
+                    v-if="result.member_id"
+                    :to="`/dashboard/members/${result.member_id}`"
+                    class="text-blue-600 dark:text-blue-400 hover:underline"
+                    title="View member profile"
+                  >{{ result.archer_name }}</NuxtLink>
+                  <span v-else>{{ result.archer_name }}</span>
+                </td>
                 <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ result.distance }}</td>
                 <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ result.equipment_class }}</td>
                 <td class="py-2 px-2 text-right font-bold text-blue-600">{{ result.score }}</td>

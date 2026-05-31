@@ -9,10 +9,12 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.event import Event
 from app.models.sync_history import SyncHistory
 from app.services.spond_service import SpondService
 from app.services.category_service import CategoryService
+from app.services.training_reverse_sync_service import TrainingReverseSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +57,7 @@ class EventSyncService:
             "created": 0,
             "updated": 0,
             "errors": 0,
+            "shifts_updated": 0,
         }
 
         try:
@@ -100,12 +103,34 @@ class EventSyncService:
             logger.info(f"Fetched {len(events_data)} events from Spond")
 
             # Process each event
+            synced_spond_ids: list[str] = []
             for event_dict in events_data:
                 try:
                     await EventSyncService._sync_single_event(db, event_dict, stats, member_lookup)
+                    sid = event_dict.get("id")
+                    if sid:
+                        synced_spond_ids.append(sid)
                 except Exception as e:
                     logger.error(f"Error syncing event {event_dict.get('id')}: {e}")
                     stats["errors"] += 1
+
+            # Reverse-sync: propagate Spond-side edits (time, cancellation,
+            # leader, audience) back onto any linked training shifts. Read into
+            # local only — never re-publishes, so no feedback loop.
+            if settings.SYNC_REVERSE_TO_TRAINING_ENABLED:
+                try:
+                    rev = await TrainingReverseSyncService.reconcile_plan_from_events(
+                        db, synced_spond_ids
+                    )
+                    stats["shifts_updated"] = rev.get("shifts_updated", 0)
+                    if stats["shifts_updated"]:
+                        logger.info(
+                            "Reverse-sync updated %d training shift(s) from Spond",
+                            stats["shifts_updated"],
+                        )
+                except Exception as e:
+                    # Reverse-sync must never break the events sync itself.
+                    logger.error(f"Reverse-sync to training shifts failed: {e}", exc_info=True)
 
             # Update sync record
             sync_record.status = "completed"

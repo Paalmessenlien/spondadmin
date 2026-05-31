@@ -238,6 +238,118 @@
         </div>
       </UCard>
 
+      <!-- Cross-links: Spond event / results -->
+      <UCard>
+        <template #header>
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Koblinger</h2>
+            <UButton
+              v-if="isAdmin"
+              size="sm"
+              color="neutral"
+              variant="outline"
+              icon="i-heroicons-magnifying-glass"
+              :loading="loadingSuggestions"
+              @click="loadSuggestions"
+            >
+              Foreslå treff
+            </UButton>
+          </div>
+        </template>
+
+        <div class="space-y-4">
+          <!-- Current links -->
+          <div class="space-y-2">
+            <div v-if="event.linked_event_id" class="flex items-center justify-between gap-2 text-sm">
+              <span class="flex items-center gap-2">
+                <UIcon name="i-heroicons-calendar-days" class="w-5 h-5 text-green-600" />
+                Spond-arrangement:
+                <NuxtLink
+                  :to="`/dashboard/events/${event.linked_event_id}`"
+                  class="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                >
+                  {{ event.linked_event_heading || `#${event.linked_event_id}` }}
+                </NuxtLink>
+              </span>
+              <UButton
+                v-if="isAdmin"
+                size="xs"
+                color="error"
+                variant="ghost"
+                icon="i-heroicons-x-mark"
+                :loading="savingLink"
+                aria-label="Fjern kobling"
+                @click="unlink('event')"
+              />
+            </div>
+            <div v-if="event.linked_competition_id" class="flex items-center justify-between gap-2 text-sm">
+              <span class="flex items-center gap-2">
+                <UIcon name="i-heroicons-trophy" class="w-5 h-5 text-amber-600" />
+                Resultater:
+                <NuxtLink
+                  :to="`/dashboard/scores/competitions/${event.linked_competition_id}`"
+                  class="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                >
+                  {{ event.linked_competition_name || `#${event.linked_competition_id}` }}
+                </NuxtLink>
+              </span>
+              <UButton
+                v-if="isAdmin"
+                size="xs"
+                color="error"
+                variant="ghost"
+                icon="i-heroicons-x-mark"
+                :loading="savingLink"
+                aria-label="Fjern kobling"
+                @click="unlink('competition')"
+              />
+            </div>
+            <p v-if="!event.linked_event_id && !event.linked_competition_id" class="text-sm text-gray-500">
+              Ingen koblinger ennå.<span v-if="isAdmin"> Klikk «Foreslå treff» for å finne et matchende Spond-arrangement.</span>
+            </p>
+          </div>
+
+          <!-- Suggestions (admin) -->
+          <div v-if="isAdmin && suggestions" class="space-y-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+            <div v-if="suggestions.events.length">
+              <p class="text-xs font-medium text-gray-500 mb-1">Foreslåtte Spond-arrangementer</p>
+              <div
+                v-for="s in suggestions.events"
+                :key="s.event_id"
+                class="flex items-center justify-between gap-2 text-sm py-1"
+              >
+                <span class="truncate">
+                  {{ s.heading }}
+                  <span class="text-gray-400">· {{ Math.round(s.score) }}%</span>
+                </span>
+                <UButton size="xs" color="primary" variant="soft" :loading="savingLink" @click="linkTo('event', s.event_id)">
+                  Lenk
+                </UButton>
+              </div>
+            </div>
+            <div v-if="suggestions.competitions.length">
+              <p class="text-xs font-medium text-gray-500 mb-1">Foreslåtte resultater</p>
+              <div
+                v-for="s in suggestions.competitions"
+                :key="s.competition_id"
+                class="flex items-center justify-between gap-2 text-sm py-1"
+              >
+                <span class="truncate">
+                  {{ s.name }}
+                  <span class="text-gray-400">· {{ Math.round(s.score) }}%</span>
+                </span>
+                <UButton size="xs" color="primary" variant="soft" :loading="savingLink" @click="linkTo('competition', s.competition_id)">
+                  Lenk
+                </UButton>
+              </div>
+            </div>
+            <p v-if="!suggestions.events.length && !suggestions.competitions.length" class="text-sm text-gray-500">
+              Fant ingen sannsynlige treff (samme dato ± noen dager og lignende navn).
+            </p>
+          </div>
+        </div>
+      </UCard>
+
       <!-- Description -->
       <UCard v-if="event.description">
         <template #header>
@@ -267,6 +379,49 @@ const isUpcoming = computed(() => {
   if (!event.value?.date_start) return false
   return new Date(event.value.date_start) >= new Date(new Date().toDateString())
 })
+
+// Cross-link suggestions / confirmation (admin).
+const loadingSuggestions = ref(false)
+const savingLink = ref(false)
+const suggestions = ref<{ events: any[]; competitions: any[] } | null>(null)
+
+const loadSuggestions = async () => {
+  loadingSuggestions.value = true
+  try {
+    suggestions.value = await api.getExternalEventLinkSuggestions(eventId.value)
+  } catch (err: any) {
+    toast.add({ title: 'Kunne ikke hente forslag', description: err?.data?.detail || 'Ukjent feil', color: 'error' })
+  } finally {
+    loadingSuggestions.value = false
+  }
+}
+
+const linkTo = async (kind: 'event' | 'competition', id: number) => {
+  savingLink.value = true
+  try {
+    const body = kind === 'event' ? { event_id: id } : { competition_id: id }
+    event.value = await api.setExternalEventLink(eventId.value, body)
+    suggestions.value = null
+    toast.add({ title: 'Koblet', color: 'success' })
+  } catch (err: any) {
+    toast.add({ title: 'Kobling feilet', description: err?.data?.detail || 'Ukjent feil', color: 'error' })
+  } finally {
+    savingLink.value = false
+  }
+}
+
+const unlink = async (kind: 'event' | 'competition') => {
+  savingLink.value = true
+  try {
+    const body = kind === 'event' ? { event_id: null } : { competition_id: null }
+    event.value = await api.setExternalEventLink(eventId.value, body)
+    toast.add({ title: 'Kobling fjernet', color: 'success' })
+  } catch (err: any) {
+    toast.add({ title: 'Kunne ikke fjerne', description: err?.data?.detail || 'Ukjent feil', color: 'error' })
+  } finally {
+    savingLink.value = false
+  }
+}
 
 const loadEvent = async () => {
   loading.value = true

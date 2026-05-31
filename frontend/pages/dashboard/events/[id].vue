@@ -195,7 +195,16 @@
                         {{ getInitials(attendee.profile) }}
                       </div>
                       <div>
-                        <div class="font-medium">
+                        <NuxtLink
+                          v-if="attendee.profile?.member_id"
+                          :to="`/dashboard/members/${attendee.profile.member_id}`"
+                          class="font-medium text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                          title="View member profile"
+                        >
+                          {{ attendee.profile?.firstName }} {{ attendee.profile?.lastName }}
+                          <UIcon name="i-heroicons-arrow-top-right-on-square" class="w-3.5 h-3.5 opacity-70" />
+                        </NuxtLink>
+                        <div v-else class="font-medium">
                           {{ attendee.profile?.firstName }} {{ attendee.profile?.lastName }}
                         </div>
                         <div v-if="attendee.profile?.email" class="text-sm text-gray-600 dark:text-gray-400">

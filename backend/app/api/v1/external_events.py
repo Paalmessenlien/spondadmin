@@ -9,16 +9,22 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_current_admin
 from app.db.session import get_db, AsyncSessionLocal
 from app.models.admin import Admin
+from app.models.competition import Competition
+from app.models.event import Event
 from app.schemas.external_event import (
     ExternalEventResponse,
     ExternalEventListResponse,
     ExternalEventFilters,
+    ExternalEventLinkSuggestions,
+    ExternalEventLinkRequest,
 )
+from app.services.competition_link_service import CompetitionLinkService
 from app.services.external_event_service import ExternalEventService
 from app.services.external_event_scraper_service import ExternalEventScraperService
 
@@ -28,6 +34,30 @@ router = APIRouter()
 
 # Track active analyze-all tasks so they can be cancelled
 _active_analysis_tasks: dict[str, bool] = {}
+
+
+async def _attach_link_labels(db: AsyncSession, events: list) -> None:
+    """Resolve linked_event_id → event heading and linked_competition_id →
+    competition name, attaching them as transient attributes for display.
+    Two batch queries. The numeric ids are used for navigation.
+    """
+    event_ids = {e.linked_event_id for e in events if e.linked_event_id}
+    comp_ids = {e.linked_competition_id for e in events if e.linked_competition_id}
+    headings: dict[int, str] = {}
+    names: dict[int, str] = {}
+    if event_ids:
+        rows = await db.execute(
+            select(Event.id, Event.heading).where(Event.id.in_(event_ids))
+        )
+        headings = {eid: h for eid, h in rows.all()}
+    if comp_ids:
+        rows = await db.execute(
+            select(Competition.id, Competition.name).where(Competition.id.in_(comp_ids))
+        )
+        names = {cid: n for cid, n in rows.all()}
+    for e in events:
+        e.linked_event_heading = headings.get(e.linked_event_id)
+        e.linked_competition_name = names.get(e.linked_competition_id)
 
 
 @router.get("/", response_model=ExternalEventListResponse)
@@ -53,6 +83,7 @@ async def list_external_events(
         limit=limit,
     )
     events, total = await ExternalEventService.get_events(db, filters)
+    await _attach_link_labels(db, list(events))
     return ExternalEventListResponse(
         events=[ExternalEventResponse.model_validate(e) for e in events],
         total=total,
@@ -71,6 +102,64 @@ async def get_external_event(
     event = await ExternalEventService.get_event_by_id(db, event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+    await _attach_link_labels(db, [event])
+    return ExternalEventResponse.model_validate(event)
+
+
+@router.get(
+    "/{event_id}/link-suggestions",
+    response_model=ExternalEventLinkSuggestions,
+)
+async def get_link_suggestions(
+    event_id: int,
+    current_user: Admin = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Suggest local Spond events / competitions that match this external
+    competition (date proximity + fuzzy name). Suggestions only — confirm via
+    POST /{id}/link."""
+    event = await ExternalEventService.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    suggestions = await CompetitionLinkService.suggest_links(db, event)
+    return ExternalEventLinkSuggestions(**suggestions)
+
+
+@router.post("/{event_id}/link", response_model=ExternalEventResponse)
+async def set_external_event_link(
+    event_id: int,
+    payload: ExternalEventLinkRequest,
+    current_user: Admin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Confirm (or clear) the link from this external competition to a local
+    Spond event and/or competition. Only the fields present in the request body
+    are changed; pass an explicit null to clear one side."""
+    event = await ExternalEventService.get_event_by_id(db, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # Merge: only overwrite a side that was explicitly provided (present in the
+    # JSON body), so a partial request doesn't clobber the other link.
+    sent = payload.model_fields_set
+    new_event_id = payload.event_id if "event_id" in sent else event.linked_event_id
+    new_comp_id = (
+        payload.competition_id
+        if "competition_id" in sent
+        else event.linked_competition_id
+    )
+    try:
+        await CompetitionLinkService.set_link(
+            db, event, event_id=new_event_id, competition_id=new_comp_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    await db.commit()
+    # Re-fetch fresh so the response isn't built from attributes the flush
+    # expired (server-side updated_at) — avoids a sync lazy-load on an async
+    # session. Mirrors the training shift reload pattern.
+    event = await ExternalEventService.get_event_by_id(db, event_id)
+    await _attach_link_labels(db, [event])
     return ExternalEventResponse.model_validate(event)
 
 

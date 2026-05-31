@@ -136,7 +136,13 @@
             class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
           >
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-gray-900 dark:text-white truncate">{{ result.archer_name }}</div>
+              <NuxtLink
+                v-if="result.member_id"
+                :to="`/dashboard/members/${result.member_id}`"
+                class="font-medium text-blue-600 dark:text-blue-400 hover:underline truncate block"
+                title="View member profile"
+              >{{ result.archer_name }}</NuxtLink>
+              <div v-else class="font-medium text-gray-900 dark:text-white truncate">{{ result.archer_name }}</div>
               <div class="text-sm text-gray-500 truncate">{{ result.event_name }}</div>
             </div>
             <div class="flex items-center space-x-3 ml-4">

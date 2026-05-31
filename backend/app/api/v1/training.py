@@ -31,6 +31,7 @@ from app.core.deps import (
 )
 from app.db.session import get_db
 from app.models.admin import Admin
+from app.models.event import Event
 from app.models.leader_group import LeaderGroup, LeaderGroupMember
 from app.models.member import Member
 from app.models.member_alias import MemberAlias
@@ -528,6 +529,25 @@ async def delete_alias(
 # Training shifts
 # ============================================================
 
+async def _attach_linked_event_ids(
+    db: AsyncSession, shifts: list[TrainingShift]
+) -> None:
+    """Set a transient `linked_event_id` on each shift by matching its
+    `spond_event_id` to a synced `Event.spond_id`. The inverse of
+    `EventService._attach_linked_shift_ids`. One batch query, picked up by
+    `TrainingShiftResponse` via `from_attributes`.
+    """
+    spond_ids = [s.spond_event_id for s in shifts if s.spond_event_id]
+    lookup: dict[str, int] = {}
+    if spond_ids:
+        rows = await db.execute(
+            select(Event.spond_id, Event.id).where(Event.spond_id.in_(spond_ids))
+        )
+        lookup = {spond_id: event_id for spond_id, event_id in rows.all()}
+    for s in shifts:
+        s.linked_event_id = lookup.get(s.spond_event_id) if s.spond_event_id else None
+
+
 async def _load_shift_for_response(
     db: AsyncSession, shift_id: int
 ) -> TrainingShift:
@@ -551,6 +571,7 @@ async def _load_shift_for_response(
     obj = result.scalar_one_or_none()
     if obj is None:
         raise HTTPException(status_code=404, detail="Shift not found")
+    await _attach_linked_event_ids(db, [obj])
     return obj
 
 
@@ -623,6 +644,7 @@ async def list_shifts(
 
     result = await db.execute(stmt)
     items = result.scalars().unique().all()
+    await _attach_linked_event_ids(db, list(items))
     return TrainingShiftListResponse(
         items=[TrainingShiftResponse.model_validate(o) for o in items],
         total=len(items),

@@ -27,6 +27,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.oslo_time import local_oslo_to_utc_iso
 from app.models.group import Group
 from app.models.group_member import GroupMember
 from app.models.member import Member
@@ -37,46 +38,8 @@ logger = logging.getLogger(__name__)
 
 
 # Norway uses CEST (+02:00) from late March until late October and CET (+01:00)
-# the rest of the year. Spond accepts either explicit offsets or UTC `Z`; we
-# emit UTC to match how the existing event rows in this DB are stored.
-_OSLO_DST_START_MONTH = 3
-_OSLO_DST_END_MONTH = 10
-
-
-def _oslo_offset_for(d: datetime) -> timedelta:
-    """Best-effort Europe/Oslo offset without depending on zoneinfo.
-
-    DST in Europe/Oslo runs from the last Sunday of March to the last Sunday of
-    October. For the dates we care about (July–September is wave-2's primary
-    window, and the importer file covers May–September) this rough rule is
-    safe; for January or November the rule still resolves to standard time.
-    """
-    # Last Sunday of March / October.
-    def last_sunday(year: int, month: int) -> datetime:
-        # Start at the 31st and walk back to a Sunday.
-        from calendar import monthrange
-
-        last_day = monthrange(year, month)[1]
-        for day in range(last_day, last_day - 7, -1):
-            dt = datetime(year, month, day)
-            if dt.weekday() == 6:  # Sunday
-                return dt.replace(hour=2)  # transition at 02:00 local
-        # Fallback (shouldn't happen).
-        return datetime(year, month, last_day, 2)
-
-    dst_start = last_sunday(d.year, _OSLO_DST_START_MONTH)
-    dst_end = last_sunday(d.year, _OSLO_DST_END_MONTH)
-    if dst_start <= d.replace(tzinfo=None) < dst_end:
-        return timedelta(hours=2)  # CEST
-    return timedelta(hours=1)  # CET
-
-
-def _local_oslo_to_utc_iso(d_date, t_time: time) -> str:
-    """Combine a date + local Oslo time, convert to UTC, return ISO `…Z`."""
-    naive_local = datetime.combine(d_date, t_time)
-    offset = _oslo_offset_for(naive_local)
-    utc = naive_local - offset
-    return utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+# the rest of the year. The date/time ↔ UTC math lives in app.core.oslo_time so
+# the reverse-sync service can share the same (best-effort, zoneinfo-free) rule.
 
 
 def _compute_invite_send_at(
@@ -92,7 +55,7 @@ def _compute_invite_send_at(
     if lead_days is None or send_time is None:
         return None
     send_date = shift_date - timedelta(days=lead_days)
-    return _local_oslo_to_utc_iso(send_date, send_time)
+    return local_oslo_to_utc_iso(send_date, send_time)
 
 
 class SpondCreateError(Exception):
