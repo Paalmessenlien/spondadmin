@@ -1,5 +1,5 @@
 <template>
-  <div class="overflow-x-auto">
+  <div ref="scrollContainer" class="overflow-x-auto">
     <table class="text-xs border-collapse" style="min-width: 100%;">
       <thead>
         <tr>
@@ -9,9 +9,11 @@
           <th
             v-for="d in days"
             :key="d.date"
+            :data-date="d.date"
             :class="[
               'border-b border-r border-gray-200 dark:border-gray-700 px-1 py-2 text-center font-medium',
               d.isWeekend ? 'bg-gray-100 dark:bg-gray-900 text-gray-500' : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300',
+              d.date === todayIso ? 'ring-1 ring-inset ring-blue-500 !text-blue-700 dark:!text-blue-300' : '',
             ]"
             style="min-width: 44px;"
           >
@@ -36,6 +38,7 @@
             :class="[
               'border-b border-r border-gray-200 dark:border-gray-700 p-0.5 align-top text-center',
               d.isWeekend ? 'bg-gray-50 dark:bg-gray-900/50' : '',
+              d.date === todayIso ? 'bg-blue-50/60 dark:bg-blue-900/20' : '',
             ]"
             style="min-width: 44px;"
           >
@@ -110,6 +113,27 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'cell-click', sessionTypeId: number, date: string, shift: Shift | null): void
 }>()
+
+// "Today" highlight + auto-scroll to the active week. todayIso is set on the
+// client (avoids SSR/local-time hydration drift). On mount, if today is in the
+// shown month, scroll its column to the centre of the horizontal viewport so
+// the user lands on the current week instead of the 1st of the month.
+const todayIso = ref('')
+const scrollContainer = ref<HTMLElement | null>(null)
+
+const localISO = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+onMounted(() => {
+  todayIso.value = localISO(new Date())
+  nextTick(() => {
+    const c = scrollContainer.value
+    const cell = c?.querySelector<HTMLElement>(`[data-date="${todayIso.value}"]`)
+    if (c && cell) {
+      c.scrollLeft = cell.offsetLeft - c.clientWidth / 2 + cell.offsetWidth / 2
+    }
+  })
+})
 
 const getShift = (stId: number, date: string): Shift | null =>
   props.shiftsByKey[`${stId}|${date}`] ?? null

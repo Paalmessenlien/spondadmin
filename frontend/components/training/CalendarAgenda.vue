@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-4">
+  <div ref="agendaRoot" class="space-y-4">
     <div v-if="canCreate && sessionTypes.length" class="flex justify-end">
       <UButton size="sm" color="primary" variant="soft" icon="i-heroicons-plus" @click="addShift">
         Add shift
@@ -10,9 +10,12 @@
       No shifts this month.
     </div>
 
-    <div v-for="grp in dayGroups" :key="grp.date" class="space-y-1.5">
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {{ grp.weekday }} {{ grp.day }}
+    <div v-for="grp in dayGroups" :key="grp.date" :data-date="grp.date" class="space-y-1.5 scroll-mt-4">
+      <h3
+        class="text-xs font-semibold uppercase tracking-wide"
+        :class="grp.date === todayIso ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'"
+      >
+        {{ grp.weekday }} {{ grp.day }}<span v-if="grp.date === todayIso"> · Today</span>
       </h3>
       <button
         v-for="item in grp.items"
@@ -81,6 +84,29 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'cell-click', sessionTypeId: number, date: string, shift: Shift | null): void
 }>()
+
+// "Today" marker + scroll the active week into view on mount. todayIso is set
+// client-side (avoids local-time hydration drift). Scrolls to today's day group
+// or, if today has no shifts, the next upcoming one — so the user lands on the
+// current week rather than the start of the month.
+const todayIso = ref('')
+const agendaRoot = ref<HTMLElement | null>(null)
+
+const localISO = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+onMounted(() => {
+  todayIso.value = localISO(new Date())
+  nextTick(() => {
+    const root = agendaRoot.value
+    if (!root) return
+    const groups = [...root.querySelectorAll<HTMLElement>('[data-date]')]
+    const target =
+      groups.find(g => (g.dataset.date || '') === todayIso.value) ||
+      groups.find(g => (g.dataset.date || '') >= todayIso.value)
+    target?.scrollIntoView({ block: 'start', behavior: 'auto' })
+  })
+})
 
 const dayGroups = computed(() =>
   props.days
