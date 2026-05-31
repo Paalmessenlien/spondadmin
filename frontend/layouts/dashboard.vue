@@ -41,6 +41,11 @@
         <span class="text-lg font-bold text-gray-900 dark:text-white">{{ clubName }}</span>
       </div>
 
+      <!-- Auth-dependent sidebar content (nav is role-filtered, user profile
+           reads authStore.user). The user is only known client-side, so render
+           these client-only to avoid SSR/hydration mismatches — same approach
+           as the mobile drawer below. The static club header above stays SSR'd. -->
+      <ClientOnly>
       <!-- Navigation -->
       <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-6" aria-label="Main navigation">
         <div v-for="group in navGroups" :key="group.label">
@@ -101,6 +106,7 @@
           />
         </div>
       </div>
+      </ClientOnly>
     </aside>
 
     <!-- Mobile Navigation Drawer -->
