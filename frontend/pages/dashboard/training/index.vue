@@ -623,6 +623,7 @@
 
 <script setup lang="ts">
 import CalendarGrid from '~/components/training/CalendarGrid.vue'
+import CalendarAgenda from '~/components/training/CalendarAgenda.vue'
 import TrainingShiftEditor from '~/components/training/TrainingShiftEditor.vue'
 
 definePageMeta({ middleware: 'auth', layout: 'dashboard' })
