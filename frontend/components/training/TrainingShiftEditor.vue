@@ -114,7 +114,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start time</label>
               <TimeInputHHMM v-model="form.start_time_override" />
@@ -188,7 +188,7 @@
               </div>
               <div
                 v-else
-                class="grid grid-cols-2 gap-x-4 gap-y-1.5 max-h-44 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 p-2"
+                class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 max-h-44 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 p-2"
               >
                 <label
                   v-for="sg in subgroupOptionsForShift"

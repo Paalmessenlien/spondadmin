@@ -54,54 +54,28 @@
         <p>No records found</p>
       </div>
 
-      <div v-else class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700">
-              <th class="text-left py-3 px-2 font-medium text-gray-500">Division</th>
-              <th class="text-left py-3 px-2 font-medium text-gray-500">Category</th>
-              <th class="text-left py-3 px-2 font-medium text-gray-500">Round</th>
-              <th class="text-left py-3 px-2 font-medium text-gray-500">Distance</th>
-              <th class="text-left py-3 px-2 font-medium text-gray-500">Archer</th>
-              <th class="text-right py-3 px-2 font-medium text-gray-500">Score</th>
-              <th class="text-left py-3 px-2 font-medium text-gray-500">Date</th>
-              <th class="text-left py-3 px-2 font-medium text-gray-500">Type</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="record in records"
-              :key="record.id"
-              class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-            >
-              <td class="py-2 px-2">
-                <UBadge color="blue" variant="subtle" size="sm">{{ record.division }}</UBadge>
-              </td>
-              <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ record.category }}</td>
-              <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ record.round_type }}</td>
-              <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ record.distance || '-' }}</td>
-              <td class="py-2 px-2 font-medium text-gray-900 dark:text-white">
-                <NuxtLink
-                  v-if="record.record_type !== 'team' && record.member_id"
-                  :to="`/dashboard/members/${record.member_id}`"
-                  class="text-blue-600 dark:text-blue-400 hover:underline"
-                  title="View member profile"
-                >{{ record.archer_name || 'Unknown' }}</NuxtLink>
-                <span v-else>{{ record.record_type === 'team' ? 'Team' : (record.archer_name || 'Unknown') }}</span>
-                <div v-if="record.team_members?.members" class="text-xs text-gray-500">
-                  {{ record.team_members.members }}
-                </div>
-              </td>
-              <td class="py-2 px-2 text-right font-bold text-amber-600">{{ record.score }}</td>
-              <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ formatDate(record.record_date) }}</td>
-              <td class="py-2 px-2">
-                <UBadge :color="record.record_type === 'team' ? 'purple' : 'green'" variant="subtle" size="sm">
-                  {{ record.record_type }}
-                </UBadge>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-else>
+        <ResponsiveTable :columns="recordCols" :rows="records" empty-text="No records found">
+          <template #cell-division="{ row }">
+            <UBadge color="blue" variant="subtle" size="sm">{{ row.division }}</UBadge>
+          </template>
+          <template #cell-distance="{ row }">{{ row.distance || '-' }}</template>
+          <template #cell-archer_name="{ row }">
+            <NuxtLink
+              v-if="row.record_type !== 'team' && row.member_id"
+              :to="`/dashboard/members/${row.member_id}`"
+              class="text-blue-600 dark:text-blue-400 hover:underline"
+              title="View member profile"
+            >{{ row.archer_name || 'Unknown' }}</NuxtLink>
+            <span v-else>{{ row.record_type === 'team' ? 'Team' : (row.archer_name || 'Unknown') }}</span>
+            <div v-if="row.team_members?.members" class="text-xs text-gray-500">{{ row.team_members.members }}</div>
+          </template>
+          <template #cell-score="{ row }"><span class="font-bold text-amber-600">{{ row.score }}</span></template>
+          <template #cell-record_date="{ row }">{{ formatDate(row.record_date) }}</template>
+          <template #cell-record_type="{ row }">
+            <UBadge :color="row.record_type === 'team' ? 'purple' : 'green'" variant="subtle" size="sm">{{ row.record_type }}</UBadge>
+          </template>
+        </ResponsiveTable>
 
         <!-- Pagination -->
         <div v-if="total > pageSize" class="flex justify-between items-center mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -131,6 +105,17 @@ const records = ref<any[]>([])
 const total = ref(0)
 const loading = ref(true)
 const skip = ref(0)
+
+const recordCols = [
+  { key: 'division', label: 'Division' },
+  { key: 'category', label: 'Category' },
+  { key: 'round_type', label: 'Round' },
+  { key: 'distance', label: 'Distance' },
+  { key: 'archer_name', label: 'Archer', primary: true },
+  { key: 'score', label: 'Score', align: 'right' },
+  { key: 'record_date', label: 'Date' },
+  { key: 'record_type', label: 'Type' },
+] as const
 const pageSize = ref(100)
 const filterValues = ref<any>({ divisions: [], categories: [] })
 const selectedDivision = ref<any>({ label: 'All Divisions', value: '' })

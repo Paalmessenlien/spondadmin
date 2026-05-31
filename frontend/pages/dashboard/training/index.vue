@@ -200,7 +200,7 @@
         Click any cell below to create a shift, or import a vaktliste .xlsx.
       </p>
       <CalendarGrid
-        class="mt-6"
+        class="mt-6 hidden md:block"
         :session-types="sessionTypes"
         :days="daysInMonth"
         :shifts-by-key="shiftsByKey"
@@ -213,6 +213,16 @@
     <!-- Calendar grid -->
     <UCard v-else>
       <CalendarGrid
+        class="hidden md:block"
+        :session-types="sessionTypes"
+        :days="daysInMonth"
+        :shifts-by-key="shiftsByKey"
+        :can-edit="canEdit"
+        :can-create="canEdit"
+        @cell-click="onCellClick"
+      />
+      <CalendarAgenda
+        class="md:hidden"
         :session-types="sessionTypes"
         :days="daysInMonth"
         :shifts-by-key="shiftsByKey"

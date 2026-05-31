@@ -252,38 +252,13 @@
                       <h2 class="text-xl font-bold">Competition History</h2>
                     </template>
 
-                    <div class="overflow-x-auto">
-                      <table class="w-full text-sm">
-                        <thead>
-                          <tr class="border-b border-gray-200 dark:border-gray-700">
-                            <th class="text-left py-3 px-2 font-medium text-gray-500">Date</th>
-                            <th class="text-left py-3 px-2 font-medium text-gray-500">Event</th>
-                            <th class="text-left py-3 px-2 font-medium text-gray-500">Distance</th>
-                            <th class="text-left py-3 px-2 font-medium text-gray-500">Class</th>
-                            <th class="text-right py-3 px-2 font-medium text-gray-500">Score</th>
-                            <th class="text-right py-3 px-2 font-medium text-gray-500">Rank</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr
-                            v-for="result in compResults"
-                            :key="result.id"
-                            class="border-b border-gray-100 dark:border-gray-800"
-                          >
-                            <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ formatCompDate(result.date) }}</td>
-                            <td class="py-2 px-2 text-gray-900 dark:text-white">{{ result.event_name }}</td>
-                            <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ result.distance }}</td>
-                            <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ result.equipment_class }}</td>
-                            <td class="py-2 px-2 text-right font-bold text-blue-600">{{ result.score }}</td>
-                            <td class="py-2 px-2 text-right">
-                              <UBadge v-if="result.ranking" :color="result.ranking <= 3 ? 'amber' : 'gray'" size="sm">
-                                #{{ result.ranking }}
-                              </UBadge>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
+                    <ResponsiveTable :columns="compResultCols" :rows="compResults" empty-text="No results.">
+                      <template #cell-date="{ row }"><span class="text-gray-600 dark:text-gray-400">{{ formatCompDate(row.date) }}</span></template>
+                      <template #cell-score="{ row }"><span class="font-bold text-blue-600">{{ row.score }}</span></template>
+                      <template #cell-ranking="{ row }">
+                        <UBadge v-if="row.ranking" :color="row.ranking <= 3 ? 'amber' : 'gray'" size="sm">#{{ row.ranking }}</UBadge>
+                      </template>
+                    </ResponsiveTable>
                   </UCard>
                 </template>
               </div>
@@ -330,6 +305,15 @@ const historySkip = ref(0)
 const historyPageSize = ref(10)
 const compResults = ref<any[]>([])
 const loadingCompResults = ref(true)
+
+const compResultCols = [
+  { key: 'date', label: 'Date' },
+  { key: 'event_name', label: 'Event', primary: true },
+  { key: 'distance', label: 'Distance' },
+  { key: 'equipment_class', label: 'Class' },
+  { key: 'score', label: 'Score', align: 'right' },
+  { key: 'ranking', label: 'Rank', align: 'right' },
+] as const
 
 const tabs = computed(() => {
   const items = [

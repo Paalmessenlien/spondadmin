@@ -40,111 +40,38 @@
     </UCard>
 
     <UCard v-else>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700">
-              <th class="text-left py-2 px-3 font-medium text-gray-500"></th>
-              <th class="text-left py-2 px-3 font-medium text-gray-500">Name</th>
-              <th class="text-left py-2 px-3 font-medium text-gray-500">Period</th>
-              <th class="text-right py-2 px-3 font-medium text-gray-500">Session types</th>
-              <th class="text-right py-2 px-3 font-medium text-gray-500">Shifts</th>
-              <th class="text-right py-2 px-3 font-medium text-gray-500">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="plan in plans"
-              :key="plan.id"
-              class="border-b border-gray-100 dark:border-gray-800"
-            >
-              <td class="py-2 px-3 w-8">
-                <UBadge
-                  v-if="plan.id === authStore.selectedPlanId"
-                  color="primary"
-                  variant="solid"
-                  size="xs"
-                  title="Active plan"
-                >
-                  Active
-                </UBadge>
-              </td>
-              <td class="py-2 px-3 font-medium text-gray-900 dark:text-white">
-                <div>{{ plan.name }}</div>
-                <div
-                  v-if="plan.description"
-                  class="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 max-w-md"
-                >
-                  {{ plan.description }}
-                </div>
-              </td>
-              <td class="py-2 px-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                {{ formatDate(plan.period_start) }} – {{ formatDate(plan.period_end) }}
-              </td>
-              <td class="py-2 px-3 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                {{ plan.session_type_count }}
-              </td>
-              <td class="py-2 px-3 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                {{ plan.shift_count }}
-              </td>
-              <td class="py-2 px-3 text-right space-x-1 whitespace-nowrap">
-                <UButton
-                  v-if="plan.id !== authStore.selectedPlanId"
-                  size="xs"
-                  color="primary"
-                  variant="soft"
-                  icon="i-heroicons-cursor-arrow-rays"
-                  @click="activate(plan)"
-                >
-                  Activate
-                </UButton>
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="soft"
-                  icon="i-heroicons-eye"
-                  :loading="!!plan._viewing"
-                  @click="viewReport(plan)"
-                >
-                  View
-                </UButton>
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="soft"
-                  icon="i-heroicons-arrow-down-tray"
-                  :loading="!!plan._exporting"
-                  @click="exportPdf(plan)"
-                >
-                  PDF
-                </UButton>
-                <UButton
-                  v-if="isAdmin"
-                  size="xs"
-                  color="neutral"
-                  variant="soft"
-                  icon="i-heroicons-pencil-square"
-                  @click="openEdit(plan)"
-                >
-                  Edit
-                </UButton>
-                <UButton
-                  v-if="isAdmin"
-                  size="xs"
-                  color="red"
-                  variant="soft"
-                  icon="i-heroicons-trash"
-                  :disabled="plan.session_type_count > 0"
-                  :title="plan.session_type_count > 0 ? 'Cannot delete — session types still reference this plan' : 'Delete plan'"
-                  @click="confirmDelete(plan)"
-                >
-                  Delete
-                </UButton>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <ResponsiveTable :columns="planCols" :rows="plans" empty-text="No plans.">
+        <template #cell-name="{ row }">
+          <div class="flex items-center gap-2 flex-wrap justify-end md:justify-start">
+            <span class="font-medium text-gray-900 dark:text-white">{{ row.name }}</span>
+            <UBadge v-if="row.id === authStore.selectedPlanId" color="primary" variant="solid" size="xs" title="Active plan">Active</UBadge>
+          </div>
+          <div v-if="row.description" class="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 md:max-w-md">{{ row.description }}</div>
+        </template>
+        <template #cell-period="{ row }">
+          <span class="text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ formatDate(row.period_start) }} – {{ formatDate(row.period_end) }}</span>
+        </template>
+        <template #cell-session_type_count="{ row }"><span class="tabular-nums text-gray-700 dark:text-gray-300">{{ row.session_type_count }}</span></template>
+        <template #cell-shift_count="{ row }"><span class="tabular-nums text-gray-700 dark:text-gray-300">{{ row.shift_count }}</span></template>
+        <template #cell-actions="{ row }">
+          <div class="flex flex-wrap gap-1 justify-end">
+            <UButton v-if="row.id !== authStore.selectedPlanId" size="sm" color="primary" variant="soft" icon="i-heroicons-cursor-arrow-rays" @click="activate(row)">Activate</UButton>
+            <UButton size="sm" color="neutral" variant="soft" icon="i-heroicons-eye" :loading="!!row._viewing" @click="viewReport(row)">View</UButton>
+            <UButton size="sm" color="neutral" variant="soft" icon="i-heroicons-arrow-down-tray" :loading="!!row._exporting" @click="exportPdf(row)">PDF</UButton>
+            <UButton v-if="isAdmin" size="sm" color="neutral" variant="soft" icon="i-heroicons-pencil-square" @click="openEdit(row)">Edit</UButton>
+            <UButton
+              v-if="isAdmin"
+              size="sm"
+              color="red"
+              variant="soft"
+              icon="i-heroicons-trash"
+              :disabled="row.session_type_count > 0"
+              :title="row.session_type_count > 0 ? 'Cannot delete — session types still reference this plan' : 'Delete plan'"
+              @click="confirmDelete(row)"
+            >Delete</UButton>
+          </div>
+        </template>
+      </ResponsiveTable>
     </UCard>
 
         </div>
@@ -174,7 +101,7 @@
             />
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Period start</label>
               <DateInputISO v-model="draft.period_start" />
@@ -287,6 +214,14 @@ const tabItems = [
   { label: 'Plans', value: 'plans', icon: 'i-heroicons-document-text' },
   { label: 'Statistics', value: 'stats', icon: 'i-heroicons-chart-bar' },
 ]
+
+const planCols = [
+  { key: 'name', label: 'Name', primary: true },
+  { key: 'period', label: 'Period' },
+  { key: 'session_type_count', label: 'Session types', align: 'right' },
+  { key: 'shift_count', label: 'Shifts', align: 'right' },
+  { key: 'actions', label: 'Actions', align: 'right', isAction: true },
+] as const
 
 const editorOpen = ref(false)
 const draft = ref<{

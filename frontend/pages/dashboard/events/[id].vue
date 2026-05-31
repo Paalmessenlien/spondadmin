@@ -163,13 +163,13 @@
           <!-- Attendees List -->
           <UCard>
             <template #header>
-              <div class="flex justify-between items-center">
+              <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <h2 class="text-xl font-bold">Attendees</h2>
                 <UInput
                   v-model="searchQuery"
                   placeholder="Search attendees..."
                   icon="i-heroicons-magnifying-glass"
-                  class="w-64"
+                  class="w-full sm:w-64"
                 />
               </div>
             </template>
@@ -363,7 +363,7 @@
                   </div>
                   <div
                     v-else
-                    class="grid grid-cols-2 gap-x-4 gap-y-1.5 max-h-44 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 p-2"
+                    class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 max-h-44 overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 p-2"
                   >
                     <label
                       v-for="sg in editSubgroupOptions"

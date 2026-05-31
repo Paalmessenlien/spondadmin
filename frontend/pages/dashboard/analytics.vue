@@ -1,14 +1,14 @@
 <template>
   <div class="space-y-6">
         <!-- Header -->
-        <div class="flex justify-between items-start">
+        <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
           <div>
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Analytics</h1>
             <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
               Insights and trends from your Spond data
             </p>
           </div>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2">
             <UButton
               icon="i-heroicons-document-chart-bar"
               label="View Reports"

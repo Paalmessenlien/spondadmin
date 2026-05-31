@@ -112,54 +112,26 @@
           </div>
 
           <div v-else>
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700 dark:text-gray-300">Name</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700 dark:text-gray-300">Email</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700 dark:text-gray-300">Phone</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700 dark:text-gray-300">Groups</th>
-                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase text-gray-700 dark:text-gray-300">Subgroups</th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                  <tr
-                    v-for="member in members"
-                    :key="member.id"
-                    class="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                    @click="navigateTo(`/dashboard/members/${member.id}`)"
-                  >
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <div class="font-medium hover:text-blue-600 dark:hover:text-blue-400">
-                        {{ member.first_name }} {{ member.last_name }}
-                      </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {{ member.email || '-' }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {{ member.phone_number || '-' }}
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
-                      <div v-if="member.groups?.length" class="flex flex-wrap gap-1">
-                        <span
-                          v-for="g in member.groups"
-                          :key="g.group_id"
-                          class="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300"
-                        >
-                          {{ g.name }}
-                        </span>
-                      </div>
-                      <span v-else>-</span>
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
-                      {{ totalSubgroups(member) }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable :columns="memberCols" :rows="members" empty-text="No members.">
+              <template #cell-name="{ row }">
+                <NuxtLink :to="`/dashboard/members/${row.id}`" class="font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                  {{ row.first_name }} {{ row.last_name }}
+                </NuxtLink>
+              </template>
+              <template #cell-email="{ row }"><span class="text-gray-700 dark:text-gray-300">{{ row.email || '-' }}</span></template>
+              <template #cell-phone_number="{ row }"><span class="text-gray-700 dark:text-gray-300">{{ row.phone_number || '-' }}</span></template>
+              <template #cell-groups="{ row }">
+                <div v-if="row.groups?.length" class="flex flex-wrap gap-1 justify-end md:justify-start">
+                  <span
+                    v-for="g in row.groups"
+                    :key="g.group_id"
+                    class="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300"
+                  >{{ g.name }}</span>
+                </div>
+                <span v-else>-</span>
+              </template>
+              <template #cell-subgroups="{ row }">{{ totalSubgroups(row) }}</template>
+            </ResponsiveTable>
 
             <!-- Enhanced Pagination -->
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
@@ -222,6 +194,14 @@ interface AvailableGroup {
 
 const members = ref<any[]>([])
 const availableGroups = ref<AvailableGroup[]>([])
+
+const memberCols = [
+  { key: 'name', label: 'Name', primary: true },
+  { key: 'email', label: 'Email' },
+  { key: 'phone_number', label: 'Phone' },
+  { key: 'groups', label: 'Groups' },
+  { key: 'subgroups', label: 'Subgroups' },
+] as const
 const totalSubgroups = (m: any) =>
   (m.groups || []).reduce((sum: number, g: any) => sum + (g.subgroup_uids?.length || 0), 0)
 const total = ref(0)

@@ -41,44 +41,21 @@
           No results for this competition
         </div>
 
-        <div v-else class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b border-gray-200 dark:border-gray-700">
-                <th class="text-right py-3 px-2 font-medium text-gray-500 w-16">Rank</th>
-                <th class="text-left py-3 px-2 font-medium text-gray-500">Archer</th>
-                <th class="text-left py-3 px-2 font-medium text-gray-500">Distance</th>
-                <th class="text-left py-3 px-2 font-medium text-gray-500">Class</th>
-                <th class="text-right py-3 px-2 font-medium text-gray-500">Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="result in competition.results"
-                :key="result.id"
-                class="border-b border-gray-100 dark:border-gray-800"
-              >
-                <td class="py-2 px-2 text-right">
-                  <UBadge v-if="result.ranking" :color="result.ranking <= 3 ? 'amber' : 'gray'" size="sm">
-                    #{{ result.ranking }}
-                  </UBadge>
-                </td>
-                <td class="py-2 px-2 font-medium text-gray-900 dark:text-white">
-                  <NuxtLink
-                    v-if="result.member_id"
-                    :to="`/dashboard/members/${result.member_id}`"
-                    class="text-blue-600 dark:text-blue-400 hover:underline"
-                    title="View member profile"
-                  >{{ result.archer_name }}</NuxtLink>
-                  <span v-else>{{ result.archer_name }}</span>
-                </td>
-                <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ result.distance }}</td>
-                <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ result.equipment_class }}</td>
-                <td class="py-2 px-2 text-right font-bold text-blue-600">{{ result.score }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable v-else :columns="resultCols" :rows="competition.results" empty-text="No results.">
+          <template #cell-ranking="{ row }">
+            <UBadge v-if="row.ranking" :color="row.ranking <= 3 ? 'amber' : 'gray'" size="sm">#{{ row.ranking }}</UBadge>
+          </template>
+          <template #cell-archer_name="{ row }">
+            <NuxtLink
+              v-if="row.member_id"
+              :to="`/dashboard/members/${row.member_id}`"
+              class="text-blue-600 dark:text-blue-400 hover:underline"
+              title="View member profile"
+            >{{ row.archer_name }}</NuxtLink>
+            <span v-else>{{ row.archer_name }}</span>
+          </template>
+          <template #cell-score="{ row }"><span class="font-bold text-blue-600">{{ row.score }}</span></template>
+        </ResponsiveTable>
       </UCard>
     </template>
   </div>
@@ -92,6 +69,14 @@ const api = useApi()
 
 const competition = ref<any>(null)
 const loading = ref(true)
+
+const resultCols = [
+  { key: 'ranking', label: 'Rank', align: 'right' },
+  { key: 'archer_name', label: 'Archer', primary: true },
+  { key: 'distance', label: 'Distance' },
+  { key: 'equipment_class', label: 'Class' },
+  { key: 'score', label: 'Score', align: 'right' },
+] as const
 
 onMounted(async () => {
   try {

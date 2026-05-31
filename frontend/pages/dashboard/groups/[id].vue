@@ -111,13 +111,13 @@
           <!-- Members List -->
           <UCard>
             <template #header>
-              <div class="flex justify-between items-center">
+              <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                 <h2 class="text-xl font-bold">Members</h2>
                 <UInput
                   v-model="searchQuery"
                   placeholder="Search members..."
                   icon="i-heroicons-magnifying-glass"
-                  class="w-64"
+                  class="w-full sm:w-64"
                 />
               </div>
             </template>

@@ -98,98 +98,66 @@
       <!-- By-setup table -->
       <UCard>
         <template #header>
-          <div class="flex items-center justify-between gap-3">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h3 class="font-semibold text-gray-900 dark:text-white">By training setup</h3>
-            <UInput v-model="setupSearch" placeholder="Filter setups…" icon="i-heroicons-magnifying-glass" class="w-56" />
+            <UInput v-model="setupSearch" placeholder="Filter setups…" icon="i-heroicons-magnifying-glass" class="w-full sm:w-56" />
           </div>
         </template>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b border-gray-200 dark:border-gray-700">
-                <th v-for="col in setupCols" :key="col.key"
-                    class="py-2 px-2 font-medium text-gray-500 cursor-pointer select-none"
-                    :class="col.right ? 'text-right' : 'text-left'"
-                    @click="setupTable.toggleSort(col.key)">
-                  {{ col.label }}
-                  <span v-if="setupTable.sortField.value === col.key">{{ setupTable.sortDesc.value ? '▾' : '▴' }}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in setupTable.sortedData.value" :key="row.session_type_id"
-                  class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                <td class="py-2 px-2 font-medium text-gray-900 dark:text-white">{{ row.name }}</td>
-                <td class="py-2 px-2 text-right tabular-nums">{{ row.total }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-green-600">{{ row.published }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-blue-600">{{ row.draft }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-gray-500">{{ row.cancelled }}</td>
-                <td class="py-2 px-2 text-right tabular-nums">{{ row.distinct_leaders }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-green-700">{{ row.accepted }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-red-600">{{ row.declined }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-gray-400">{{ row.unanswered }}</td>
-              </tr>
-              <tr v-if="setupTable.sortedData.value.length === 0">
-                <td :colspan="setupCols.length" class="py-6 text-center text-gray-500">No setups in range.</td>
-              </tr>
-            </tbody>
-            <tfoot v-if="setupTable.sortedData.value.length">
-              <tr class="border-t-2 border-gray-200 dark:border-gray-700 font-semibold">
-                <td class="py-2 px-2">Total</td>
-                <td class="py-2 px-2 text-right tabular-nums">{{ sum('total') }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-green-600">{{ sum('published') }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-blue-600">{{ sum('draft') }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-gray-500">{{ sum('cancelled') }}</td>
-                <td class="py-2 px-2 text-right">—</td>
-                <td class="py-2 px-2 text-right tabular-nums text-green-700">{{ sum('accepted') }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-red-600">{{ sum('declined') }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-gray-400">{{ sum('unanswered') }}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        <ResponsiveTable
+          :columns="setupCols"
+          :rows="setupTable.sortedData.value"
+          row-key="session_type_id"
+          :sort-field="setupTable.sortField.value"
+          :sort-desc="setupTable.sortDesc.value"
+          empty-text="No setups in range."
+          @sort="setupTable.toggleSort"
+        >
+          <template #cell-total="{ row }"><span class="tabular-nums">{{ row.total }}</span></template>
+          <template #cell-published="{ row }"><span class="tabular-nums text-green-600">{{ row.published }}</span></template>
+          <template #cell-draft="{ row }"><span class="tabular-nums text-blue-600">{{ row.draft }}</span></template>
+          <template #cell-cancelled="{ row }"><span class="tabular-nums text-gray-500">{{ row.cancelled }}</span></template>
+          <template #cell-distinct_leaders="{ row }"><span class="tabular-nums">{{ row.distinct_leaders }}</span></template>
+          <template #cell-accepted="{ row }"><span class="tabular-nums text-green-700">{{ row.accepted }}</span></template>
+          <template #cell-declined="{ row }"><span class="tabular-nums text-red-600">{{ row.declined }}</span></template>
+          <template #cell-unanswered="{ row }"><span class="tabular-nums text-gray-400">{{ row.unanswered }}</span></template>
+          <template #foot-name>Total</template>
+          <template #foot-total><span class="tabular-nums">{{ sum('total') }}</span></template>
+          <template #foot-published><span class="tabular-nums text-green-600">{{ sum('published') }}</span></template>
+          <template #foot-draft><span class="tabular-nums text-blue-600">{{ sum('draft') }}</span></template>
+          <template #foot-cancelled><span class="tabular-nums text-gray-500">{{ sum('cancelled') }}</span></template>
+          <template #foot-accepted><span class="tabular-nums text-green-700">{{ sum('accepted') }}</span></template>
+          <template #foot-declined><span class="tabular-nums text-red-600">{{ sum('declined') }}</span></template>
+          <template #foot-unanswered><span class="tabular-nums text-gray-400">{{ sum('unanswered') }}</span></template>
+        </ResponsiveTable>
       </UCard>
 
       <!-- By-leader table -->
       <UCard>
         <template #header>
-          <div class="flex items-center justify-between gap-3">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h3 class="font-semibold text-gray-900 dark:text-white">By leader</h3>
-            <UInput v-model="leaderSearch" placeholder="Filter leaders…" icon="i-heroicons-magnifying-glass" class="w-56" />
+            <UInput v-model="leaderSearch" placeholder="Filter leaders…" icon="i-heroicons-magnifying-glass" class="w-full sm:w-56" />
           </div>
         </template>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b border-gray-200 dark:border-gray-700">
-                <th v-for="col in leaderCols" :key="col.key"
-                    class="py-2 px-2 font-medium text-gray-500 cursor-pointer select-none"
-                    :class="col.right ? 'text-right' : 'text-left'"
-                    @click="leaderTable.toggleSort(col.key)">
-                  {{ col.label }}
-                  <span v-if="leaderTable.sortField.value === col.key">{{ leaderTable.sortDesc.value ? '▾' : '▴' }}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in leaderTable.sortedData.value" :key="row.label"
-                  class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                <td class="py-2 px-2 font-medium text-gray-900 dark:text-white">
-                  <NuxtLink v-if="row.leader_member_id" :to="`/dashboard/members/${row.leader_member_id}`"
-                            class="text-blue-600 dark:text-blue-400 hover:underline">{{ row.label }}</NuxtLink>
-                  <span v-else>{{ row.label }}</span>
-                </td>
-                <td class="py-2 px-2 text-right tabular-nums">{{ row.total }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-green-600">{{ row.published }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-blue-600">{{ row.draft }}</td>
-                <td class="py-2 px-2 text-right tabular-nums text-gray-500">{{ row.cancelled }}</td>
-              </tr>
-              <tr v-if="leaderTable.sortedData.value.length === 0">
-                <td :colspan="leaderCols.length" class="py-6 text-center text-gray-500">No leaders in range.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable
+          :columns="leaderCols"
+          :rows="leaderTable.sortedData.value"
+          row-key="label"
+          :sort-field="leaderTable.sortField.value"
+          :sort-desc="leaderTable.sortDesc.value"
+          empty-text="No leaders in range."
+          @sort="leaderTable.toggleSort"
+        >
+          <template #cell-label="{ row }">
+            <NuxtLink v-if="row.leader_member_id" :to="`/dashboard/members/${row.leader_member_id}`"
+                      class="text-blue-600 dark:text-blue-400 hover:underline">{{ row.label }}</NuxtLink>
+            <span v-else>{{ row.label }}</span>
+          </template>
+          <template #cell-total="{ row }"><span class="tabular-nums">{{ row.total }}</span></template>
+          <template #cell-published="{ row }"><span class="tabular-nums text-green-600">{{ row.published }}</span></template>
+          <template #cell-draft="{ row }"><span class="tabular-nums text-blue-600">{{ row.draft }}</span></template>
+          <template #cell-cancelled="{ row }"><span class="tabular-nums text-gray-500">{{ row.cancelled }}</span></template>
+        </ResponsiveTable>
       </UCard>
     </template>
   </div>
@@ -277,23 +245,23 @@ const setupTable = useTableState(filteredSetups as any, 'total' as any, true)
 const leaderTable = useTableState(filteredLeaders as any, 'total' as any, true)
 
 const setupCols = [
-  { key: 'name', label: 'Setup', right: false },
-  { key: 'total', label: 'Total', right: true },
-  { key: 'published', label: 'Pub.', right: true },
-  { key: 'draft', label: 'Draft', right: true },
-  { key: 'cancelled', label: 'Canc.', right: true },
-  { key: 'distinct_leaders', label: 'Leaders', right: true },
-  { key: 'accepted', label: 'Acc.', right: true },
-  { key: 'declined', label: 'Dec.', right: true },
-  { key: 'unanswered', label: 'Unans.', right: true },
-]
+  { key: 'name', label: 'Setup', primary: true, sortable: true },
+  { key: 'total', label: 'Total', align: 'right', sortable: true },
+  { key: 'published', label: 'Pub.', align: 'right', sortable: true },
+  { key: 'draft', label: 'Draft', align: 'right', sortable: true },
+  { key: 'cancelled', label: 'Canc.', align: 'right', sortable: true },
+  { key: 'distinct_leaders', label: 'Leaders', align: 'right', sortable: true },
+  { key: 'accepted', label: 'Acc.', align: 'right', sortable: true },
+  { key: 'declined', label: 'Dec.', align: 'right', sortable: true },
+  { key: 'unanswered', label: 'Unans.', align: 'right', sortable: true },
+] as const
 const leaderCols = [
-  { key: 'label', label: 'Leader', right: false },
-  { key: 'total', label: 'Total', right: true },
-  { key: 'published', label: 'Pub.', right: true },
-  { key: 'draft', label: 'Draft', right: true },
-  { key: 'cancelled', label: 'Canc.', right: true },
-]
+  { key: 'label', label: 'Leader', primary: true, sortable: true },
+  { key: 'total', label: 'Total', align: 'right', sortable: true },
+  { key: 'published', label: 'Pub.', align: 'right', sortable: true },
+  { key: 'draft', label: 'Draft', align: 'right', sortable: true },
+  { key: 'cancelled', label: 'Canc.', align: 'right', sortable: true },
+] as const
 
 const sum = (key: string) =>
   (filteredSetups.value as any[]).reduce((acc, r) => acc + (r[key] || 0), 0)

@@ -51,56 +51,30 @@
       </div>
 
       <div v-else>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b border-gray-200 dark:border-gray-700">
-                <th class="text-left py-3 px-2 font-medium text-gray-500 cursor-pointer" @click="toggleSort('date')">
-                  Date {{ sortIcon('date') }}
-                </th>
-                <th class="text-left py-3 px-2 font-medium text-gray-500 cursor-pointer" @click="toggleSort('archer_name')">
-                  Archer {{ sortIcon('archer_name') }}
-                </th>
-                <th class="text-left py-3 px-2 font-medium text-gray-500">Event</th>
-                <th class="text-left py-3 px-2 font-medium text-gray-500">Distance</th>
-                <th class="text-left py-3 px-2 font-medium text-gray-500">Class</th>
-                <th class="text-right py-3 px-2 font-medium text-gray-500 cursor-pointer" @click="toggleSort('score')">
-                  Score {{ sortIcon('score') }}
-                </th>
-                <th class="text-right py-3 px-2 font-medium text-gray-500 cursor-pointer" @click="toggleSort('ranking')">
-                  Rank {{ sortIcon('ranking') }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="result in results"
-                :key="result.id"
-                class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-              >
-                <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ formatDate(result.date) }}</td>
-                <td class="py-2 px-2 font-medium text-gray-900 dark:text-white">
-                  <NuxtLink
-                    v-if="result.member_id"
-                    :to="`/dashboard/members/${result.member_id}`"
-                    class="text-blue-600 dark:text-blue-400 hover:underline"
-                    title="View member profile"
-                  >{{ result.archer_name }}</NuxtLink>
-                  <span v-else>{{ result.archer_name }}</span>
-                </td>
-                <td class="py-2 px-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">{{ result.event_name }}</td>
-                <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ result.distance }}</td>
-                <td class="py-2 px-2 text-gray-600 dark:text-gray-400">{{ result.equipment_class }}</td>
-                <td class="py-2 px-2 text-right font-bold text-blue-600">{{ result.score }}</td>
-                <td class="py-2 px-2 text-right">
-                  <UBadge v-if="result.ranking" :color="result.ranking <= 3 ? 'amber' : 'gray'" size="sm">
-                    #{{ result.ranking }}
-                  </UBadge>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable
+          :columns="resultCols"
+          :rows="results"
+          :sort-field="sortBy"
+          :sort-desc="sortDir === 'desc'"
+          @sort="toggleSort"
+        >
+          <template #cell-date="{ row }">
+            <span class="text-gray-600 dark:text-gray-400">{{ formatDate(row.date) }}</span>
+          </template>
+          <template #cell-archer_name="{ row }">
+            <NuxtLink
+              v-if="row.member_id"
+              :to="`/dashboard/members/${row.member_id}`"
+              class="text-blue-600 dark:text-blue-400 hover:underline"
+              title="View member profile"
+            >{{ row.archer_name }}</NuxtLink>
+            <span v-else>{{ row.archer_name }}</span>
+          </template>
+          <template #cell-score="{ row }"><span class="font-bold text-blue-600">{{ row.score }}</span></template>
+          <template #cell-ranking="{ row }">
+            <UBadge v-if="row.ranking" :color="row.ranking <= 3 ? 'amber' : 'gray'" size="sm">#{{ row.ranking }}</UBadge>
+          </template>
+        </ResponsiveTable>
 
         <!-- Pagination -->
         <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -147,6 +121,16 @@ const filters = ref({
 
 const currentPage = computed(() => Math.floor(skip.value / pageSize.value) + 1)
 const totalPages = computed(() => Math.ceil(total.value / pageSize.value))
+
+const resultCols = [
+  { key: 'date', label: 'Date', sortable: true },
+  { key: 'archer_name', label: 'Archer', primary: true, sortable: true },
+  { key: 'event_name', label: 'Event' },
+  { key: 'distance', label: 'Distance' },
+  { key: 'equipment_class', label: 'Class' },
+  { key: 'score', label: 'Score', align: 'right', sortable: true },
+  { key: 'ranking', label: 'Rank', align: 'right', sortable: true },
+] as const
 
 let debounceTimer: ReturnType<typeof setTimeout>
 const debouncedLoad = () => {

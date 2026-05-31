@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-6">
         <!-- Header -->
-        <div class="flex justify-between items-center">
+        <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
           <div>
             <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Events</h1>
             <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
@@ -9,7 +9,7 @@
             </p>
           </div>
 
-          <div class="flex gap-3">
+          <div class="flex flex-wrap gap-3">
             <UButton
               icon="i-heroicons-plus"
               color="primary"
@@ -170,121 +170,61 @@
             </template>
 
             <template v-else>
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
-                  <tr>
-                    <th
-                      class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      @click="toggleSort('heading')"
-                    >
-                      <div class="flex items-center gap-1">
-                        <span>Event</span>
-                        <UIcon
-                          v-if="filters.order_by === 'heading'"
-                          :name="filters.order_desc ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-up'"
-                          class="w-4 h-4"
-                        />
-                      </div>
-                    </th>
-                    <th
-                      class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      @click="toggleSort('start_time')"
-                    >
-                      <div class="flex items-center gap-1">
-                        <span>Date</span>
-                        <UIcon
-                          v-if="filters.order_by === 'start_time'"
-                          :name="filters.order_desc ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-up'"
-                          class="w-4 h-4"
-                        />
-                      </div>
-                    </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Sync
-                    </th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Responses
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                  <tr
-                    v-for="event in events"
-                    :key="`event-${event.id}`"
-                    class="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                    @click="navigateTo(`/dashboard/events/${event.id}`)"
+            <ResponsiveTable
+              :columns="eventCols"
+              :rows="events"
+              row-key="id"
+              :sort-field="filters.order_by"
+              :sort-desc="filters.order_desc"
+              empty-text="No events."
+              @sort="toggleSort"
+            >
+              <template #cell-heading="{ row }">
+                <div class="flex items-center gap-1.5 flex-wrap justify-end md:justify-start">
+                  <NuxtLink :to="`/dashboard/events/${row.id}`" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                    {{ row.heading }}
+                  </NuxtLink>
+                  <UBadge
+                    v-if="row.linked_shift_id"
+                    color="amber"
+                    variant="subtle"
+                    size="xs"
+                    class="gap-1 shrink-0"
+                    :title="`Published from training shift #${row.linked_shift_id}`"
                   >
-                    <td class="px-6 py-4">
-                      <div class="flex items-center gap-1.5">
-                        <div class="text-sm font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400">
-                          {{ event.heading }}
-                        </div>
-                        <!-- Badge for events that originated from a training shift.
-                             linked_shift_id is computed at query time on the
-                             backend (LEFT JOIN training_shifts on spond_id). -->
-                        <UBadge
-                          v-if="event.linked_shift_id"
-                          color="amber"
-                          variant="subtle"
-                          size="xs"
-                          class="gap-1 shrink-0"
-                          :title="`Published from training shift #${event.linked_shift_id}`"
-                        >
-                          <UIcon name="i-heroicons-academic-cap" class="w-3 h-3" />
-                          Vakt
-                        </UBadge>
-                      </div>
-                      <div
-                        v-if="event.description"
-                        class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 max-w-md"
-                        :title="event.description"
-                      >
-                        {{ event.description }}
-                      </div>
-                      <div v-if="event.category_id" class="mt-1">
-                        <CategoryBadge :category-id="event.category_id" size="xs" />
-                      </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {{ formatDate(event.start_time) }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <UBadge :color="getEventTypeColor(event.event_type)">
-                        {{ event.event_type }}
-                      </UBadge>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <UBadge v-if="event.cancelled" color="red">Cancelled</UBadge>
-                      <UBadge v-else-if="event.hidden" color="orange">Hidden</UBadge>
-                      <UBadge v-else color="green">Active</UBadge>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                      <SyncStatusBadge
-                        :status="event.sync_status"
-                        :error="event.sync_error"
-                      />
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      <div
-                        class="flex space-x-2"
-                        :title="getResponsesTooltip(event.responses)"
-                      >
-                        <span class="text-green-600">✓ {{ event.responses?.acceptedIds?.length || 0 }}</span>
-                        <span class="text-red-600">✗ {{ event.responses?.declinedIds?.length || 0 }}</span>
-                        <span class="text-gray-600">? {{ event.responses?.unansweredIds?.length || 0 }}</span>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                    <UIcon name="i-heroicons-academic-cap" class="w-3 h-3" />
+                    Vakt
+                  </UBadge>
+                </div>
+                <div v-if="row.description" class="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 md:max-w-md" :title="row.description">
+                  {{ row.description }}
+                </div>
+                <div v-if="row.category_id" class="mt-1">
+                  <CategoryBadge :category-id="row.category_id" size="xs" />
+                </div>
+              </template>
+              <template #cell-start_time="{ row }">
+                <span class="text-sm text-gray-500 dark:text-gray-400">{{ formatDate(row.start_time) }}</span>
+              </template>
+              <template #cell-event_type="{ row }">
+                <UBadge :color="getEventTypeColor(row.event_type)">{{ row.event_type }}</UBadge>
+              </template>
+              <template #cell-status="{ row }">
+                <UBadge v-if="row.cancelled" color="red">Cancelled</UBadge>
+                <UBadge v-else-if="row.hidden" color="orange">Hidden</UBadge>
+                <UBadge v-else color="green">Active</UBadge>
+              </template>
+              <template #cell-sync="{ row }">
+                <SyncStatusBadge :status="row.sync_status" :error="row.sync_error" />
+              </template>
+              <template #cell-responses="{ row }">
+                <div class="flex gap-2 justify-end md:justify-start" :title="getResponsesTooltip(row.responses)">
+                  <span class="text-green-600">✓ {{ row.responses?.acceptedIds?.length || 0 }}</span>
+                  <span class="text-red-600">✗ {{ row.responses?.declinedIds?.length || 0 }}</span>
+                  <span class="text-gray-600">? {{ row.responses?.unansweredIds?.length || 0 }}</span>
+                </div>
+              </template>
+            </ResponsiveTable>
 
             <!-- Enhanced Pagination -->
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
@@ -377,6 +317,15 @@ const authStore = useAuthStore()
 
 const events = ref<any[]>([])
 const total = ref(0)
+
+const eventCols = [
+  { key: 'heading', label: 'Event', primary: true, sortable: true },
+  { key: 'start_time', label: 'Date', sortable: true },
+  { key: 'event_type', label: 'Type' },
+  { key: 'status', label: 'Status' },
+  { key: 'sync', label: 'Sync' },
+  { key: 'responses', label: 'Responses' },
+] as const
 const loading = ref(false)
 const syncing = ref(false)
 
