@@ -32,6 +32,7 @@ class ExternalEventResponse(BaseModel):
     longitude: Optional[float] = None
     source_url: str
     ai_event_category: Optional[str] = None
+    ai_competition_type: Optional[str] = None
     ai_summary: Optional[str] = None
     ai_analyzed_at: Optional[datetime] = None
     is_active: bool
@@ -84,6 +85,7 @@ class ExternalEventFilters(BaseModel):
     date_from: Optional[DateType] = None
     date_to: Optional[DateType] = None
     ai_event_category: Optional[str] = None
+    ai_competition_type: Optional[str] = None
     is_active: Optional[bool] = None
     skip: int = 0
     limit: int = 50

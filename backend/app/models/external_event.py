@@ -38,6 +38,9 @@ class ExternalEvent(Base, TimestampMixin):
 
     # AI-generated fields
     ai_event_category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # Archery discipline of the competition, classified by the AI: felt, bane,
+    # innendørs, 3D, ski, clout, annet, ukjent. See ANALYZE prompt + vocab.
+    ai_competition_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     ai_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_analyzed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 

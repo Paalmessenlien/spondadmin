@@ -105,6 +105,10 @@ def _extract_coordinates(html: str) -> tuple[Optional[float], Optional[float]]:
 class ExternalEventScraperService:
     BASE_URL = "https://resultat.bueskyting.no"
 
+    # Controlled vocabulary for the AI-classified archery discipline. Keep in
+    # sync with the prompt in analyze_event_with_ai and the frontend labels.
+    COMPETITION_TYPES = ("felt", "bane", "innendørs", "3D", "ski", "clout", "annet", "ukjent")
+
     @staticmethod
     async def scrape_upcoming_events(db: AsyncSession) -> Dict:
         """
@@ -491,11 +495,23 @@ Beskrivelse: {event.description or 'Ingen beskrivelse tilgjengelig'}"""
                 "content": """Du er en ekspert på norsk bueskyting og stevner.
 Analyser følgende stevneinformasjon og returner et JSON-objekt med:
 1. "category": En av "personlig" (skytteren melder seg på selv), "klubb" (klubben må sende påmelding/invitasjon) eller "ukjent" (ikke nok info)
-2. "summary": En kort norsk oppsummering (2-3 setninger) av stevnet som er nyttig for en klubbleder
+2. "competition_type": Bueskytingsgrenen stevnet gjelder. Velg NØYAKTIG én av:
+   - "felt": feltbueskyting / skogsrunde / uoppmålt eller oppmålt felt
+   - "bane": banebueskyting utendørs, f.eks. 720-runde, WA1440, 70m/50m/30m skiveskyting utendørs
+   - "innendørs": innendørsstevne, 18m eller 25m skiveskyting
+   - "3D": 3D-bueskyting (dyrefigurer)
+   - "ski": skibueskyting / vinterbiathlon med bue
+   - "clout": clout-skyting
+   - "annet": en gren som ikke passer over (f.eks. flight, run-archery, kombinasjon)
+   - "ukjent": ikke nok informasjon til å avgjøre grenen
+3. "summary": En kort norsk oppsummering (2-3 setninger) av stevnet som er nyttig for en klubbleder
 
-Vurder disse faktorene for klassifisering:
+Vurder disse faktorene for kategori:
 - "personlig": Individuelle kan melde seg på via lenke, Ianseo, eller lignende system
 - "klubb": Krever klubbpåmelding, invitasjonsstevne, NM, eller mesterskap der klubben sender lag
+
+For competition_type: bruk navnet, "Type", distanse og format. Ord som "felt"/"skog" → felt;
+"18m"/"innendørs"/"inne" → innendørs; "3D" → 3D; "720"/"WA1440"/"bane"/"70m"/"50m" utendørs → bane.
 
 Svar KUN med gyldig JSON, ingen annen tekst.""",
             },
@@ -533,11 +549,12 @@ Svar KUN med gyldig JSON, ingen annen tekst.""",
                     except (json.JSONDecodeError, ValueError):
                         pass
 
-            # Try finding JSON object anywhere in the text (for reasoning models)
+            # Try finding the JSON object anywhere in the text (for reasoning
+            # models that wrap it in prose). Grab from the first "{" containing
+            # "category" to the matching last "}" — robust to extra keys like
+            # competition_type and to whatever order the model emits them in.
             if parsed is None:
-                match = re.search(r'\{[^{}]*"category"[^{}]*"summary"[^{}]*\}', content, re.DOTALL)
-                if not match:
-                    match = re.search(r'\{[^{}]*"summary"[^{}]*"category"[^{}]*\}', content, re.DOTALL)
+                match = re.search(r'\{.*"category".*\}', content, re.DOTALL)
                 if match:
                     try:
                         parsed = json.loads(match.group(0))
@@ -547,14 +564,20 @@ Svar KUN med gyldig JSON, ingen annen tekst.""",
             if parsed is None:
                 raise json.JSONDecodeError("Could not extract JSON from AI response", content, 0)
             category = parsed.get("category", "ukjent")
+            competition_type = parsed.get("competition_type", "ukjent")
             summary = parsed.get("summary", "")
 
             # Validate category
             if category not in ("personlig", "klubb", "ukjent"):
                 category = "ukjent"
 
+            # Validate competition type against the controlled vocabulary
+            if competition_type not in ExternalEventScraperService.COMPETITION_TYPES:
+                competition_type = "ukjent"
+
             # Update event
             event.ai_event_category = category
+            event.ai_competition_type = competition_type
             event.ai_summary = summary
             event.ai_analyzed_at = datetime.utcnow()
             await db.flush()
@@ -562,18 +585,21 @@ Svar KUN med gyldig JSON, ingen annen tekst.""",
             return {
                 "event_id": event.id,
                 "category": category,
+                "competition_type": competition_type,
                 "summary": summary,
             }
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse AI response for event {event.id}: {e}")
             event.ai_event_category = "ukjent"
+            event.ai_competition_type = "ukjent"
             event.ai_summary = "Kunne ikke analysere stevnet automatisk."
             event.ai_analyzed_at = datetime.utcnow()
             await db.flush()
             return {
                 "event_id": event.id,
                 "category": "ukjent",
+                "competition_type": "ukjent",
                 "summary": "Kunne ikke analysere stevnet automatisk.",
                 "error": str(e),
             }

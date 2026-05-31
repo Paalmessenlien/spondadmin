@@ -107,7 +107,7 @@
 
     <!-- Filters -->
     <UCard>
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <UInput
           v-model="search"
           placeholder="Søk etter konkurranser..."
@@ -120,6 +120,12 @@
           v-model="selectedCategory"
           :items="categoryOptions"
           placeholder="Alle kategorier"
+          @change="loadEvents"
+        />
+        <USelectMenu
+          v-model="selectedType"
+          :items="typeOptions"
+          placeholder="Alle grener"
           @change="loadEvents"
         />
       </div>
@@ -177,6 +183,15 @@
 
             <!-- Badges and actions -->
             <div class="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
+              <UBadge
+                v-if="typeBadge(event.ai_competition_type)"
+                :color="typeBadge(event.ai_competition_type)!.color"
+                :icon="typeBadge(event.ai_competition_type)!.icon"
+                variant="soft"
+              >
+                {{ typeBadge(event.ai_competition_type)!.label }}
+              </UBadge>
+
               <UBadge
                 v-if="event.ai_event_category === 'personlig'"
                 color="info"
@@ -280,6 +295,7 @@ const search = ref('')
 const dateFrom = ref('')
 const dateTo = ref('')
 const selectedCategory = ref<any>(null)
+const selectedType = ref<any>(null)
 const page = ref(1)
 const limit = 20
 
@@ -289,6 +305,33 @@ const categoryOptions = [
   { label: 'Klubbpåmelding', value: 'klubb' },
   { label: 'Ukjent', value: 'ukjent' },
 ]
+
+// Archery discipline (AI-classified). Keep keys in sync with the backend
+// COMPETITION_TYPES vocabulary in external_event_scraper_service.py.
+const typeOptions = [
+  { label: 'Alle grener', value: '' },
+  { label: 'Felt', value: 'felt' },
+  { label: 'Bane', value: 'bane' },
+  { label: 'Innendørs', value: 'innendørs' },
+  { label: '3D', value: '3D' },
+  { label: 'Ski', value: 'ski' },
+  { label: 'Clout', value: 'clout' },
+  { label: 'Annet', value: 'annet' },
+  { label: 'Ukjent gren', value: 'ukjent' },
+]
+
+const TYPE_BADGE: Record<string, { label: string; color: string; icon: string }> = {
+  felt: { label: 'Felt', color: 'success', icon: 'i-heroicons-map' },
+  bane: { label: 'Bane', color: 'info', icon: 'i-heroicons-viewfinder-circle' },
+  'innendørs': { label: 'Innendørs', color: 'primary', icon: 'i-heroicons-home-modern' },
+  '3D': { label: '3D', color: 'secondary', icon: 'i-heroicons-cube' },
+  ski: { label: 'Ski', color: 'info', icon: 'i-heroicons-sparkles' },
+  clout: { label: 'Clout', color: 'warning', icon: 'i-heroicons-arrow-trending-up' },
+  annet: { label: 'Annet', color: 'neutral', icon: 'i-heroicons-ellipsis-horizontal' },
+  ukjent: { label: 'Ukjent gren', color: 'neutral', icon: 'i-heroicons-question-mark-circle' },
+}
+
+const typeBadge = (type?: string | null) => (type ? TYPE_BADGE[type] : undefined)
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 const debouncedLoad = () => {
@@ -308,6 +351,8 @@ const loadEvents = async () => {
     if (dateTo.value) params.date_to = dateTo.value
     const catValue = selectedCategory.value?.value || ''
     if (catValue) params.ai_event_category = catValue
+    const typeValue = selectedType.value?.value || ''
+    if (typeValue) params.ai_competition_type = typeValue
 
     const data: any = await api.getExternalEvents(params)
     events.value = data.events || []

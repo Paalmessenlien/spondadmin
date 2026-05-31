@@ -33,6 +33,8 @@ class ExternalEventService:
             conditions.append(ExternalEvent.date_start <= filters.date_to)
         if filters.ai_event_category:
             conditions.append(ExternalEvent.ai_event_category == filters.ai_event_category)
+        if filters.ai_competition_type:
+            conditions.append(ExternalEvent.ai_competition_type == filters.ai_competition_type)
         if filters.is_active is not None:
             conditions.append(ExternalEvent.is_active == filters.is_active)
 
@@ -80,10 +82,21 @@ class ExternalEventService:
 
     @staticmethod
     async def get_unanalyzed_events(db: AsyncSession) -> List[ExternalEvent]:
-        """Get events that haven't been analyzed by AI yet."""
+        """Get events that still need AI analysis.
+
+        Includes events never analyzed AND events analyzed before the
+        competition-type classifier existed (ai_competition_type is null), so
+        the "Analyser alle" button naturally backfills the new field without a
+        separate re-analyze action.
+        """
         result = await db.execute(
             select(ExternalEvent)
-            .where(ExternalEvent.ai_analyzed_at.is_(None))
+            .where(
+                or_(
+                    ExternalEvent.ai_analyzed_at.is_(None),
+                    ExternalEvent.ai_competition_type.is_(None),
+                )
+            )
             .order_by(ExternalEvent.date_start.asc().nullslast())
         )
         return result.scalars().all()

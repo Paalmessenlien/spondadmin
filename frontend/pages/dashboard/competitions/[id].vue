@@ -32,6 +32,14 @@
                   {{ event.event_type_raw }}
                 </UBadge>
                 <UBadge
+                  v-if="typeBadge(event.ai_competition_type)"
+                  :color="typeBadge(event.ai_competition_type)!.color"
+                  :icon="typeBadge(event.ai_competition_type)!.icon"
+                  variant="soft"
+                >
+                  {{ typeBadge(event.ai_competition_type)!.label }}
+                </UBadge>
+                <UBadge
                   v-if="event.ai_event_category === 'personlig'"
                   color="info"
                   variant="subtle"
@@ -379,6 +387,20 @@ const isUpcoming = computed(() => {
   if (!event.value?.date_start) return false
   return new Date(event.value.date_start) >= new Date(new Date().toDateString())
 })
+
+// Archery discipline badge (AI-classified). Keys mirror the backend
+// COMPETITION_TYPES vocabulary in external_event_scraper_service.py.
+const TYPE_BADGE: Record<string, { label: string; color: string; icon: string }> = {
+  felt: { label: 'Felt', color: 'success', icon: 'i-heroicons-map' },
+  bane: { label: 'Bane', color: 'info', icon: 'i-heroicons-viewfinder-circle' },
+  'innendørs': { label: 'Innendørs', color: 'primary', icon: 'i-heroicons-home-modern' },
+  '3D': { label: '3D', color: 'secondary', icon: 'i-heroicons-cube' },
+  ski: { label: 'Ski', color: 'info', icon: 'i-heroicons-sparkles' },
+  clout: { label: 'Clout', color: 'warning', icon: 'i-heroicons-arrow-trending-up' },
+  annet: { label: 'Annet', color: 'neutral', icon: 'i-heroicons-ellipsis-horizontal' },
+  ukjent: { label: 'Ukjent gren', color: 'neutral', icon: 'i-heroicons-question-mark-circle' },
+}
+const typeBadge = (type?: string | null) => (type ? TYPE_BADGE[type] : undefined)
 
 // Cross-link suggestions / confirmation (admin).
 const loadingSuggestions = ref(false)
