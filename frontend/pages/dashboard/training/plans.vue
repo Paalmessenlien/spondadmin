@@ -97,6 +97,16 @@
                   size="xs"
                   color="neutral"
                   variant="soft"
+                  icon="i-heroicons-eye"
+                  :loading="!!plan._viewing"
+                  @click="viewReport(plan)"
+                >
+                  View
+                </UButton>
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="soft"
                   icon="i-heroicons-arrow-down-tray"
                   :loading="!!plan._exporting"
                   @click="exportPdf(plan)"
@@ -192,6 +202,45 @@
         </div>
       </template>
     </UModal>
+
+    <!-- In-app report viewer — renders the same PDF inline (browser's PDF
+         viewer) so admins can read the report without downloading it. -->
+    <UModal v-model:open="viewerOpen" :ui="{ content: 'max-w-5xl' }">
+      <template #content>
+        <div class="flex flex-col h-[85vh]">
+          <div class="flex items-center justify-between gap-3 p-3 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-white truncate">
+              {{ viewerTitle }}
+            </h2>
+            <div class="flex items-center gap-2 shrink-0">
+              <a
+                v-if="viewerUrl"
+                :href="viewerUrl"
+                :download="`${viewerTitle}.pdf`"
+                class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
+              >
+                <UIcon name="i-heroicons-arrow-down-tray" class="w-4 h-4" />
+                Download
+              </a>
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                icon="i-heroicons-x-mark"
+                aria-label="Close"
+                @click="viewerOpen = false"
+              />
+            </div>
+          </div>
+          <iframe
+            v-if="viewerUrl"
+            :src="viewerUrl"
+            class="flex-1 w-full rounded-b-lg bg-white"
+            title="Training plan report"
+          />
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -213,6 +262,7 @@ interface PlanRow {
   session_type_count: number
   shift_count: number
   _exporting?: boolean
+  _viewing?: boolean
 }
 
 const plans = ref<PlanRow[]>([])
@@ -359,6 +409,39 @@ const activate = (plan: PlanRow) => {
     color: 'success',
   })
 }
+
+// In-app report viewer. We reuse the existing PDF blob and render it inline
+// in an <iframe> (the browser's PDF viewer) so no file hits the download
+// folder. The object URL is revoked when the modal closes to free memory.
+const viewerOpen = ref(false)
+const viewerUrl = ref<string | null>(null)
+const viewerTitle = ref('')
+
+const viewReport = async (plan: PlanRow) => {
+  plan._viewing = true
+  try {
+    const blob: Blob = await api.exportTrainingPlanPdf(plan.id)
+    if (viewerUrl.value) URL.revokeObjectURL(viewerUrl.value)
+    viewerUrl.value = URL.createObjectURL(blob)
+    viewerTitle.value = plan.name
+    viewerOpen.value = true
+  } catch (err: any) {
+    toast.add({
+      title: 'Could not open report',
+      description: err?.data?.detail || 'Failed to render the report',
+      color: 'error',
+    })
+  } finally {
+    plan._viewing = false
+  }
+}
+
+watch(viewerOpen, (open) => {
+  if (!open && viewerUrl.value) {
+    URL.revokeObjectURL(viewerUrl.value)
+    viewerUrl.value = null
+  }
+})
 
 const exportPdf = async (plan: PlanRow) => {
   plan._exporting = true

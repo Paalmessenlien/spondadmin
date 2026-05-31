@@ -69,6 +69,36 @@ def _leader_label(shift: TrainingShift) -> str:
     return "—"
 
 
+def _leader_summary(shift_list: list[TrainingShift]) -> list[tuple[str, int]]:
+    """Count how many shifts each person leads in the plan.
+
+    Grouping key is the leader's identity, not their display label: a linked
+    Member is keyed by id, an unlinked entry by its raw initials, so two
+    different people who happen to render to the same "Pål M." label are still
+    counted separately. Returns (label, count) sorted by count descending then
+    label ascending, with any unassigned shifts collapsed into a single
+    trailing "(unassigned)" row.
+    """
+    counts: dict[tuple, int] = {}
+    labels: dict[tuple, str] = {}
+    for s in shift_list:
+        if s.leader is not None:
+            key: tuple = ("member", s.leader.id)
+        elif s.raw_initials:
+            key = ("initials", s.raw_initials)
+        else:
+            key = ("unassigned",)
+        counts[key] = counts.get(key, 0) + 1
+        labels[key] = _leader_label(s)
+
+    unassigned = counts.pop(("unassigned",), 0)
+    summary = [(labels[k], c) for k, c in counts.items()]
+    summary.sort(key=lambda lc: (-lc[1], lc[0].lower()))
+    if unassigned:
+        summary.append(("(unassigned)", unassigned))
+    return summary
+
+
 def render_plan_pdf(
     plan: TrainingPlan,
     shifts: Iterable[TrainingShift],
@@ -150,6 +180,45 @@ def render_plan_pdf(
         )
     )
     story.append(Spacer(1, 4 * mm))
+
+    # Per-leader summary: how many trainings each person leads in this plan.
+    # Sits at the top so a coordinator sees the workload distribution at a
+    # glance before the detailed chronological table further down.
+    leader_counts = _leader_summary(shift_list)
+    if leader_counts:
+        story.append(Paragraph("Trainings per leader", h2))
+        summary_rows: list[list[str]] = [["Leader", "Trainings"]]
+        summary_rows += [[label, str(count)] for label, count in leader_counts]
+        summary_table = Table(
+            summary_rows,
+            colWidths=[60 * mm, 30 * mm],
+            repeatRows=1,
+        )
+        summary_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f3f4f6")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                    ("TOPPADDING", (0, 0), (-1, 0), 6),
+                    ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
+                    ("TOPPADDING", (0, 1), (-1, -1), 4),
+                    ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LINEBELOW", (0, 0), (-1, 0), 0.75, colors.HexColor("#d1d5db")),
+                    ("LINEBELOW", (0, -1), (-1, -1), 0.25, colors.HexColor("#e5e7eb")),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 1),
+                        (-1, -1),
+                        [colors.white, colors.HexColor("#fafafa")],
+                    ),
+                ]
+            )
+        )
+        story.append(summary_table)
+        story.append(Spacer(1, 6 * mm))
 
     # Table.
     header = ["Date", "Day", "Session type", "Time", "Leader", "Status"]
