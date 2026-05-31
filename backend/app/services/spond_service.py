@@ -242,12 +242,29 @@ class SpondService:
                     member_ids = invited_member_ids
                     logger.info(f"Using {len(member_ids)} selected members for invitation")
                 else:
-                    # Fetch all group members (default behavior)
-                    group_data = await client.get_group(group_id)
+                    # Fetch all group members (default behavior). Guard the
+                    # Spond library call: its _get_entity() iterates
+                    # `self.groups` and does `entity["id"]`, which raises a
+                    # cryptic "string indices must be integers, not 'str'"
+                    # TypeError when the groups/ endpoint returns a non-list
+                    # (e.g. an auth-error object). Never let that opaque error
+                    # abort event creation — fall back to a group reference
+                    # with no explicit member list.
                     member_ids = []
-                    if group_data and "members" in group_data:
+                    try:
+                        group_data = await client.get_group(group_id)
+                    except Exception as e:  # noqa: BLE001 — spond lib raises bare
+                        logger.warning(
+                            "client.get_group(%s) failed (%s); creating event "
+                            "with the group reference only (no explicit member "
+                            "list)", group_id, e,
+                        )
+                        group_data = None
+                    if isinstance(group_data, dict) and isinstance(
+                        group_data.get("members"), list
+                    ):
                         for member in group_data["members"]:
-                            if "id" in member:
+                            if isinstance(member, dict) and "id" in member:
                                 member_ids.append(member["id"])
                     logger.info(f"Found {len(member_ids)} members in group {group_id} (inviting all)")
 

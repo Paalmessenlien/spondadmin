@@ -281,6 +281,35 @@ class SpondEventCreateService:
                     )
                     invited_member_ids = [mid for mid, _ in rows]
 
+        # Final fallback (audience precedence #5): no explicit audience set
+        # anywhere → invite every member of the primary group. We resolve the
+        # member list from our *own* DB rather than leaving it None and letting
+        # spond_service fall back to the Spond library's get_group(): that
+        # library's _get_entity() raises an opaque
+        # "string indices must be integers, not 'str'" TypeError whenever
+        # Spond's groups/ endpoint returns a non-list (e.g. an auth-error
+        # object). Sourcing locally is crash-proof and faster.
+        if invited_member_ids is None:
+            stmt = (
+                select(Member.spond_id)
+                .join(GroupMember, GroupMember.member_id == Member.id)
+                .where(GroupMember.group_id == primary_group.id)
+            )
+            rows = await db.execute(stmt)
+            invited_member_ids = [mid for mid, in rows.all() if mid]
+            if invited_member_ids:
+                logger.info(
+                    "No explicit audience for shift %s; inviting all %d "
+                    "members of group %s",
+                    shift.id, len(invited_member_ids), group_id,
+                )
+            else:
+                logger.warning(
+                    "No explicit audience and group %s has zero members in the "
+                    "local DB; the Spond event will be created with no invitees",
+                    group_id,
+                )
+
         # Owners. `owners[].id` must be the *profile* id, not Member.spond_id.
         owner_ids: Optional[list[str]] = None
         if leader is not None:
