@@ -622,6 +622,15 @@ export const useApi = () => {
     return makeRequest<{ items: any[]; total: number }>('/training/plans')
   }
 
+  // Aggregated training statistics for the plans Statistics tab.
+  // params: { plan_id?, start_date?, end_date?, period? ('month'|'week') }
+  const getTrainingStatistics = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '') as any
+    ).toString()
+    return makeRequest(`/training/statistics?${query}`)
+  }
+
   const createTrainingPlan = async (body: any) => {
     return makeRequest<any>('/training/plans', { method: 'POST', body })
   }
@@ -823,6 +832,7 @@ export const useApi = () => {
     updateTrainingSessionType,
     deleteTrainingSessionType,
     getTrainingPlans,
+    getTrainingStatistics,
     createTrainingPlan,
     updateTrainingPlan,
     deleteTrainingPlan,

@@ -14,10 +14,15 @@
           shared with the calendar — switching here also switches there.
         </p>
       </div>
-      <UButton v-if="isAdmin" icon="i-heroicons-plus" @click="openNew">
+      <UButton v-if="isAdmin && activeTab === 'plans'" icon="i-heroicons-plus" @click="openNew">
         New plan
       </UButton>
     </div>
+
+    <UTabs v-model="activeTab" :items="tabItems" class="w-full">
+      <template #content="{ item }">
+        <!-- Plans list -->
+        <div v-if="item.value === 'plans'" class="space-y-6 pt-2">
 
     <div v-if="loading" class="flex justify-center py-12">
       <UIcon name="i-heroicons-arrow-path" class="animate-spin h-8 w-8" />
@@ -141,6 +146,15 @@
         </table>
       </div>
     </UCard>
+
+        </div>
+
+        <!-- Statistics -->
+        <div v-else-if="item.value === 'stats'" class="pt-2">
+          <TrainingStatistics :plans="plans" />
+        </div>
+      </template>
+    </UTabs>
 
     <!-- New / edit modal -->
     <UModal v-model:open="editorOpen" :ui="{ content: 'max-w-xl' }">
@@ -267,6 +281,12 @@ interface PlanRow {
 
 const plans = ref<PlanRow[]>([])
 const loading = ref(true)
+
+const activeTab = ref('plans')
+const tabItems = [
+  { label: 'Plans', value: 'plans', icon: 'i-heroicons-document-text' },
+  { label: 'Statistics', value: 'stats', icon: 'i-heroicons-chart-bar' },
+]
 
 const editorOpen = ref(false)
 const draft = ref<{

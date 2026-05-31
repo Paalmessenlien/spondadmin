@@ -366,3 +366,65 @@ class ImportReport(BaseModel):
     created_session_types: List[str] = Field(default_factory=list)
     created_aliases: int = 0
     errors: List[str] = Field(default_factory=list)
+
+
+# ============================================================
+# Statistics (plans-page Statistics tab)
+# ============================================================
+
+class TrainingStatSummary(BaseModel):
+    total_shifts: int = 0
+    draft: int = 0
+    published: int = 0
+    cancelled: int = 0
+    accepted: int = 0
+    declined: int = 0
+    unanswered: int = 0
+    session_type_count: int = 0
+    leader_count: int = 0
+    date_from: Optional[date] = None
+    date_to: Optional[date] = None
+
+
+class TrainingStatSetupRow(BaseModel):
+    session_type_id: int
+    name: str
+    total: int = 0
+    draft: int = 0
+    published: int = 0
+    cancelled: int = 0
+    accepted: int = 0
+    declined: int = 0
+    unanswered: int = 0
+    distinct_leaders: int = 0
+    first_date: Optional[date] = None
+    last_date: Optional[date] = None
+
+
+class TrainingStatLeaderRow(BaseModel):
+    leader_member_id: Optional[int] = None
+    label: str
+    total: int = 0
+    draft: int = 0
+    published: int = 0
+    cancelled: int = 0
+    accepted: int = 0
+    declined: int = 0
+    unanswered: int = 0
+
+
+class TrainingStatTimeBucket(BaseModel):
+    period: str
+    label: str
+    total: int = 0
+    draft: int = 0
+    published: int = 0
+    cancelled: int = 0
+
+
+class TrainingStatisticsResponse(BaseModel):
+    period: Literal["month", "week"]
+    summary: TrainingStatSummary
+    by_setup: List[TrainingStatSetupRow]
+    by_leader: List[TrainingStatLeaderRow]
+    over_time: List[TrainingStatTimeBucket]

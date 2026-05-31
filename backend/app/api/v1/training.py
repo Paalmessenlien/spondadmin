@@ -61,6 +61,7 @@ from app.schemas.training import (
     TrainingShiftListResponse,
     TrainingShiftResponse,
     TrainingShiftUpdate,
+    TrainingStatisticsResponse,
 )
 from app.services.spond_event_create_service import (
     SpondCreateError,
@@ -69,6 +70,7 @@ from app.services.spond_event_create_service import (
 from app.services.spond_service import get_spond_service
 from app.services.training_import_service import training_import_service
 from app.services.training_pdf_service import render_plan_pdf
+from app.services.training_statistics_service import TrainingStatisticsService
 
 logger = logging.getLogger(__name__)
 
@@ -296,6 +298,35 @@ async def export_plan_pdf(
             "Content-Disposition": f'attachment; filename="{safe_name}.pdf"',
         },
     )
+
+
+@router.get("/statistics", response_model=TrainingStatisticsResponse)
+async def get_training_statistics(
+    plan_id: Optional[int] = Query(
+        None, description="Restrict to one plan (via session_type.plan_id)"
+    ),
+    start_date: Optional[date_type] = Query(
+        None, description="Inclusive lower bound on shift date (YYYY-MM-DD)"
+    ),
+    end_date: Optional[date_type] = Query(
+        None, description="Inclusive upper bound on shift date (YYYY-MM-DD)"
+    ),
+    period: str = Query("month", description="Time-bucket size: month | week"),
+    current_user: Admin = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Aggregate training shifts over a date range for the plans Statistics tab:
+    summary totals, by training setup, by leader, and over time. Spond
+    attendance is read from linked events (published shifts). Read-only —
+    available to admin/editor/viewer."""
+    stats = await TrainingStatisticsService.get_statistics(
+        db,
+        plan_id=plan_id,
+        start_date=start_date,
+        end_date=end_date,
+        period=period,
+    )
+    return TrainingStatisticsResponse(**stats)
 
 
 # ============================================================
