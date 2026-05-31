@@ -14,11 +14,11 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From</label>
-          <DateInputISO v-model="startDate" />
+          <UInput type="date" class="w-full" v-model="startDate" />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">To</label>
-          <DateInputISO v-model="endDate" />
+          <UInput type="date" class="w-full" v-model="endDate" />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bucket</label>

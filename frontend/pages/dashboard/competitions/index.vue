@@ -114,8 +114,8 @@
           icon="i-heroicons-magnifying-glass"
           @input="debouncedLoad"
         />
-        <DateInputISO v-model="dateFrom" @change="loadEvents" />
-        <DateInputISO v-model="dateTo" @change="loadEvents" />
+        <UInput type="date" class="w-full" v-model="dateFrom" @change="loadEvents" />
+        <UInput type="date" class="w-full" v-model="dateTo" @change="loadEvents" />
         <USelectMenu
           v-model="selectedCategory"
           :items="categoryOptions"

@@ -53,7 +53,7 @@
 
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
-            <DateInputISO v-model="form.date" :disabled="isEditing" />
+            <UInput type="date" class="w-full" v-model="form.date" :disabled="isEditing" />
           </div>
 
           <div>
@@ -117,11 +117,11 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start time</label>
-              <TimeInputHHMM v-model="form.start_time_override" />
+              <UInput type="time" class="w-full" v-model="form.start_time_override" />
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End time</label>
-              <TimeInputHHMM v-model="form.end_time_override" />
+              <UInput type="time" class="w-full" v-model="form.end_time_override" />
             </div>
           </div>
 
@@ -278,7 +278,7 @@
                 :ui="{ base: 'w-24' }"
               />
               <span class="text-gray-600 dark:text-gray-400">days before, at</span>
-              <TimeInputHHMM v-model="form.invite_send_time" />
+              <UInput type="time" class="w-full" v-model="form.invite_send_time" />
               <span class="text-gray-500 text-xs">(Europe/Oslo)</span>
               <UButton
                 v-if="inviteScheduleDiffersFromDefault"

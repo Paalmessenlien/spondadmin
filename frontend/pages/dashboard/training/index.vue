@@ -376,11 +376,11 @@
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start</label>
-              <TimeInputHHMM v-model="editingSessionType._editStart" />
+              <UInput type="time" class="w-full" v-model="editingSessionType._editStart" />
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End</label>
-              <TimeInputHHMM v-model="editingSessionType._editEnd" />
+              <UInput type="time" class="w-full" v-model="editingSessionType._editEnd" />
             </div>
           </div>
 
@@ -582,7 +582,7 @@
                 :ui="{ base: 'w-24' }"
               />
               <span class="text-gray-600 dark:text-gray-400">days before, at</span>
-              <TimeInputHHMM v-model="editingSessionType._editInviteSendTime" />
+              <UInput type="time" class="w-full" v-model="editingSessionType._editInviteSendTime" />
               <span class="text-gray-500 dark:text-gray-400 text-xs">(Europe/Oslo)</span>
             </div>
           </div>

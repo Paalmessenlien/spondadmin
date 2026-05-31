@@ -35,8 +35,8 @@
           class="w-32"
           @input="debouncedLoad"
         />
-        <DateInputISO v-model="filters.date_from" @change="loadResults" />
-        <DateInputISO v-model="filters.date_to" @change="loadResults" />
+        <UInput type="date" class="w-full" v-model="filters.date_from" @change="loadResults" />
+        <UInput type="date" class="w-full" v-model="filters.date_to" @change="loadResults" />
       </div>
     </UCard>
 

@@ -191,11 +191,11 @@ const exportTableToCSV = () => {
       <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
         <div>
           <label class="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
-          <DateInputISO v-model="startDateFilter" />
+          <UInput type="date" class="w-full" v-model="startDateFilter" />
         </div>
         <div>
           <label class="block text-xs font-medium text-gray-500 mb-1">End Date</label>
-          <DateInputISO v-model="endDateFilter" />
+          <UInput type="date" class="w-full" v-model="endDateFilter" />
         </div>
         <div class="flex items-end">
           <UButton

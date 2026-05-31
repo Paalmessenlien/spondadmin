@@ -75,12 +75,12 @@
 
               <div class="lg:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1">From</label>
-                <DateInputISO v-model="filters.start_date" />
+                <UInput type="date" class="w-full" v-model="filters.start_date" />
               </div>
 
               <div class="lg:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1">To</label>
-                <DateInputISO v-model="filters.end_date" />
+                <UInput type="date" class="w-full" v-model="filters.end_date" />
               </div>
             </div>
 

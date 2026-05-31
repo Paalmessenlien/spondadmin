@@ -476,7 +476,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
               :disabled="loading"
             />
             <span class="text-gray-600 dark:text-gray-400">days before, at</span>
-            <TimeInputHHMM v-model="inviteSendTime" :disabled="loading" />
+            <UInput type="time" class="w-full" v-model="inviteSendTime" :disabled="loading" />
             <span class="text-gray-500 text-xs">(Europe/Oslo)</span>
           </div>
           <p class="text-xs text-gray-500">{{ inviteScheduleSummary }}</p>

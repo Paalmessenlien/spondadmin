@@ -427,7 +427,7 @@
                     :disabled="editLoading"
                   />
                   <span class="text-gray-600 dark:text-gray-400">days before, at</span>
-                  <TimeInputHHMM v-model="editInviteSendTime" :disabled="editLoading" />
+                  <UInput type="time" class="w-full" v-model="editInviteSendTime" :disabled="editLoading" />
                   <span class="text-gray-500 text-xs">(Europe/Oslo)</span>
                 </div>
                 <p class="text-xs text-gray-500">{{ editInviteScheduleSummary }}</p>

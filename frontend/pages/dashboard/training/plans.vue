@@ -104,11 +104,11 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Period start</label>
-              <DateInputISO v-model="draft.period_start" />
+              <UInput type="date" class="w-full" v-model="draft.period_start" />
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Period end</label>
-              <DateInputISO v-model="draft.period_end" />
+              <UInput type="date" class="w-full" v-model="draft.period_end" />
             </div>
           </div>
 
