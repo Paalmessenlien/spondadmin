@@ -137,7 +137,13 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           PROJECT_DIR: ${{ vars.PROJECT_DIR || '/srv/app' }}
         run: |
-          ssh "$SSH_USER@$SSH_HOST" "cd '$PROJECT_DIR' && ./scripts/deploy.sh"
+          # Keepalive: deploy.sh has long silent steps (pre-deploy backup,
+          # on-server frontend build) that can exceed NAT/sshd idle timeouts
+          # and drop the session ("client_loop: send disconnect: Broken pipe",
+          # exit 255). Send a probe every 30s and tolerate ~10min of true
+          # unresponsiveness before giving up.
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            "$SSH_USER@$SSH_HOST" "cd '$PROJECT_DIR' && ./scripts/deploy.sh"
 
       - name: Wait for health check
         # Poll /health for up to 2 minutes. Deploy is considered a failure
