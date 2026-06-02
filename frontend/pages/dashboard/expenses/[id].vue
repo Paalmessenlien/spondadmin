@@ -61,13 +61,7 @@
         <template #header><h2 class="font-semibold">Kvitteringer</h2></template>
         <div v-if="!expense.attachments?.length" class="text-sm text-gray-500">Ingen kvitteringer.</div>
         <div v-else class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <a v-for="att in expense.attachments" :key="att.id" :href="att.cdn_url" target="_blank" class="block">
-            <img v-if="att.content_type?.startsWith('image/')" :src="att.cdn_url" class="w-full h-28 object-cover rounded border border-gray-200 dark:border-gray-800" />
-            <div v-else class="w-full h-28 flex flex-col items-center justify-center gap-1 rounded border border-gray-200 dark:border-gray-800">
-              <UIcon name="i-heroicons-document" class="w-8 h-8 text-gray-400" />
-              <span class="text-xs text-gray-500 truncate max-w-full px-1">{{ att.filename }}</span>
-            </div>
-          </a>
+          <ExpenseReceipt v-for="att in expense.attachments" :key="att.id" :expense-id="expenseId" :attachment="att" />
         </div>
       </UCard>
 

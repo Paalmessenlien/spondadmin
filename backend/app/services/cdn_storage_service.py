@@ -64,6 +64,22 @@ class CDNStorageService:
         return url
 
     @staticmethod
+    async def download_bytes(path: str) -> bytes:
+        """Fetch an object's bytes from the storage zone (private, AccessKey).
+
+        Used to serve access-controlled files (e.g. receipts) through the
+        backend instead of relying on public CDN URLs — the storage zone is
+        not publicly served.
+        """
+        if not CDNStorageService.is_configured():
+            raise CDNNotConfigured("Bunny CDN not configured")
+        url = f"{CDNStorageService._base_url()}/{settings.BUNNY_STORAGE_ZONE}/{path}"
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.get(url, headers={"AccessKey": settings.BUNNY_STORAGE_API_KEY})
+            resp.raise_for_status()
+            return resp.content
+
+    @staticmethod
     async def delete(path: str) -> None:
         """Delete an object by path. Best-effort: logs and swallows errors."""
         if not CDNStorageService.is_configured():

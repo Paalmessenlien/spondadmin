@@ -242,6 +242,37 @@ async def upload_attachment(
     return ExpenseAttachmentResponse.model_validate(att)
 
 
+@router.get("/{expense_id}/attachments/{attachment_id}/file")
+async def get_attachment_file(
+    expense_id: int,
+    attachment_id: int,
+    current_user: Admin = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stream a receipt to an authorized viewer (owner or kasserer/admin).
+
+    Receipts are sensitive (names/amounts) so they are NOT served via a public
+    CDN URL — the backend fetches them from the storage zone with the AccessKey
+    and returns the bytes only after the access check.
+    """
+    await _get_viewable(db, expense_id, current_user)
+    att = await ExpenseService.get_attachment(db, attachment_id)
+    if not att or att.expense_id != expense_id:
+        raise HTTPException(status_code=404, detail="Vedlegg ikke funnet")
+    try:
+        data = await CDNStorageService.download_bytes(att.cdn_path)
+    except CDNNotConfigured:
+        raise HTTPException(status_code=503, detail="Fillagring (CDN) er ikke konfigurert")
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Failed to fetch receipt {attachment_id} from storage: {e}")
+        raise HTTPException(status_code=502, detail="Kunne ikke hente kvittering fra lager")
+    return Response(
+        content=data,
+        media_type=att.content_type or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{att.filename}"'},
+    )
+
+
 @router.delete("/{expense_id}/attachments/{attachment_id}")
 async def delete_attachment(
     expense_id: int,

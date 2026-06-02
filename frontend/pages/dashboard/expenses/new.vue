@@ -39,9 +39,8 @@
         </div>
 
         <div v-for="att in attachments" :key="att.id" class="flex items-center gap-3 p-2 rounded border border-gray-200 dark:border-gray-800">
-          <img v-if="att.content_type?.startsWith('image/')" :src="att.cdn_url" class="w-12 h-12 object-cover rounded" />
-          <UIcon v-else name="i-heroicons-document" class="w-10 h-10 text-gray-400" />
-          <a :href="att.cdn_url" target="_blank" class="flex-1 text-sm truncate hover:text-blue-600">{{ att.filename }}</a>
+          <ExpenseReceipt v-if="expenseId" :expense-id="expenseId" :attachment="att" :thumb="false" />
+          <span class="flex-1 text-sm truncate">{{ att.filename }}</span>
           <UButton size="xs" color="error" variant="ghost" icon="i-heroicons-trash" @click="removeAttachment(att.id)" />
         </div>
 

@@ -756,6 +756,19 @@ export const useApi = () => {
   const deleteExpenseAttachment = async (id: number, attachmentId: number) =>
     makeRequest(`/expenses/${id}/attachments/${attachmentId}`, { method: 'DELETE' })
 
+  // Receipts are access-controlled, not public — fetch the bytes with auth and
+  // hand back a Blob the caller turns into an object URL for <img>/<a>.
+  const fetchExpenseAttachmentFile = async (id: number, attachmentId: number) => {
+    const headers: Record<string, string> = {}
+    const token = await getToken.value()
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return $fetch<Blob>(`/expenses/${id}/attachments/${attachmentId}/file`, {
+      baseURL: config.public.apiBase,
+      headers,
+      responseType: 'blob',
+    })
+  }
+
   // CSV export (kasserer/admin). Returns a Blob for download.
   const exportExpensesCsv = async (params: Record<string, any> = {}) => {
     const query = new URLSearchParams(
@@ -918,6 +931,7 @@ export const useApi = () => {
     reviewExpense,
     uploadExpenseAttachment,
     deleteExpenseAttachment,
+    fetchExpenseAttachmentFile,
     exportExpensesCsv,
   }
 }
