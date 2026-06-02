@@ -226,7 +226,7 @@ class AIService:
         """
         try:
             import io
-            from PIL import Image
+            from PIL import Image, ImageOps
             try:
                 import pillow_heif  # noqa: F401
                 pillow_heif.register_heif_opener()
@@ -234,6 +234,9 @@ class AIService:
                 pass
 
             img = Image.open(io.BytesIO(image_bytes))
+            # Honour EXIF orientation before we re-encode (which drops EXIF),
+            # so rotated phone photos reach the vision model upright.
+            img = ImageOps.exif_transpose(img)
             img = img.convert("RGB")
             max_edge = 1600
             if max(img.size) > max_edge:
