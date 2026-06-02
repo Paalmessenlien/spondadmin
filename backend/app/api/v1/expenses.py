@@ -37,8 +37,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # 10 MB
-ALLOWED_PREFIXES = ("image/",)
-ALLOWED_EXACT = ("application/pdf",)
+
+# Receipt MIME handling. Accept only inert raster images + PDF on upload.
+# SVG and HTML are deliberately excluded: they can carry active content and
+# would be a stored-XSS vector when a kasserer/admin views the receipt.
+# HEIC/HEIF are allowed for iPhone photos (OCR converts them; preview may not
+# render inline, but they're served as a download, never executed).
+UPLOAD_ALLOWED_TYPES = {
+    "image/png", "image/jpeg", "image/gif", "image/webp",
+    "image/heic", "image/heif", "application/pdf",
+}
+# Types we're willing to serve inline (browser-renderable AND inert). Anything
+# else is served as an attachment with application/octet-stream.
+INLINE_SAFE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"}
 
 
 # ---- helpers ---------------------------------------------------------------
@@ -208,9 +219,12 @@ async def upload_attachment(
     if expense.status not in ("utkast", "avvist"):
         raise HTTPException(status_code=400, detail="Kan ikke legge til kvittering nå")
 
-    content_type = file.content_type or "application/octet-stream"
-    if not (content_type.startswith(ALLOWED_PREFIXES) or content_type in ALLOWED_EXACT):
-        raise HTTPException(status_code=400, detail="Kun bilder og PDF er tillatt")
+    content_type = (file.content_type or "application/octet-stream").lower()
+    if content_type not in UPLOAD_ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Kun bilder (PNG, JPG, GIF, WEBP, HEIC) og PDF er tillatt",
+        )
 
     data = await file.read()
     if not data:
@@ -266,10 +280,25 @@ async def get_attachment_file(
     except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to fetch receipt {attachment_id} from storage: {e}")
         raise HTTPException(status_code=502, detail="Kunne ikke hente kvittering fra lager")
+
+    # Serve defensively: only inline-render an allowlist of inert types; force
+    # everything else to download as octet-stream. nosniff stops MIME-sniffing
+    # and the CSP sandbox neutralises any active content even if a bad type
+    # slipped through. filename is re-sanitised before going into the header.
+    ct = (att.content_type or "").lower()
+    if ct in INLINE_SAFE_TYPES:
+        media_type, disposition = ct, "inline"
+    else:
+        media_type, disposition = "application/octet-stream", "attachment"
+    safe_filename = re.sub(r"[^A-Za-z0-9._-]", "_", att.filename or "kvittering")
     return Response(
         content=data,
-        media_type=att.content_type or "application/octet-stream",
-        headers={"Content-Disposition": f'inline; filename="{att.filename}"'},
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{safe_filename}"',
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "sandbox",
+        },
     )
 
 
