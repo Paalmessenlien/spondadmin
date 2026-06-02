@@ -26,6 +26,8 @@ from app.models.training_session_type import TrainingSessionType
 from app.models.training_shift import TrainingShift
 from app.models.member_alias import MemberAlias
 from app.models.leader_group import LeaderGroup, LeaderGroupMember
+from app.models.expense import Expense
+from app.models.expense_attachment import ExpenseAttachment
 
 __all__ = [
     "Admin",
@@ -55,4 +57,6 @@ __all__ = [
     "MemberAlias",
     "LeaderGroup",
     "LeaderGroupMember",
+    "Expense",
+    "ExpenseAttachment",
 ]

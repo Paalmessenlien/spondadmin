@@ -14,6 +14,8 @@ class UserRole(str, PyEnum):
     ADMIN = "admin"
     EDITOR = "editor"
     VIEWER = "viewer"
+    # Treasurer: reviews/approves/marks-paid expense reimbursements (utlegg).
+    KASSERER = "kasserer"
 
 
 class Admin(Base, TimestampMixin):

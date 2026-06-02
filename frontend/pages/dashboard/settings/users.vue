@@ -173,6 +173,7 @@
               >
                 <option value="admin">Admin - Full access</option>
                 <option value="editor">Editor - View + modify data</option>
+                <option value="kasserer">Kasserer - Review expenses (utlegg)</option>
                 <option value="viewer">Viewer - Read-only</option>
               </select>
             </div>
@@ -223,6 +224,7 @@
               >
                 <option value="admin">Admin - Full access</option>
                 <option value="editor">Editor - View + modify data</option>
+                <option value="kasserer">Kasserer - Review expenses (utlegg)</option>
                 <option value="viewer">Viewer - Read-only</option>
               </select>
             </div>
@@ -417,6 +419,7 @@ const roleColor = (role: string) => {
   switch (role) {
     case 'admin': return 'red'
     case 'editor': return 'blue'
+    case 'kasserer': return 'green'
     default: return 'neutral'
   }
 }

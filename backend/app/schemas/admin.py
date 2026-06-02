@@ -17,7 +17,7 @@ class AdminBase(BaseModel):
     full_name: Optional[str] = Field(None, max_length=255)
     is_active: bool = True
     is_superuser: bool = False
-    role: str = Field(default="viewer", pattern=r"^(admin|editor|viewer)$")
+    role: str = Field(default="viewer", pattern=r"^(admin|editor|viewer|kasserer)$")
 
 
 class AdminCreate(AdminBase):
@@ -35,7 +35,7 @@ class AdminUpdate(BaseModel):
     full_name: Optional[str] = Field(None, max_length=255)
     is_active: Optional[bool] = None
     is_superuser: Optional[bool] = None
-    role: Optional[str] = Field(None, pattern=r"^(admin|editor|viewer)$")
+    role: Optional[str] = Field(None, pattern=r"^(admin|editor|viewer|kasserer)$")
 
 
 class AdminInvite(BaseModel):
@@ -48,7 +48,7 @@ class AdminInvite(BaseModel):
     """
     email: EmailStr
     full_name: Optional[str] = Field(None, max_length=255)
-    role: str = Field(default="viewer", pattern=r"^(admin|editor|viewer)$")
+    role: str = Field(default="viewer", pattern=r"^(admin|editor|viewer|kasserer)$")
 
 
 class AdminResponse(AdminBase):

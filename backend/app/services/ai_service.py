@@ -205,6 +205,158 @@ class AIService:
             "usage": usage,
         }
 
+    # ---- Receipt OCR (vision) -------------------------------------------
+
+    # Vision-capable providers, in preference order. DeepSeek is text-only and
+    # is deliberately excluded — receipt OCR needs to actually see the image.
+    VISION_PROVIDERS = ("anthropic", "openai")
+
+    # Controlled expense categories the model may choose. Mirrors
+    # app.models.expense.EXPENSE_CATEGORIES.
+    RECEIPT_CATEGORIES = (
+        "utstyr", "reise", "bevertning", "kontor", "premier", "bane_anlegg", "kurs", "annet",
+    )
+
+    @staticmethod
+    def _preprocess_receipt(image_bytes: bytes, mime_type: str) -> tuple[bytes, str]:
+        """Normalise a receipt photo: HEIC→JPEG, downscale, strip EXIF.
+
+        Caps the longest edge at 1600px to keep vision token cost sane. Falls
+        back to the original bytes if Pillow (or HEIF support) isn't available.
+        """
+        try:
+            import io
+            from PIL import Image
+            try:
+                import pillow_heif  # noqa: F401
+                pillow_heif.register_heif_opener()
+            except Exception:
+                pass
+
+            img = Image.open(io.BytesIO(image_bytes))
+            img = img.convert("RGB")
+            max_edge = 1600
+            if max(img.size) > max_edge:
+                ratio = max_edge / max(img.size)
+                img = img.resize((int(img.width * ratio), int(img.height * ratio)))
+            out = io.BytesIO()
+            img.save(out, format="JPEG", quality=85)
+            return out.getvalue(), "image/jpeg"
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Receipt preprocessing failed, using original bytes: {e}")
+            return image_bytes, mime_type
+
+    @staticmethod
+    async def extract_receipt(
+        db: AsyncSession,
+        image_bytes: bytes,
+        mime_type: str,
+        provider: Optional[str] = None,
+    ) -> Optional[dict]:
+        """OCR a receipt image via a vision-capable provider; return suggested
+        fields, or ``None`` if no vision provider is enabled.
+
+        Returns dict: {amount, currency, date(YYYY-MM-DD), payee, category,
+        description, _provider, _model}. All values may be null if unreadable.
+        """
+        import base64
+        import json
+        import re
+
+        candidates = [provider] if provider else list(AIService.VISION_PROVIDERS)
+        config = None
+        api_key = None
+        for name in candidates:
+            c = await AIProviderConfigService.get_by_provider(db, name)
+            if not (c and c.is_enabled and c.api_key_encrypted):
+                continue
+            try:
+                api_key = AIProviderConfigService.get_decrypted_key(c)
+            except Exception as e:  # noqa: BLE001 - bad/rotated key, try next provider
+                logger.warning(f"Vision provider {name} key undecryptable, skipping: {e}")
+                continue
+            config = c
+            break
+        if not config or not api_key:
+            logger.info("Receipt OCR skipped: no usable vision provider enabled")
+            return None
+
+        model = config.default_model
+        norm_bytes, norm_mime = AIService._preprocess_receipt(image_bytes, mime_type)
+        b64 = base64.b64encode(norm_bytes).decode()
+
+        cats = ", ".join(AIService.RECEIPT_CATEGORIES)
+        system = (
+            "Du leser kvitteringer for et norsk idrettslag. Returner KUN gyldig JSON "
+            "med feltene: amount (tall, totalbeløp), currency (ISO, f.eks. NOK), "
+            "date (YYYY-MM-DD, kjøpsdato), payee (butikk/leverandør), "
+            f"category (én av: {cats}), description (kort norsk beskrivelse av kjøpet). "
+            "Bruk null for felter du ikke finner. Ingen tekst utenom JSON-objektet."
+        )
+
+        if config.provider == "anthropic":
+            messages = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": [
+                    {"type": "image", "source": {
+                        "type": "base64", "media_type": norm_mime, "data": b64,
+                    }},
+                    {"type": "text", "text": "Les kvitteringen og returner JSON."},
+                ]},
+            ]
+            result = await AIService._call_anthropic(api_key, messages, model, 1024, 0.1)
+        else:
+            messages = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": [
+                    {"type": "text", "text": "Les kvitteringen og returner JSON."},
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:{norm_mime};base64,{b64}",
+                    }},
+                ]},
+            ]
+            base_url = config.base_url or OPENAI_BASE_URL
+            result = await AIService._call_openai_compatible(
+                api_key, messages, model, 1024, 0.1, base_url, config.provider
+            )
+
+        content = (result.get("content") or "").strip()
+        parsed = None
+        try:
+            parsed = json.loads(content)
+        except (json.JSONDecodeError, ValueError):
+            if "```" in content:
+                m = re.search(r"```(?:json)?\s*(.*?)```", content, re.DOTALL)
+                if m:
+                    try:
+                        parsed = json.loads(m.group(1).strip())
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+            if parsed is None:
+                m = re.search(r"\{.*\}", content, re.DOTALL)
+                if m:
+                    try:
+                        parsed = json.loads(m.group(0))
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+        if not isinstance(parsed, dict):
+            logger.warning(f"Receipt OCR returned unparseable content: {content[:200]!r}")
+            return None
+
+        category = parsed.get("category")
+        if category not in AIService.RECEIPT_CATEGORIES:
+            category = None
+        return {
+            "amount": parsed.get("amount"),
+            "currency": parsed.get("currency") or "NOK",
+            "date": parsed.get("date"),
+            "payee": parsed.get("payee"),
+            "category": category,
+            "description": parsed.get("description"),
+            "_provider": config.provider,
+            "_model": result.get("model", model),
+        }
+
     @staticmethod
     async def test_credentials(db: AsyncSession, provider: str) -> dict:
         """

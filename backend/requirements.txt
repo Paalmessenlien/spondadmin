@@ -52,3 +52,7 @@ python-dateutil==2.9.0.post0
 
 # PDF generation (training-plan export)
 reportlab==4.2.5
+
+# Image handling for receipt OCR (HEIC→JPEG, downscale to control vision tokens)
+Pillow==11.0.0
+pillow-heif==0.18.0

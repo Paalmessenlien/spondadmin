@@ -710,6 +710,67 @@ export const useApi = () => {
     return makeRequest(`/ai/models/${provider}`)
   }
 
+  // Expenses (utlegg)
+  const getExpenses = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== '' && v != null) as any
+    ).toString()
+    return makeRequest(`/expenses/?${query}`)
+  }
+
+  const getExpense = async (id: number) => makeRequest(`/expenses/${id}`)
+
+  const createExpense = async (body: Record<string, any>) =>
+    makeRequest('/expenses/', { method: 'POST', body })
+
+  const updateExpense = async (id: number, body: Record<string, any>) =>
+    makeRequest(`/expenses/${id}`, { method: 'PATCH', body })
+
+  const deleteExpense = async (id: number) =>
+    makeRequest(`/expenses/${id}`, { method: 'DELETE' })
+
+  const submitExpense = async (id: number) =>
+    makeRequest(`/expenses/${id}/submit`, { method: 'POST' })
+
+  const reviewExpense = async (id: number, action: string, note?: string) =>
+    makeRequest(`/expenses/${id}/review`, { method: 'POST', body: { action, note } })
+
+  // Receipt upload (multipart). Returns the attachment incl. ai_suggestions.
+  const uploadExpenseAttachment = async (id: number, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const headers: Record<string, string> = {}
+    const token = await getToken.value()
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return $fetch<any>(`/expenses/${id}/attachments`, {
+      baseURL: config.public.apiBase,
+      method: 'POST',
+      body: formData,
+      headers,
+      onResponseError({ response }) {
+        if (response.status === 401) handleUnauthorized()
+      },
+    })
+  }
+
+  const deleteExpenseAttachment = async (id: number, attachmentId: number) =>
+    makeRequest(`/expenses/${id}/attachments/${attachmentId}`, { method: 'DELETE' })
+
+  // CSV export (kasserer/admin). Returns a Blob for download.
+  const exportExpensesCsv = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== '' && v != null) as any
+    ).toString()
+    const headers: Record<string, string> = {}
+    const token = await getToken.value()
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return $fetch<Blob>(`/expenses/export.csv?${query}`, {
+      baseURL: config.public.apiBase,
+      headers,
+      responseType: 'blob',
+    })
+  }
+
   return {
     // Auth
     getCurrentUser,
@@ -847,5 +908,16 @@ export const useApi = () => {
     deleteLeaderGroup,
     setLeaderGroupMembers,
     importTrainingXlsx,
+    // Expenses (utlegg)
+    getExpenses,
+    getExpense,
+    createExpense,
+    updateExpense,
+    deleteExpense,
+    submitExpense,
+    reviewExpense,
+    uploadExpenseAttachment,
+    deleteExpenseAttachment,
+    exportExpensesCsv,
   }
 }

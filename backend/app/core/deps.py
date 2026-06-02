@@ -127,3 +127,5 @@ def require_role(*allowed_roles: UserRole):
 get_current_admin = require_role(UserRole.ADMIN)
 get_current_editor_or_above = require_role(UserRole.ADMIN, UserRole.EDITOR)
 get_current_superuser = get_current_admin
+# Expense review (utlegg): treasurer or admin.
+get_current_kasserer_or_admin = require_role(UserRole.ADMIN, UserRole.KASSERER)

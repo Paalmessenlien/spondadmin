@@ -16,7 +16,7 @@ interface User {
   full_name: string
   is_active: boolean
   is_superuser: boolean
-  role: 'admin' | 'editor' | 'viewer'
+  role: 'admin' | 'editor' | 'viewer' | 'kasserer'
   clerk_user_id?: string | null
 }
 
@@ -37,6 +37,10 @@ export const useAuthStore = defineStore('auth', {
     isAdmin: (state) => state.user?.role === 'admin',
     canEdit: (state) => ['admin', 'editor'].includes(state.user?.role ?? ''),
     canManageSystem: (state) => state.user?.role === 'admin',
+    // Treasurer: may review/approve/mark-paid expense reimbursements.
+    isKasserer: (state) => state.user?.role === 'kasserer',
+    // Anyone who can act on the expense review queue.
+    canReviewExpenses: (state) => ['admin', 'kasserer'].includes(state.user?.role ?? ''),
   },
 
   actions: {

@@ -303,8 +303,8 @@ const allNavGroups: NavGroup[] = [
   {
     label: 'Operations',
     items: [
+      { label: 'Utlegg', to: '/dashboard/expenses', icon: 'i-heroicons-banknotes' },
       { label: 'Equipment', to: '/dashboard/equipment', icon: 'i-heroicons-cube', comingSoon: true },
-      { label: 'Finances', to: '/dashboard/finances', icon: 'i-heroicons-credit-card', comingSoon: true },
       { label: 'Communication', to: '/dashboard/communication', icon: 'i-heroicons-bell', comingSoon: true },
     ],
   },
