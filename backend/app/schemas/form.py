@@ -104,6 +104,30 @@ class FormListResponse(BaseModel):
     total: int
 
 
+# ---- templates + import/export ----------------------------------------------
+
+class FormTemplateInfo(BaseModel):
+    key: str
+    title: str
+    description: Optional[str] = None
+    access_mode: str = "begge"
+    field_count: int = 0
+
+
+class FormTemplateListResponse(BaseModel):
+    templates: List[FormTemplateInfo]
+
+
+class FormImport(BaseModel):
+    """Portable form definition for import (and produced by export)."""
+    title: str = Field(default="Importert skjema", min_length=1, max_length=255)
+    description: Optional[str] = None
+    access_mode: str = Field(default="begge", pattern=_ACCESS_PATTERN)
+    one_response_per_user: bool = False
+    settings: Optional[dict] = None
+    fields: List[FormFieldIn] = []
+
+
 # ---- public fill ------------------------------------------------------------
 
 class PublicFormField(BaseModel):

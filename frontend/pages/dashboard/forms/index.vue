@@ -9,7 +9,11 @@
           Lag spørreskjemaer og samle inn svar — fra innloggede medlemmer eller anonymt
         </p>
       </div>
-      <UButton color="primary" icon="i-heroicons-plus" to="/dashboard/forms/new">Nytt skjema</UButton>
+      <div class="flex items-center gap-2">
+        <UButton color="neutral" variant="outline" icon="i-heroicons-arrow-up-tray" @click="fileInput?.click()">Importer</UButton>
+        <UButton color="primary" icon="i-heroicons-plus" to="/dashboard/forms/new">Nytt skjema</UButton>
+      </div>
+      <input ref="fileInput" type="file" accept="application/json,.json" class="hidden" @change="onImportFile" />
     </div>
 
     <div v-if="loading" class="flex justify-center py-12">
@@ -54,6 +58,8 @@
               title="Kopier delingslenke" @click="copyLink(f)" />
             <UButton size="sm" color="neutral" variant="ghost" icon="i-heroicons-document-duplicate"
               title="Dupliser" @click="duplicate(f)" />
+            <UButton size="sm" color="neutral" variant="ghost" icon="i-heroicons-arrow-down-tray"
+              title="Eksporter (.json)" @click="exportOne(f)" />
             <UButton size="sm" color="error" variant="ghost" icon="i-heroicons-trash"
               title="Slett" @click="remove(f)" />
           </div>
@@ -72,6 +78,7 @@ const { statusMeta, accessLabel, publicFormUrl } = useForms()
 
 const forms = ref<any[]>([])
 const loading = ref(true)
+const fileInput = ref<HTMLInputElement | null>(null)
 
 const load = async () => {
   loading.value = true
@@ -115,6 +122,45 @@ const remove = async (f: any) => {
     load()
   } catch (err: any) {
     toast.add({ title: 'Kunne ikke slette', description: err?.data?.detail, color: 'error' })
+  }
+}
+
+const exportOne = async (f: any) => {
+  try {
+    const def: any = await api.exportForm(f.id)
+    const blob = new Blob([JSON.stringify(def, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${f.slug || 'skjema'}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err: any) {
+    toast.add({ title: 'Eksport feilet', description: err?.data?.detail, color: 'error' })
+  }
+}
+
+const onImportFile = async (ev: Event) => {
+  const input = ev.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    const parsed = JSON.parse(await file.text())
+    if (parsed?._type && parsed._type !== 'spondadmin.form') throw new Error('Ukjent filformat')
+    const form: any = await api.importForm({
+      title: parsed.title || file.name.replace(/\.json$/i, '') || 'Importert skjema',
+      description: parsed.description ?? null,
+      access_mode: parsed.access_mode || 'begge',
+      one_response_per_user: !!parsed.one_response_per_user,
+      settings: parsed.settings ?? null,
+      fields: Array.isArray(parsed.fields) ? parsed.fields : [],
+    })
+    toast.add({ title: 'Skjema importert', color: 'success' })
+    navigateTo(`/dashboard/forms/${form.id}/edit`)
+  } catch (err: any) {
+    toast.add({ title: 'Import feilet', description: err?.data?.detail || err?.message || 'Ugyldig fil', color: 'error' })
+  } finally {
+    input.value = ''
   }
 }
 

@@ -22,9 +22,11 @@ from app.db.session import get_db
 from app.models.admin import Admin
 from app.models.form import Form, FORM_LAYOUT_TYPES
 from app.schemas.form import (
-    FormCreate, FormDetail, FormFieldResponse, FormFieldsUpdate, FormListResponse,
-    FormReport, FormResponsesList, FormSubmission, FormUpdate, PublicForm,
+    FormCreate, FormDetail, FormFieldIn, FormFieldResponse, FormFieldsUpdate,
+    FormImport, FormListResponse, FormReport, FormResponsesList, FormSubmission,
+    FormTemplateListResponse, FormUpdate, PublicForm,
 )
+from app.services import form_templates
 from app.services.form_service import FormService, FormValidationError
 
 logger = logging.getLogger(__name__)
@@ -102,6 +104,52 @@ async def list_forms(
     return FormListResponse(forms=items, total=len(items))
 
 
+# ---- templates + import/export (editor+) -----------------------------------
+# NOTE: these literal-path routes are declared before GET /{form_id} so the int
+# path converter doesn't shadow them.
+
+@router.get("/templates", response_model=FormTemplateListResponse)
+async def list_templates(
+    current_user: Admin = Depends(get_current_editor_or_above),
+    db: AsyncSession = Depends(get_db),
+):
+    return FormTemplateListResponse(templates=form_templates.list_templates())
+
+
+@router.post("/templates/{key}", response_model=FormDetail)
+async def create_from_template(
+    key: str,
+    current_user: Admin = Depends(get_current_editor_or_above),
+    db: AsyncSession = Depends(get_db),
+):
+    tpl = form_templates.get_template(key)
+    if not tpl:
+        raise HTTPException(status_code=404, detail="Mal ikke funnet")
+    fields = [FormFieldIn(**f) for f in tpl.get("fields", [])]
+    form = await FormService.create_with_fields(
+        db, current_user,
+        title=tpl["title"], description=tpl.get("description"),
+        access_mode=tpl.get("access_mode", "begge"), fields=fields,
+    )
+    return await _serialize_detail(db, form)
+
+
+@router.post("/import", response_model=FormDetail)
+async def import_form(
+    payload: FormImport,
+    current_user: Admin = Depends(get_current_editor_or_above),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a draft form from a portable definition (produced by export)."""
+    form = await FormService.create_with_fields(
+        db, current_user,
+        title=payload.title, description=payload.description,
+        access_mode=payload.access_mode, one_response_per_user=payload.one_response_per_user,
+        settings=payload.settings, fields=payload.fields,
+    )
+    return await _serialize_detail(db, form)
+
+
 @router.get("/{form_id}", response_model=FormDetail)
 async def get_form(
     form_id: int,
@@ -110,6 +158,17 @@ async def get_form(
 ):
     form = await _get_form_or_404(db, form_id)
     return await _serialize_detail(db, form)
+
+
+@router.get("/{form_id}/export")
+async def export_form(
+    form_id: int,
+    current_user: Admin = Depends(get_current_editor_or_above),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return a portable JSON definition of the form (for backup / re-import)."""
+    form = await _get_form_or_404(db, form_id)
+    return FormService.to_export(form)
 
 
 @router.patch("/{form_id}", response_model=FormDetail)

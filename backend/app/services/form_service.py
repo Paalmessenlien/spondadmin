@@ -106,6 +106,70 @@ class FormService:
         return await FormService.get_by_id(db, form.id)
 
     @staticmethod
+    async def create_with_fields(
+        db: AsyncSession,
+        creator: Admin,
+        *,
+        title: str,
+        description: Optional[str] = None,
+        access_mode: str = "begge",
+        one_response_per_user: bool = False,
+        settings: Optional[dict] = None,
+        fields: Optional[List[FormFieldIn]] = None,
+    ) -> Form:
+        """Create a draft form pre-populated with fields (used by templates + import)."""
+        slug = await FormService._unique_slug(db, title)
+        form = Form(
+            title=title,
+            description=description,
+            slug=slug,
+            access_mode=access_mode or "begge",
+            one_response_per_user=one_response_per_user,
+            settings=settings,
+            created_by_admin_id=creator.id,
+            status="utkast",
+        )
+        db.add(form)
+        await db.flush()
+        for idx, fin in enumerate(fields or []):
+            db.add(FormField(
+                form_id=form.id,
+                position=idx,
+                field_type=fin.field_type,
+                label=fin.label,
+                help_text=fin.help_text,
+                required=fin.required,
+                options=fin.options,
+                settings=fin.settings,
+            ))
+        await db.commit()
+        return await FormService.get_by_id(db, form.id)
+
+    @staticmethod
+    def to_export(form: Form) -> dict:
+        """Serialize a form to the portable import/export format."""
+        return {
+            "_type": "spondadmin.form",
+            "version": 1,
+            "title": form.title,
+            "description": form.description,
+            "access_mode": form.access_mode,
+            "one_response_per_user": form.one_response_per_user,
+            "settings": form.settings,
+            "fields": [
+                {
+                    "field_type": f.field_type,
+                    "label": f.label,
+                    "help_text": f.help_text,
+                    "required": f.required,
+                    "options": f.options,
+                    "settings": f.settings,
+                }
+                for f in sorted(form.fields, key=lambda x: x.position)
+            ],
+        }
+
+    @staticmethod
     async def get_by_id(db: AsyncSession, form_id: int) -> Optional[Form]:
         # populate_existing: if the form is already in the session identity map
         # (e.g. loaded earlier in the same request before a mutation), force its

@@ -825,6 +825,14 @@ export const useApi = () => {
       responseType: 'blob',
     })
   }
+  // Templates + import/export
+  const getFormTemplates = async () => makeRequest('/forms/templates')
+  const createFormFromTemplate = async (key: string) =>
+    makeRequest(`/forms/templates/${key}`, { method: 'POST' })
+  const exportForm = async (id: number) => makeRequest(`/forms/${id}/export`)
+  const importForm = async (payload: Record<string, any>) =>
+    makeRequest('/forms/import', { method: 'POST', body: payload })
+
   // Public (no auth) — the share-link fill flow.
   const getPublicForm = async (slug: string) =>
     $fetch<any>(`/forms/public/${slug}`, { baseURL: config.public.apiBase })
@@ -999,6 +1007,10 @@ export const useApi = () => {
     getFormReport,
     submitFormInApp,
     exportFormResponsesCsv,
+    getFormTemplates,
+    createFormFromTemplate,
+    exportForm,
+    importForm,
     getPublicForm,
     submitPublicForm,
   }
