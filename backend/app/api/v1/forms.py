@@ -30,6 +30,19 @@ from app.services.form_service import FormService, FormValidationError
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Spreadsheet apps (Excel/Sheets) treat a leading =, +, -, @, tab or CR as a
+# formula. Responses can come from anonymous public submitters, so prefix any
+# such cell with a single quote to neutralise CSV formula injection when the
+# kasserer/admin opens the export.
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value) -> str:
+    s = "" if value is None else str(value)
+    if s and s[0] in _CSV_FORMULA_PREFIXES:
+        return "'" + s
+    return s
+
 
 # ---- helpers ---------------------------------------------------------------
 
@@ -246,12 +259,13 @@ async def export_responses_csv(
 
     buf = io.StringIO()
     writer = csv.writer(buf, delimiter=";")
-    writer.writerow(["Svar-ID", "Innsendt", "Respondent"] + [f.label for f in answerable])
+    writer.writerow(["Svar-ID", "Innsendt", "Respondent"] + [_csv_safe(f.label) for f in answerable])
     for r in responses:
         by_field = {a.field_id: (a.value_text or "") for a in r.answers}
         respondent = "Anonym" if r.is_anonymous else (names.get(r.respondent_admin_id) or r.respondent_label or "")
         writer.writerow(
-            [r.id, r.submitted_at, respondent] + [by_field.get(f.id, "") for f in answerable]
+            [r.id, r.submitted_at, _csv_safe(respondent)]
+            + [_csv_safe(by_field.get(f.id, "")) for f in answerable]
         )
     return Response(
         content=buf.getvalue(),
