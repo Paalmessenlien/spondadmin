@@ -304,6 +304,7 @@ const allNavGroups: NavGroup[] = [
     label: 'Operations',
     items: [
       { label: 'Utlegg', to: '/dashboard/expenses', icon: 'i-heroicons-banknotes' },
+      { label: 'Skjema', to: '/dashboard/forms', icon: 'i-heroicons-clipboard-document-list', minRole: 'editor' },
       { label: 'Equipment', to: '/dashboard/equipment', icon: 'i-heroicons-cube', comingSoon: true },
       { label: 'Communication', to: '/dashboard/communication', icon: 'i-heroicons-bell', comingSoon: true },
     ],

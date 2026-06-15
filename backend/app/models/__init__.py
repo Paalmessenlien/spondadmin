@@ -28,6 +28,9 @@ from app.models.member_alias import MemberAlias
 from app.models.leader_group import LeaderGroup, LeaderGroupMember
 from app.models.expense import Expense
 from app.models.expense_attachment import ExpenseAttachment
+from app.models.form import Form
+from app.models.form_field import FormField
+from app.models.form_response import FormResponse, FormAnswer
 
 __all__ = [
     "Admin",
@@ -59,4 +62,8 @@ __all__ = [
     "LeaderGroupMember",
     "Expense",
     "ExpenseAttachment",
+    "Form",
+    "FormField",
+    "FormResponse",
+    "FormAnswer",
 ]

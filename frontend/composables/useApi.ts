@@ -784,6 +784,57 @@ export const useApi = () => {
     })
   }
 
+  // Forms (skjema / spørreskjema)
+  const getForms = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== '' && v != null) as any
+    ).toString()
+    return makeRequest(`/forms/?${query}`)
+  }
+  const getForm = async (id: number) => makeRequest(`/forms/${id}`)
+  const createForm = async (body: Record<string, any> = {}) =>
+    makeRequest('/forms/', { method: 'POST', body })
+  const updateForm = async (id: number, body: Record<string, any>) =>
+    makeRequest(`/forms/${id}`, { method: 'PATCH', body })
+  const deleteForm = async (id: number) =>
+    makeRequest(`/forms/${id}`, { method: 'DELETE' })
+  const saveFormFields = async (id: number, fields: any[]) =>
+    makeRequest(`/forms/${id}/fields`, { method: 'PUT', body: { fields } })
+  const publishForm = async (id: number) =>
+    makeRequest(`/forms/${id}/publish`, { method: 'POST' })
+  const closeForm = async (id: number) =>
+    makeRequest(`/forms/${id}/close`, { method: 'POST' })
+  const reopenForm = async (id: number) =>
+    makeRequest(`/forms/${id}/reopen`, { method: 'POST' })
+  const duplicateForm = async (id: number) =>
+    makeRequest(`/forms/${id}/duplicate`, { method: 'POST' })
+  const getFormResponses = async (id: number, params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(params as any).toString()
+    return makeRequest(`/forms/${id}/responses?${query}`)
+  }
+  const getFormReport = async (id: number) => makeRequest(`/forms/${id}/report`)
+  const submitFormInApp = async (id: number, answers: any[], respondent_label?: string) =>
+    makeRequest(`/forms/${id}/submit`, { method: 'POST', body: { answers, respondent_label } })
+  const exportFormResponsesCsv = async (id: number) => {
+    const headers: Record<string, string> = {}
+    const token = await getToken.value()
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return $fetch<Blob>(`/forms/${id}/responses.csv`, {
+      baseURL: config.public.apiBase,
+      headers,
+      responseType: 'blob',
+    })
+  }
+  // Public (no auth) — the share-link fill flow.
+  const getPublicForm = async (slug: string) =>
+    $fetch<any>(`/forms/public/${slug}`, { baseURL: config.public.apiBase })
+  const submitPublicForm = async (slug: string, answers: any[], respondent_label?: string) =>
+    $fetch<any>(`/forms/public/${slug}/submit`, {
+      baseURL: config.public.apiBase,
+      method: 'POST',
+      body: { answers, respondent_label },
+    })
+
   return {
     // Auth
     getCurrentUser,
@@ -933,5 +984,22 @@ export const useApi = () => {
     deleteExpenseAttachment,
     fetchExpenseAttachmentFile,
     exportExpensesCsv,
+    // Forms (skjema)
+    getForms,
+    getForm,
+    createForm,
+    updateForm,
+    deleteForm,
+    saveFormFields,
+    publishForm,
+    closeForm,
+    reopenForm,
+    duplicateForm,
+    getFormResponses,
+    getFormReport,
+    submitFormInApp,
+    exportFormResponsesCsv,
+    getPublicForm,
+    submitPublicForm,
   }
 }
