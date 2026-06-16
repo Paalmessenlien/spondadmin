@@ -167,7 +167,7 @@
     <!-- Create/Edit alias modal -->
     <UModal v-model:open="aliasModalOpen">
       <template #content>
-        <div class="p-6 space-y-4">
+        <div class="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
           <h2 class="text-lg font-bold text-gray-900 dark:text-white">
             {{ editingAlias ? 'Edit alias' : 'New alias' }}
           </h2>
@@ -233,7 +233,7 @@
     <!-- Delete confirm -->
     <UModal v-model:open="deleteModalOpen">
       <template #content>
-        <div class="p-6 space-y-4">
+        <div class="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
           <h2 class="text-lg font-bold text-red-600">Delete alias?</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400">
             This won't change any existing shifts. Future imports will treat

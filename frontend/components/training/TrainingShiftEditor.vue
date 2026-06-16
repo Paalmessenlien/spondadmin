@@ -1,7 +1,7 @@
 <template>
   <UModal v-model:open="isOpen" :ui="{ content: 'max-w-xl' }">
     <template #content>
-      <div class="p-6 space-y-4">
+      <div class="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-bold text-gray-900 dark:text-white">
             {{ isEditing ? 'Edit shift' : 'New shift' }}

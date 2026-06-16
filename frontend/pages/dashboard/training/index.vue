@@ -307,7 +307,7 @@
     <!-- Import modal -->
     <UModal v-model:open="importModalOpen" :ui="{ content: 'max-w-2xl' }">
       <template #content>
-        <div class="p-6 space-y-4">
+        <div class="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
           <h2 class="text-lg font-bold text-gray-900 dark:text-white">Import vaktliste (.xlsx)</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400">
             Existing draft shifts will be overwritten. Published shifts are never overwritten.
@@ -402,7 +402,7 @@
     <!-- Edit / new session type modal -->
     <UModal v-model:open="editSessionTypeOpen" :ui="{ content: 'max-w-3xl' }">
       <template #content>
-        <div v-if="editingSessionType" class="p-6 space-y-4">
+        <div v-if="editingSessionType" class="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
           <h2 class="text-lg font-bold text-gray-900 dark:text-white">
             {{ editingSessionType.id ? 'Edit session type' : 'New session type' }}
           </h2>

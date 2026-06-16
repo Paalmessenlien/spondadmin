@@ -131,7 +131,7 @@
     <!-- New / edit leader group modal -->
     <UModal v-model:open="editorOpen" :ui="{ content: 'max-w-xl' }">
       <template #content>
-        <div v-if="draft" class="p-6 space-y-4">
+        <div v-if="draft" class="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
           <h2 class="text-lg font-bold text-gray-900 dark:text-white">
             {{ draft.id ? 'Edit leader group' : 'New leader group' }}
           </h2>

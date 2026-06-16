@@ -185,7 +185,7 @@
     <!-- Invite Modal -->
     <UModal v-model:open="inviteModalOpen">
       <template #content>
-        <div class="p-6">
+        <div class="p-6 max-h-[85vh] overflow-y-auto">
           <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-1">Invite Admin User</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Clerk will send a sign-in invitation to this email. The user becomes active automatically on their first sign-in.
@@ -239,7 +239,7 @@
     <!-- Edit Modal -->
     <UModal v-model:open="editModalOpen">
       <template #content>
-        <div class="p-6">
+        <div class="p-6 max-h-[85vh] overflow-y-auto">
           <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-1">Edit User</h2>
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Email and password are managed by Clerk. Here you can change the local role and active flag.
@@ -299,7 +299,7 @@
 
     <UModal v-model:open="deleteModalOpen">
       <template #content>
-        <div class="p-6">
+        <div class="p-6 max-h-[85vh] overflow-y-auto">
           <h2 class="text-lg font-bold text-red-600 mb-2">Delete User</h2>
           <p class="text-gray-600 dark:text-gray-400 mb-4">
             Are you sure you want to delete <strong>{{ deletingAdmin?.full_name || deletingAdmin?.username }}</strong>?

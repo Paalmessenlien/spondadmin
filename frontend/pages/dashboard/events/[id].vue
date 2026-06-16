@@ -226,7 +226,7 @@
              detail page is read-only. -->
         <UModal v-model:open="isEditModalOpen" :ui="{ content: 'max-w-2xl' }">
           <template #content>
-          <div class="p-6">
+          <div class="p-6 max-h-[85vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
               <h3 class="text-lg font-semibold">Edit Event</h3>
               <UButton
