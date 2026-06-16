@@ -114,7 +114,7 @@
       </button>
 
       <div v-if="manageOpen" class="mt-4 space-y-3">
-        <div class="overflow-x-auto">
+        <div class="hidden md:block overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-gray-200 dark:border-gray-700">
@@ -162,6 +162,50 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Mobile: card per session type; Edit stays reachable -->
+        <div class="md:hidden space-y-2">
+          <div
+            v-for="st in sessionTypes"
+            :key="st.id"
+            class="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="font-medium text-gray-900 dark:text-white min-w-0">{{ st.name }}</div>
+              <UButton
+                size="sm"
+                color="neutral"
+                variant="soft"
+                icon="i-heroicons-pencil-square"
+                class="flex-shrink-0"
+                @click="openEditSessionType(st)"
+              >
+                Edit
+              </UButton>
+            </div>
+            <dl class="grid grid-cols-1 gap-1 text-sm">
+              <div class="flex justify-between gap-3">
+                <dt class="text-gray-500">Time</dt>
+                <dd class="text-gray-700 dark:text-gray-300">{{ formatTime(st.default_start_time) }}–{{ formatTime(st.default_end_time) }}</dd>
+              </div>
+              <div class="flex justify-between gap-3">
+                <dt class="text-gray-500">Location</dt>
+                <dd class="text-gray-700 dark:text-gray-300 text-right min-w-0 break-words">{{ st.location || '—' }}</dd>
+              </div>
+              <div class="flex justify-between gap-3">
+                <dt class="text-gray-500">Spond group</dt>
+                <dd class="text-right min-w-0 break-words">
+                  <span v-if="st.group" class="text-gray-700 dark:text-gray-300">{{ st.group.name }}</span>
+                  <span v-else class="text-amber-600">— not linked —</span>
+                </dd>
+              </div>
+              <div class="flex justify-between gap-3">
+                <dt class="text-gray-500">Invitees</dt>
+                <dd class="text-gray-700 dark:text-gray-300 text-right min-w-0 break-words">{{ subgroupNameForSessionType(st) }}</dd>
+              </div>
+            </dl>
+          </div>
         </div>
 
         <div class="border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-end">

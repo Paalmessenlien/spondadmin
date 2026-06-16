@@ -49,7 +49,7 @@
             </div>
           </div>
 
-          <div class="flex items-center gap-2 shrink-0">
+          <div class="flex flex-wrap items-center gap-2 sm:shrink-0">
             <UButton size="sm" color="neutral" variant="outline" icon="i-heroicons-chart-bar"
               :to="`/dashboard/forms/${f.id}/responses`">Svar</UButton>
             <UButton size="sm" color="neutral" variant="outline" icon="i-heroicons-pencil-square"

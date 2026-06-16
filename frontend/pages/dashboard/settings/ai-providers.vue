@@ -101,7 +101,7 @@
           </div>
 
           <!-- Actions -->
-          <div class="flex gap-3 pt-2">
+          <div class="flex flex-wrap gap-3 pt-2">
             <UButton
               @click="saveProvider(provider.provider)"
               :loading="saving[provider.provider]"

@@ -47,9 +47,9 @@ const handleDuplicate = async (id: number, name: string) => {
       { label: 'Categories' }
     ]" />
 
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
       <h1 class="text-3xl font-bold">Event Categories</h1>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <UButton icon="i-heroicons-arrow-path" @click="handleBulkCategorize" variant="soft">
           Re-categorize Events
         </UButton>

@@ -93,7 +93,7 @@ const handleDelete = async () => {
     </div>
 
     <div v-else class="max-w-4xl mx-auto">
-      <div class="flex justify-between items-center mb-6">
+      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <h1 class="text-3xl font-bold">Edit Report</h1>
         <UButton
           icon="i-heroicons-trash"

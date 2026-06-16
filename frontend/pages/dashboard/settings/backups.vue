@@ -38,7 +38,7 @@
         <div
           v-for="backup in backups"
           :key="backup.id"
-          class="py-4 flex items-center justify-between"
+          class="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
         >
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
@@ -64,7 +64,7 @@
             </div>
           </div>
 
-          <div class="flex items-center gap-2 ml-4">
+          <div class="flex flex-wrap items-center gap-2 sm:ml-4">
             <UButton
               v-if="!backup.cdn_url && backup.status === 'completed'"
               icon="i-heroicons-cloud-arrow-up"

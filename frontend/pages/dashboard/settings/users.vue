@@ -6,7 +6,7 @@
       { label: 'Admin Users' }
     ]" />
 
-    <div class="flex justify-between items-center">
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
       <div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Admin Users</h1>
         <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
@@ -27,7 +27,9 @@
         No admin users found.
       </div>
 
-      <div v-else class="overflow-x-auto">
+      <div v-else>
+        <!-- Desktop: full table -->
+        <div class="hidden md:block overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-gray-200 dark:border-gray-700">
@@ -108,6 +110,49 @@
             </tr>
           </tbody>
         </table>
+        </div>
+
+        <!-- Mobile: one card per user; actions stay reachable (no horizontal scroll) -->
+        <div class="md:hidden space-y-3">
+          <div
+            v-for="admin in admins"
+            :key="admin.id"
+            class="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div
+                  class="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                  :class="admin.id === currentUser?.id ? 'bg-blue-600' : 'bg-gray-400'"
+                >
+                  {{ getInitials(admin.full_name || admin.username) }}
+                </div>
+                <div class="min-w-0">
+                  <div class="font-medium text-gray-900 dark:text-white truncate">
+                    {{ admin.full_name || admin.username }}
+                    <span v-if="admin.id === currentUser?.id" class="text-xs text-blue-600 dark:text-blue-400">(you)</span>
+                  </div>
+                  <div class="text-xs text-gray-500 truncate">{{ admin.email }}</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-1 flex-shrink-0">
+                <UButton color="neutral" variant="soft" icon="i-heroicons-pencil-square" size="sm"
+                  aria-label="Edit user" @click="openEditModal(admin)" />
+                <UButton v-if="admin.id !== currentUser?.id" color="red" variant="soft" icon="i-heroicons-trash"
+                  size="sm" aria-label="Delete user" @click="confirmDelete(admin)" />
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <UBadge :color="roleColor(admin.role)" variant="subtle" size="sm">{{ admin.role }}</UBadge>
+              <UBadge :color="admin.is_active ? 'green' : 'red'" variant="subtle" size="sm">
+                {{ admin.is_active ? 'Active' : 'Inactive' }}
+              </UBadge>
+              <UBadge :color="admin.clerk_user_id ? 'green' : 'yellow'" variant="subtle" size="sm">
+                {{ admin.clerk_user_id ? 'Linked' : 'Pending sign-in' }}
+              </UBadge>
+            </div>
+          </div>
+        </div>
       </div>
     </UCard>
 

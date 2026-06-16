@@ -120,9 +120,9 @@
           <div
             v-for="archer in unmatchedArchers"
             :key="archer.id"
-            class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+            class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
           >
-            <div class="flex-1">
+            <div class="flex-1 min-w-0">
               <div class="font-medium text-gray-900 dark:text-white">{{ archer.name }}</div>
               <div class="text-xs text-gray-500">
                 ID: {{ archer.bueskyting_id }}
@@ -132,12 +132,12 @@
                 Suggested match ({{ Math.round(archer.match_confidence || 0) }}% confidence)
               </div>
             </div>
-            <div class="flex items-center space-x-2 ml-4">
+            <div class="flex flex-wrap items-center gap-2 sm:ml-4">
               <UInput
                 v-model="matchForms[archer.bueskyting_id]"
                 placeholder="Spond ID"
                 size="sm"
-                class="w-32"
+                class="w-full sm:w-32"
               />
               <UButton
                 size="xs"

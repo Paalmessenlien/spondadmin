@@ -45,9 +45,9 @@ const handleToggleFavorite = async (id: number) => {
       { label: 'Reports' }
     ]" />
 
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
       <h1 class="text-3xl font-bold">Reports</h1>
-      <UButton v-if="canEdit" icon="i-heroicons-plus" to="/dashboard/reports/create">
+      <UButton v-if="canEdit" icon="i-heroicons-plus" to="/dashboard/reports/create" class="w-full sm:w-auto justify-center">
         Create Report
       </UButton>
     </div>
