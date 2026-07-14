@@ -161,24 +161,39 @@ async def root():
 
 
 # Include API routers
-from app.api.v1 import auth, events, groups, members, analytics, scheduler, categories, reports, config_public, scores, scraper, backups, migrations, ai_providers, external_events, training, expenses, forms, projects
+from fastapi import Depends
+from app.api.v1 import auth, events, groups, members, analytics, scheduler, categories, reports, config_public, scores, scraper, backups, migrations, ai_providers, external_events, training, expenses, forms, projects, access
+from app.core.modules import require_module
 
+
+def _module_guard(module_key: str):
+    """Router-level dependency gating every endpoint by module access."""
+    return [Depends(require_module(module_key))]
+
+
+# Ungated: auth (self + superuser-gated admin mgmt), groups (group selector
+# used everywhere), config (public), categories (shared reference data).
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
-app.include_router(events.router, prefix=f"{settings.API_V1_PREFIX}/events", tags=["events"])
+app.include_router(access.router, prefix=f"{settings.API_V1_PREFIX}/access", tags=["access"])
 app.include_router(groups.router, prefix=f"{settings.API_V1_PREFIX}/groups", tags=["groups"])
-app.include_router(members.router, prefix=f"{settings.API_V1_PREFIX}/members", tags=["members"])
-app.include_router(analytics.router, prefix=f"{settings.API_V1_PREFIX}/analytics", tags=["analytics"])
-app.include_router(categories.router, prefix=f"{settings.API_V1_PREFIX}/categories", tags=["categories"])
-app.include_router(reports.router, prefix=f"{settings.API_V1_PREFIX}/reports", tags=["reports"])
-app.include_router(scheduler.router, prefix=f"{settings.API_V1_PREFIX}/scheduler", tags=["scheduler"])
 app.include_router(config_public.router, prefix=f"{settings.API_V1_PREFIX}/config", tags=["config"])
-app.include_router(scores.router, prefix=f"{settings.API_V1_PREFIX}/scores", tags=["scores"])
-app.include_router(scraper.router, prefix=f"{settings.API_V1_PREFIX}/scraper", tags=["scraper"])
-app.include_router(backups.router, prefix=f"{settings.API_V1_PREFIX}/backups", tags=["backups"])
-app.include_router(migrations.router, prefix=f"{settings.API_V1_PREFIX}/migrations", tags=["migrations"])
-app.include_router(ai_providers.router, prefix=f"{settings.API_V1_PREFIX}/ai", tags=["ai"])
-app.include_router(external_events.router, prefix=f"{settings.API_V1_PREFIX}/external-events", tags=["external-events"])
-app.include_router(training.router, prefix=f"{settings.API_V1_PREFIX}/training", tags=["training"])
-app.include_router(expenses.router, prefix=f"{settings.API_V1_PREFIX}/expenses", tags=["expenses"])
-app.include_router(forms.router, prefix=f"{settings.API_V1_PREFIX}/forms", tags=["forms"])
-app.include_router(projects.router, prefix=f"{settings.API_V1_PREFIX}/projects", tags=["projects"])
+app.include_router(categories.router, prefix=f"{settings.API_V1_PREFIX}/categories", tags=["categories"])
+
+# Module-gated: each router maps to one sidebar module (see app/core/modules.py).
+app.include_router(events.router, prefix=f"{settings.API_V1_PREFIX}/events", tags=["events"], dependencies=_module_guard("events"))
+app.include_router(members.router, prefix=f"{settings.API_V1_PREFIX}/members", tags=["members"], dependencies=_module_guard("members"))
+app.include_router(analytics.router, prefix=f"{settings.API_V1_PREFIX}/analytics", tags=["analytics"], dependencies=_module_guard("analytics"))
+app.include_router(reports.router, prefix=f"{settings.API_V1_PREFIX}/reports", tags=["reports"], dependencies=_module_guard("reports"))
+app.include_router(scores.router, prefix=f"{settings.API_V1_PREFIX}/scores", tags=["scores"], dependencies=_module_guard("scores"))
+app.include_router(external_events.router, prefix=f"{settings.API_V1_PREFIX}/external-events", tags=["external-events"], dependencies=_module_guard("competitions"))
+app.include_router(training.router, prefix=f"{settings.API_V1_PREFIX}/training", tags=["training"], dependencies=_module_guard("training"))
+app.include_router(expenses.router, prefix=f"{settings.API_V1_PREFIX}/expenses", tags=["expenses"], dependencies=_module_guard("expenses"))
+app.include_router(forms.router, prefix=f"{settings.API_V1_PREFIX}/forms", tags=["forms"], dependencies=_module_guard("forms"))
+app.include_router(projects.router, prefix=f"{settings.API_V1_PREFIX}/projects", tags=["projects"], dependencies=_module_guard("projects"))
+
+# Settings sub-features all gate on the "settings" module.
+app.include_router(scheduler.router, prefix=f"{settings.API_V1_PREFIX}/scheduler", tags=["scheduler"], dependencies=_module_guard("settings"))
+app.include_router(scraper.router, prefix=f"{settings.API_V1_PREFIX}/scraper", tags=["scraper"], dependencies=_module_guard("settings"))
+app.include_router(backups.router, prefix=f"{settings.API_V1_PREFIX}/backups", tags=["backups"], dependencies=_module_guard("settings"))
+app.include_router(migrations.router, prefix=f"{settings.API_V1_PREFIX}/migrations", tags=["migrations"], dependencies=_module_guard("settings"))
+app.include_router(ai_providers.router, prefix=f"{settings.API_V1_PREFIX}/ai", tags=["ai"], dependencies=_module_guard("settings"))

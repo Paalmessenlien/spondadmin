@@ -235,6 +235,12 @@ class AdminService:
             admin.is_superuser = admin_data.is_superuser
         if admin_data.role is not None:
             admin.role = admin_data.role
+        # ``modules`` distinguishes three intents via ``model_fields_set``:
+        #   * field absent          → leave unchanged
+        #   * present as null       → reset to role defaults (store NULL)
+        #   * present as a list      → explicit allow-list (``[]`` = no modules)
+        if "modules" in admin_data.model_fields_set:
+            admin.modules = admin_data.modules
 
         await db.flush()
         await db.refresh(admin)

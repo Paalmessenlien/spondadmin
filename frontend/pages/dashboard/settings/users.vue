@@ -36,6 +36,7 @@
               <th class="text-left py-3 px-4 font-medium text-gray-500">User</th>
               <th class="text-left py-3 px-4 font-medium text-gray-500">Email</th>
               <th class="text-left py-3 px-4 font-medium text-gray-500">Role</th>
+              <th class="text-left py-3 px-4 font-medium text-gray-500">Access</th>
               <th class="text-left py-3 px-4 font-medium text-gray-500">Status</th>
               <th class="text-left py-3 px-4 font-medium text-gray-500">Clerk</th>
               <th class="text-left py-3 px-4 font-medium text-gray-500">Created</th>
@@ -69,6 +70,15 @@
               <td class="py-3 px-4">
                 <UBadge :color="roleColor(admin.role)" variant="subtle" size="sm">
                   {{ admin.role }}
+                </UBadge>
+              </td>
+              <td class="py-3 px-4">
+                <UBadge
+                  :color="accessBadge(admin).color"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ accessBadge(admin).label }}
                 </UBadge>
               </td>
               <td class="py-3 px-4">
@@ -261,18 +271,115 @@
               <UInput v-model="editForm.full_name" placeholder="Full Name" />
             </div>
 
+            <!-- Access group -->
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Access group</label>
               <select
-                v-model="editForm.role"
+                v-model="editForm.access_group_id"
                 class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="admin">Admin - Full access</option>
-                <option value="editor">Editor - View + modify data</option>
-                <option value="kasserer">Kasserer - Review expenses (utlegg)</option>
-                <option value="viewer">Viewer - Read-only</option>
+                <option :value="null">No group — set role &amp; modules directly</option>
+                <option v-for="g in accessGroups" :key="g.id" :value="g.id">
+                  {{ g.name }} ({{ g.role }})
+                </option>
               </select>
+              <p class="text-xs text-gray-500 mt-1">
+                Assigning a group sets the user's role and modules from that group.
+                <NuxtLink to="/dashboard/settings/access" class="text-blue-600 dark:text-blue-400 hover:underline">Manage groups</NuxtLink>
+              </p>
             </div>
+
+            <!-- Group-managed: role + modules come from the group -->
+            <div
+              v-if="editForm.access_group_id"
+              class="rounded-lg border border-dashed border-indigo-300 dark:border-indigo-700 bg-indigo-50/50 dark:bg-indigo-900/10 p-3 space-y-2"
+            >
+              <p class="text-sm text-gray-700 dark:text-gray-300">
+                <UIcon name="i-heroicons-user-group" class="w-4 h-4 inline-block mr-1 align-text-bottom" />
+                Managed by group <strong>{{ selectedGroup?.name }}</strong>
+                <UBadge :color="roleColor(selectedGroup?.role || 'viewer')" variant="subtle" size="sm" class="ml-1">{{ selectedGroup?.role }}</UBadge>
+              </p>
+              <div class="flex flex-wrap gap-1.5">
+                <UBadge v-for="key in (selectedGroup?.modules || [])" :key="key" color="neutral" variant="subtle" size="sm">
+                  {{ moduleLabel(key) }}
+                </UBadge>
+              </div>
+              <p class="text-xs text-gray-500">Change the group's role/modules on the Roles &amp; Access Groups page.</p>
+            </div>
+
+            <!-- No group: role + per-user modules set directly -->
+            <template v-else>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                <select
+                  v-model="editForm.role"
+                  class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="admin">Admin - Full access</option>
+                  <option value="editor">Editor - View + modify data</option>
+                  <option value="kasserer">Kasserer - Review expenses (utlegg)</option>
+                  <option value="viewer">Viewer - Read-only</option>
+                </select>
+              </div>
+
+              <!-- Module access -->
+              <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Module access</label>
+                  <span class="text-xs text-gray-500 dark:text-gray-400">Which parts of the system this user can reach</span>
+                </div>
+
+                <p
+                  v-if="editForm.role === 'admin'"
+                  class="text-sm text-gray-600 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 rounded p-3"
+                >
+                  <UIcon name="i-heroicons-shield-check" class="w-4 h-4 inline-block mr-1 align-text-bottom" />
+                  Admins have access to all modules. Choose a different role to restrict access.
+                </p>
+
+                <template v-else>
+                  <div class="flex items-center space-x-2 mb-3">
+                    <input
+                      id="customize_modules"
+                      :checked="editForm.customizeModules"
+                      type="checkbox"
+                      class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                      @change="onCustomizeToggle(($event.target as HTMLInputElement).checked)"
+                    />
+                    <label for="customize_modules" class="text-sm text-gray-700 dark:text-gray-300">
+                      Customize module access for this user
+                    </label>
+                  </div>
+
+                  <div
+                    v-if="!editForm.customizeModules"
+                    class="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-3"
+                  >
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Using <strong>{{ editForm.role }}</strong> role defaults:
+                    </p>
+                    <div v-if="roleDefaultModules.length" class="flex flex-wrap gap-1.5">
+                      <UBadge v-for="key in roleDefaultModules" :key="key" color="neutral" variant="subtle" size="sm">
+                        {{ moduleLabel(key) }}
+                      </UBadge>
+                    </div>
+                    <p v-else class="text-xs text-gray-400 italic">No modules by default for this role.</p>
+                  </div>
+
+                  <div v-else class="space-y-3">
+                    <ModuleCheckboxGrid
+                      :groups="moduleGroups"
+                      :selected="editForm.modules"
+                      @toggle="toggleModule"
+                    />
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ editForm.modules.length }} module{{ editForm.modules.length === 1 ? '' : 's' }} selected.
+                      View-vs-edit within each module is still governed by the user's role.
+                    </p>
+                  </div>
+                </template>
+              </div>
+            </template>
 
             <div class="flex items-center space-x-2">
               <input
@@ -335,9 +442,16 @@ interface AdminUser {
   is_superuser: boolean
   role: string
   clerk_user_id?: string | null
+  modules?: string[] | null
+  effective_modules?: string[]
+  access_group_id?: number | null
+  access_group_name?: string | null
   created_at: string
   updated_at: string
 }
+
+interface ModuleDef { key: string; label: string; group: string }
+interface AccessGroup { id: number; name: string; role: string; modules: string[] }
 
 const admins = ref<AdminUser[]>([])
 const loading = ref(true)
@@ -359,7 +473,37 @@ const editForm = ref({
   full_name: '',
   role: 'viewer',
   is_active: true,
+  // null = no group (role + per-user modules apply); a number assigns a group.
+  access_group_id: null as number | null,
+  // Module access: when false, the user inherits their role's default
+  // module set (stored as NULL). When true, `modules` is an explicit list.
+  customizeModules: false,
+  modules: [] as string[],
 })
+
+// Module registry + per-role defaults + access groups, loaded from the backend.
+const moduleRegistry = ref<ModuleDef[]>([])
+const roleDefaults = ref<Record<string, string[]>>({})
+const accessGroups = ref<AccessGroup[]>([])
+
+const selectedGroup = computed(() =>
+  accessGroups.value.find(g => g.id === editForm.value.access_group_id) || null
+)
+
+// Registry grouped by sidebar group, for a tidy checkbox layout.
+const moduleGroups = computed(() => {
+  const groups: { group: string; modules: ModuleDef[] }[] = []
+  for (const m of moduleRegistry.value) {
+    let g = groups.find(x => x.group === m.group)
+    if (!g) { g = { group: m.group, modules: [] }; groups.push(g) }
+    g.modules.push(m)
+  }
+  return groups
+})
+
+// The module set implied by the currently selected role (the read-only
+// preview shown when "customize" is off).
+const roleDefaultModules = computed<string[]>(() => roleDefaults.value[editForm.value.role] ?? [])
 
 const loadAdmins = async () => {
   loading.value = true
@@ -372,7 +516,46 @@ const loadAdmins = async () => {
   }
 }
 
-onMounted(loadAdmins)
+const loadModules = async () => {
+  try {
+    const data = await api.getModules()
+    moduleRegistry.value = data.modules
+    roleDefaults.value = data.role_defaults
+  } catch {
+    // Non-fatal: the editor falls back to hiding the module section.
+  }
+}
+
+const loadAccessGroups = async () => {
+  try {
+    accessGroups.value = await api.getAccessGroups()
+  } catch {
+    // Non-fatal: the group selector just shows "No group".
+  }
+}
+
+const moduleLabel = (key: string) => moduleRegistry.value.find(m => m.key === key)?.label ?? key
+
+const toggleModule = (key: string) => {
+  const set = new Set(editForm.value.modules)
+  set.has(key) ? set.delete(key) : set.add(key)
+  editForm.value.modules = Array.from(set)
+}
+
+// Turning "customize" on seeds the checkboxes from the role defaults so the
+// admin starts from a sensible set rather than an empty one.
+const onCustomizeToggle = (on: boolean) => {
+  editForm.value.customizeModules = on
+  if (on && editForm.value.modules.length === 0) {
+    editForm.value.modules = [...roleDefaultModules.value]
+  }
+}
+
+onMounted(() => {
+  loadAdmins()
+  loadModules()
+  loadAccessGroups()
+})
 
 const openInviteModal = () => {
   inviteForm.value = { email: '', full_name: '', role: 'viewer' }
@@ -382,10 +565,16 @@ const openInviteModal = () => {
 
 const openEditModal = (admin: AdminUser) => {
   editingAdmin.value = admin
+  const isCustom = Array.isArray(admin.modules)
   editForm.value = {
     full_name: admin.full_name || '',
     role: admin.role,
     is_active: admin.is_active,
+    access_group_id: admin.access_group_id ?? null,
+    customizeModules: isCustom,
+    // Seed the checkboxes from the explicit list, or from the role's
+    // defaults (so toggling "customize" on starts from something useful).
+    modules: isCustom ? [...(admin.modules as string[])] : [...(roleDefaults.value[admin.role] ?? [])],
   }
   formError.value = ''
   editModalOpen.value = true
@@ -421,12 +610,25 @@ const handleEdit = async () => {
   submitting.value = true
   formError.value = ''
   try {
-    await api.updateAdmin(editingAdmin.value.id, {
+    const inGroup = editForm.value.access_group_id != null
+    const payload: Record<string, any> = {
       full_name: editForm.value.full_name || null,
-      role: editForm.value.role,
       is_active: editForm.value.is_active,
-      is_superuser: editForm.value.role === 'admin',
-    })
+      // Always send access_group_id (null detaches). The backend copies the
+      // group's role/modules onto the user when a group is assigned.
+      access_group_id: editForm.value.access_group_id,
+    }
+    // Role + per-user modules only apply when NOT in a group (the group is
+    // the source of truth otherwise).
+    if (!inGroup) {
+      payload.role = editForm.value.role
+      payload.is_superuser = editForm.value.role === 'admin'
+      if (editForm.value.role !== 'admin') {
+        // Explicit list when customizing, or null to reset to role defaults.
+        payload.modules = editForm.value.customizeModules ? editForm.value.modules : null
+      }
+    }
+    await api.updateAdmin(editingAdmin.value.id, payload)
     toast.add({ title: 'Saved', description: 'User updated', color: 'green' })
     editModalOpen.value = false
     await loadAdmins()
@@ -458,6 +660,15 @@ const handleDelete = async () => {
   } finally {
     submitting.value = false
   }
+}
+
+// At-a-glance access summary for the list: group membership first, then
+// admin-all, then a per-user custom override, else role defaults.
+const accessBadge = (admin: AdminUser): { label: string; color: string } => {
+  if (admin.access_group_name) return { label: admin.access_group_name, color: 'indigo' }
+  if (admin.role === 'admin' || admin.is_superuser) return { label: 'All modules', color: 'blue' }
+  if (Array.isArray(admin.modules)) return { label: `Custom (${admin.modules.length})`, color: 'purple' }
+  return { label: 'Role defaults', color: 'neutral' }
 }
 
 const roleColor = (role: string) => {

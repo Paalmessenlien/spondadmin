@@ -48,4 +48,40 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (!authStore.user) {
     return navigateTo('/login?error=no_admin')
   }
+
+  // Module gate. The backend is the real enforcement point (it 403s data
+  // requests); this just keeps users out of pages they can't use, matching
+  // the sidebar. Maps the first path segment under /dashboard to a module.
+  // Ordered so the fallback landing prefers Dashboard, then the sidebar order.
+  const MODULE_ROUTES: Array<{ module: string; route: string }> = [
+    { module: 'dashboard', route: '/dashboard' },
+    { module: 'members', route: '/dashboard/members' },
+    { module: 'events', route: '/dashboard/events' },
+    { module: 'training', route: '/dashboard/training' },
+    { module: 'competitions', route: '/dashboard/competitions' },
+    { module: 'scores', route: '/dashboard/scores' },
+    { module: 'expenses', route: '/dashboard/expenses' },
+    { module: 'projects', route: '/dashboard/projects' },
+    { module: 'forms', route: '/dashboard/forms' },
+    { module: 'reports', route: '/dashboard/reports' },
+    { module: 'analytics', route: '/dashboard/analytics' },
+    { module: 'settings', route: '/dashboard/settings' },
+  ]
+
+  const moduleForPath = (path: string): string | null => {
+    if (path === '/dashboard' || path === '/dashboard/') return 'dashboard'
+    const seg = path.replace(/^\/dashboard\/?/, '').split('/')[0]
+    return MODULE_ROUTES.find(m => m.route === `/dashboard/${seg}`)?.module ?? null
+  }
+
+  const requiredModule = moduleForPath(to.path)
+  if (requiredModule && !authStore.canAccessModule(requiredModule)) {
+    // Redirect to the first module they *can* reach. If none (or that
+    // target is where they already are), fall through and let the page's
+    // own empty/permission state render — never redirect in a loop.
+    const landing = MODULE_ROUTES.find(m => authStore.canAccessModule(m.module))
+    if (landing && landing.route !== to.path) {
+      return navigateTo(landing.route)
+    }
+  }
 })

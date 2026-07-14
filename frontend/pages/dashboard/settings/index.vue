@@ -73,6 +73,21 @@
         </div>
       </UCard>
 
+      <!-- Roles & Access Groups -->
+      <UCard class="hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer" @click="navigateTo('/dashboard/settings/access')">
+        <div class="flex items-start space-x-4">
+          <div class="w-12 h-12 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+            <UIcon name="i-heroicons-key" class="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Roles &amp; Access Groups</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Edit each role's default modules and create reusable access groups to assign to users.
+            </p>
+          </div>
+        </div>
+      </UCard>
+
       <!-- Database Backups -->
       <UCard class="hover:border-blue-300 dark:hover:border-blue-700 transition-colors cursor-pointer" @click="navigateTo('/dashboard/settings/backups')">
         <div class="flex items-start space-x-4">

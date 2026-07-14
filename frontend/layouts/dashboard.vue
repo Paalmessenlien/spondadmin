@@ -257,7 +257,7 @@ onMounted(async () => {
   }
 })
 
-const { canManageSystem } = usePermissions()
+const { canAccessModule } = usePermissions()
 
 interface NavItem {
   label: string
@@ -265,7 +265,9 @@ interface NavItem {
   icon: string
   exact?: boolean
   comingSoon?: boolean
-  minRole?: 'admin' | 'editor' | 'viewer'
+  // Sidebar module gate. Items without a module (e.g. "Soon" teasers)
+  // are always shown; otherwise the user must have the module granted.
+  module?: string
 }
 
 interface NavGroup {
@@ -277,35 +279,35 @@ const allNavGroups: NavGroup[] = [
   {
     label: 'Core',
     items: [
-      { label: 'Dashboard', to: '/dashboard', icon: 'i-heroicons-home', exact: true },
+      { label: 'Dashboard', to: '/dashboard', icon: 'i-heroicons-home', exact: true, module: 'dashboard' },
     ],
   },
   {
     label: 'People',
     items: [
-      { label: 'Members', to: '/dashboard/members', icon: 'i-heroicons-users' },
+      { label: 'Members', to: '/dashboard/members', icon: 'i-heroicons-users', module: 'members' },
     ],
   },
   {
     label: 'Activities',
     items: [
-      { label: 'Events & Training', to: '/dashboard/events', icon: 'i-heroicons-calendar' },
-      { label: 'Training plan', to: '/dashboard/training', icon: 'i-heroicons-clipboard-document-list' },
-      { label: 'Konkurranser', to: '/dashboard/competitions', icon: 'i-heroicons-trophy' },
+      { label: 'Events & Training', to: '/dashboard/events', icon: 'i-heroicons-calendar', module: 'events' },
+      { label: 'Training plan', to: '/dashboard/training', icon: 'i-heroicons-clipboard-document-list', module: 'training' },
+      { label: 'Konkurranser', to: '/dashboard/competitions', icon: 'i-heroicons-trophy', module: 'competitions' },
     ],
   },
   {
     label: 'Performance',
     items: [
-      { label: 'Scores & Records', to: '/dashboard/scores', icon: 'i-heroicons-viewfinder-circle' },
+      { label: 'Scores & Records', to: '/dashboard/scores', icon: 'i-heroicons-viewfinder-circle', module: 'scores' },
     ],
   },
   {
     label: 'Operations',
     items: [
-      { label: 'Utlegg', to: '/dashboard/expenses', icon: 'i-heroicons-banknotes' },
-      { label: 'Prosjekter', to: '/dashboard/projects', icon: 'i-heroicons-rectangle-stack', minRole: 'viewer' },
-      { label: 'Skjema', to: '/dashboard/forms', icon: 'i-heroicons-clipboard-document-list', minRole: 'editor' },
+      { label: 'Utlegg', to: '/dashboard/expenses', icon: 'i-heroicons-banknotes', module: 'expenses' },
+      { label: 'Prosjekter', to: '/dashboard/projects', icon: 'i-heroicons-rectangle-stack', module: 'projects' },
+      { label: 'Skjema', to: '/dashboard/forms', icon: 'i-heroicons-clipboard-document-list', module: 'forms' },
       { label: 'Equipment', to: '/dashboard/equipment', icon: 'i-heroicons-cube', comingSoon: true },
       { label: 'Communication', to: '/dashboard/communication', icon: 'i-heroicons-bell', comingSoon: true },
     ],
@@ -313,30 +315,25 @@ const allNavGroups: NavGroup[] = [
   {
     label: 'Intelligence',
     items: [
-      { label: 'Reports', to: '/dashboard/reports', icon: 'i-heroicons-document-chart-bar' },
-      { label: 'Analytics', to: '/dashboard/analytics', icon: 'i-heroicons-chart-bar' },
+      { label: 'Reports', to: '/dashboard/reports', icon: 'i-heroicons-document-chart-bar', module: 'reports' },
+      { label: 'Analytics', to: '/dashboard/analytics', icon: 'i-heroicons-chart-bar', module: 'analytics' },
     ],
   },
   {
     label: 'System',
     items: [
-      { label: 'Settings', to: '/dashboard/settings', icon: 'i-heroicons-cog-6-tooth', minRole: 'admin' },
+      { label: 'Settings', to: '/dashboard/settings', icon: 'i-heroicons-cog-6-tooth', module: 'settings' },
     ],
   },
 ]
 
 const navGroups = computed(() => {
-  const roleLevel = { admin: 3, editor: 2, viewer: 1 }
-  const userRole = authStore.user?.role ?? 'viewer'
-  const userLevel = roleLevel[userRole] || 1
-
   return allNavGroups
     .map(group => ({
       ...group,
-      items: group.items.filter(item => {
-        const minLevel = roleLevel[item.minRole ?? 'viewer'] || 1
-        return userLevel >= minLevel
-      }),
+      // Show an item if it has no module gate (e.g. "Soon" teasers) or the
+      // user has been granted that module. Role no longer decides visibility.
+      items: group.items.filter(item => !item.module || canAccessModule(item.module)),
     }))
     .filter(group => group.items.length > 0)
 })

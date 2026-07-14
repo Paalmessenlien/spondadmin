@@ -8,5 +8,8 @@ export const usePermissions = () => {
     isKasserer: computed(() => authStore.isKasserer),
     canReviewExpenses: computed(() => authStore.canReviewExpenses),
     role: computed(() => authStore.user?.role ?? 'viewer'),
+    // Predicate: canAccessModule('members'). Backed by the resolved
+    // effective_modules from the backend (admins always pass).
+    canAccessModule: (moduleKey: string) => authStore.canAccessModule(moduleKey),
   }
 }

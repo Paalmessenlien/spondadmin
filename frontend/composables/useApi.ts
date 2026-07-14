@@ -386,6 +386,34 @@ export const useApi = () => {
     return makeRequest('/scraper/auto-match', { method: 'POST' })
   }
 
+  // Module registry (keys + labels + per-role defaults) for the user editor.
+  const getModules = async () => {
+    return makeRequest<{
+      modules: { key: string; label: string; group: string }[]
+      role_defaults: Record<string, string[]>
+    }>('/auth/modules')
+  }
+
+  // Access groups + role defaults (Settings › Roles & Access Groups).
+  const getAccessGroups = async () => {
+    return makeRequest<any[]>('/access/groups')
+  }
+  const createAccessGroup = async (data: { name: string; description?: string | null; role: string; modules: string[] }) => {
+    return makeRequest<any>('/access/groups', { method: 'POST', body: data })
+  }
+  const updateAccessGroup = async (id: number, data: Record<string, any>) => {
+    return makeRequest<any>(`/access/groups/${id}`, { method: 'PUT', body: data })
+  }
+  const deleteAccessGroup = async (id: number) => {
+    return makeRequest(`/access/groups/${id}`, { method: 'DELETE' })
+  }
+  const getRoleDefaults = async () => {
+    return makeRequest<{ role: string; modules: string[] }[]>('/access/roles')
+  }
+  const updateRoleDefault = async (role: string, modules: string[]) => {
+    return makeRequest<any>(`/access/roles/${role}`, { method: 'PUT', body: { modules } })
+  }
+
   // Admin Users
   const getAdmins = async () => {
     return makeRequest<any[]>('/auth/admins')
@@ -1009,6 +1037,13 @@ export const useApi = () => {
     dismissUnmatched,
     runAutoMatch,
     // Admin Users
+    getModules,
+    getAccessGroups,
+    createAccessGroup,
+    updateAccessGroup,
+    deleteAccessGroup,
+    getRoleDefaults,
+    updateRoleDefault,
     getAdmins,
     getAdmin,
     createAdmin,

@@ -2,12 +2,15 @@
 Admin user model for authentication
 """
 from enum import Enum as PyEnum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import String, Boolean
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Boolean, JSON, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.access_group import AccessGroup
 
 
 class UserRole(str, PyEnum):
@@ -38,6 +41,26 @@ class Admin(Base, TimestampMixin):
         String(20), default=UserRole.VIEWER.value, nullable=False,
         server_default="viewer"
     )
+    # Per-user module allow-list (see app/core/modules.py). Resolution order
+    # is: explicit ``modules`` > assigned ``access_group`` > role default.
+    #   NULL      → not customised; inherit from group or role default.
+    #   [ "..." ] → explicit override list of sidebar modules.
+    # Role still governs view-vs-edit; this only governs *which* modules.
+    modules: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+
+    # Optional assignment to a reusable access group. SET NULL so deleting a
+    # group leaves its members intact (they fall back to role defaults).
+    access_group_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("access_groups.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    access_group: Mapped[Optional["AccessGroup"]] = relationship(
+        "AccessGroup", back_populates="members", lazy="selectin"
+    )
+
+    @property
+    def access_group_name(self) -> Optional[str]:
+        """Convenience for API responses (access_group is selectin-loaded)."""
+        return self.access_group.name if self.access_group else None
 
     def __repr__(self) -> str:
         return f"<Admin {self.username} ({self.email})>"

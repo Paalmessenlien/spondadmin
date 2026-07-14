@@ -16,6 +16,7 @@ from slowapi.util import get_remote_address
 from app.core.config import settings
 from app.core.clerk import clerk_api
 from app.core.deps import get_current_user, get_current_superuser, get_current_admin
+from app.core.modules import MODULES
 from app.db.session import get_db
 from app.models.admin import Admin
 from app.schemas.admin import (
@@ -24,6 +25,7 @@ from app.schemas.admin import (
     AdminResponse,
 )
 from app.services.admin_service import AdminService
+from app.services.access_service import AccessService
 
 logger_auth = logging.getLogger(__name__)
 
@@ -34,17 +36,38 @@ limiter = Limiter(key_func=get_remote_address)
 @router.get("/me", response_model=AdminResponse)
 async def get_current_user_info(
     current_user: Admin = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    Get current user information
-
-    Args:
-        current_user: Current authenticated user
-
-    Returns:
-        Current user data
+    Get current user information, including the resolved ``effective_modules``
+    the frontend uses to filter navigation and gate pages.
     """
-    return current_user
+    resp = AdminResponse.model_validate(current_user)
+    resp.effective_modules = sorted(
+        await AccessService.resolve_effective_modules(db, current_user)
+    )
+    return resp
+
+
+@router.get("/modules")
+async def list_modules(
+    current_user: Admin = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    The module registry, for the admin user-management editor.
+
+    Returns every module (key + label + sidebar group) plus the live default
+    module set per role (from the editable ``role_module_defaults`` table), so
+    the editor can show which boxes a role would tick by default.
+    """
+    role_defaults = await AccessService.get_role_defaults(db)
+    return {
+        "modules": [
+            {"key": m.key, "label": m.label, "group": m.group} for m in MODULES
+        ],
+        "role_defaults": {role: sorted(keys) for role, keys in role_defaults.items()},
+    }
 
 
 @router.put("/me", response_model=AdminResponse)
@@ -67,11 +90,17 @@ async def update_current_user(
     Raises:
         HTTPException: If update fails
     """
-    # Don't allow users to change their own superuser status or role
+    # Don't allow users to change their own superuser status, role, or
+    # module access — those are privilege boundaries only an admin may set.
     if update_data.is_superuser is not None:
         update_data.is_superuser = current_user.is_superuser
     if update_data.role is not None:
         update_data.role = current_user.role
+    if "modules" in update_data.model_fields_set:
+        update_data.modules = current_user.modules
+        update_data.model_fields_set.discard("modules")
+    if "access_group_id" in update_data.model_fields_set:
+        update_data.model_fields_set.discard("access_group_id")
 
     try:
         updated_admin = await AdminService.update(db, current_user.id, update_data)
@@ -214,7 +243,14 @@ async def update_admin(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Admin not found"
             )
+        # Group assignment is applied after the base update. Assigning a group
+        # copies its role onto the user and clears per-user module overrides,
+        # so it takes precedence over any role/modules in the same request.
+        if "access_group_id" in update_data.model_fields_set:
+            await AccessService.assign_group(db, admin, update_data.access_group_id)
+            await db.flush()
         await db.commit()
+        await db.refresh(admin)
         return admin
     except ValueError as e:
         raise HTTPException(

@@ -2,6 +2,7 @@
 Database models
 """
 from app.models.admin import Admin, UserRole
+from app.models.access_group import AccessGroup, RoleModuleDefault
 from app.models.event import Event
 from app.models.event_category import EventCategory
 from app.models.group import Group
@@ -39,6 +40,8 @@ from app.models.work_item import (
 __all__ = [
     "Admin",
     "UserRole",
+    "AccessGroup",
+    "RoleModuleDefault",
     "Event",
     "EventCategory",
     "Group",

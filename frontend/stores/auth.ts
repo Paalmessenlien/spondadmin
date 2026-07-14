@@ -18,6 +18,10 @@ interface User {
   is_superuser: boolean
   role: 'admin' | 'editor' | 'viewer' | 'kasserer'
   clerk_user_id?: string | null
+  // Raw per-user allow-list: null = not customised (uses role defaults).
+  modules?: string[] | null
+  // Resolved set the user can actually reach — what nav/pages gate on.
+  effective_modules?: string[]
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -41,6 +45,13 @@ export const useAuthStore = defineStore('auth', {
     isKasserer: (state) => state.user?.role === 'kasserer',
     // Anyone who can act on the expense review queue.
     canReviewExpenses: (state) => ['admin', 'kasserer'].includes(state.user?.role ?? ''),
+    // Module allow-list check. Admins implicitly reach everything; the
+    // backend resolves that into effective_modules, so we just test
+    // membership. Returns a predicate: canAccessModule('members').
+    canAccessModule: (state) => (moduleKey: string): boolean => {
+      if (state.user?.role === 'admin' || state.user?.is_superuser) return true
+      return (state.user?.effective_modules ?? []).includes(moduleKey)
+    },
   },
 
   actions: {
