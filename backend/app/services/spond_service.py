@@ -88,6 +88,35 @@ class SpondService:
             self._client = None
             logger.info("Spond client session closed")
 
+    @staticmethod
+    def _is_token_expired(error: Exception) -> bool:
+        """True if a Spond library error is a 401 token-expiry a re-login fixes."""
+        msg = str(error)
+        return "401" in msg and ("tokenExpired" in msg or "Not authenticated" in msg)
+
+    async def _call_with_reauth(self, make_call):
+        """Run a Spond library call, re-authenticating once on 401 tokenExpired.
+
+        The Spond client is a long-lived singleton that only logs in when its
+        token is unset, so an expired token surfaces as a 401 on every call
+        until we force a fresh login. Mirrors the retry in create_event so the
+        read paths (event/group/member sync) survive token expiry too.
+        """
+        client = await self._get_client()
+        for attempt in range(2):
+            try:
+                return await make_call(client)
+            except Exception as e:
+                if attempt == 0 and self._is_token_expired(e):
+                    logger.info(
+                        "Spond returned 401 (token expired); "
+                        "re-authenticating and retrying"
+                    )
+                    client.token = None
+                    await client.login()
+                    continue
+                raise
+
     # ============================================================
     # Events API
     # ============================================================
@@ -121,19 +150,19 @@ class SpondService:
         Returns:
             List of event dictionaries from Spond API
         """
-        client = await self._get_client()
-
         try:
-            events_data = await client.get_events(
-                group_id=group_id,
-                subgroup_id=subgroup_id,
-                include_scheduled=include_scheduled,
-                include_hidden=include_hidden,
-                max_end=max_end,
-                min_end=min_end,
-                max_start=max_start,
-                min_start=min_start,
-                max_events=max_events,
+            events_data = await self._call_with_reauth(
+                lambda client: client.get_events(
+                    group_id=group_id,
+                    subgroup_id=subgroup_id,
+                    include_scheduled=include_scheduled,
+                    include_hidden=include_hidden,
+                    max_end=max_end,
+                    min_end=min_end,
+                    max_start=max_start,
+                    min_start=min_start,
+                    max_events=max_events,
+                )
             )
 
             logger.info(f"Fetched {len(events_data)} events from Spond API")
@@ -153,10 +182,10 @@ class SpondService:
         Returns:
             Event dictionary or None if not found
         """
-        client = await self._get_client()
-
         try:
-            event_data = await client.get_event(event_id)
+            event_data = await self._call_with_reauth(
+                lambda client: client.get_event(event_id)
+            )
             logger.info(f"Fetched event {event_id}")
             return event_data
 
@@ -495,10 +524,10 @@ class SpondService:
         Returns:
             List of group dictionaries
         """
-        client = await self._get_client()
-
         try:
-            groups_data = await client.get_groups()
+            groups_data = await self._call_with_reauth(
+                lambda client: client.get_groups()
+            )
             logger.info(f"Fetched {len(groups_data)} groups from Spond API")
             return groups_data
 
@@ -516,10 +545,10 @@ class SpondService:
         Returns:
             Group dictionary or None if not found
         """
-        client = await self._get_client()
-
         try:
-            group_data = await client.get_group(group_id)
+            group_data = await self._call_with_reauth(
+                lambda client: client.get_group(group_id)
+            )
             logger.info(f"Fetched group {group_id}")
             return group_data
 
@@ -541,10 +570,10 @@ class SpondService:
         Returns:
             Person dictionary or None if not found
         """
-        client = await self._get_client()
-
         try:
-            person_data = await client.get_person(user_identifier)
+            person_data = await self._call_with_reauth(
+                lambda client: client.get_person(user_identifier)
+            )
             logger.info(f"Fetched person: {user_identifier}")
             return person_data
 
@@ -566,10 +595,10 @@ class SpondService:
         Returns:
             List of chat dictionaries
         """
-        client = await self._get_client()
-
         try:
-            messages_data = await client.get_messages(max_chats=max_chats)
+            messages_data = await self._call_with_reauth(
+                lambda client: client.get_messages(max_chats=max_chats)
+            )
             logger.info(f"Fetched messages")
             return messages_data
 
