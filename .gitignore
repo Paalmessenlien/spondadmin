@@ -36,6 +36,11 @@ node_modules/
 !.env.example
 !.env.docker
 !.env.production.example
+!.env.docker.local.example
+
+# Plane / data exports — contain member PII, keep out of git
+/lillehammer-bueskytterklubb-*.json
+/export-lillehammer-*.zip
 .mcp.json
 dist/
 .cache/

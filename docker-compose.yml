@@ -27,6 +27,10 @@ services:
       - backup_data:/app/backups
     env_file:
       - backend/.env.docker
+      # Untracked local secrets; overrides the blanks above. Optional so the
+      # stack still boots without it (Clerk/Spond features then disabled).
+      - path: backend/.env.docker.local
+        required: false
     depends_on:
       db:
         condition: service_healthy

@@ -21,8 +21,8 @@ docker compose logs -f backend     # tail backend logs
 docker compose -f docker-compose.prod.yml up -d
 ./scripts/deploy.sh                # full deployment (backup, build, migrate, health check)
 
-# Create admin user (Docker)
-docker compose exec backend python3 create_admin.py
+# Seed the first admin (Docker) — provisions a Clerk user + linked admin row
+docker compose exec backend python3 seed_first_admin.py
 
 # Run migrations (Docker)
 docker compose exec backend alembic upgrade head
@@ -45,12 +45,13 @@ uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
 alembic revision --autogenerate -m "Description"
 alembic upgrade head
 
-# Create admin user
-python3 create_admin.py
-
-# Reset admin password
-python3 reset_admin_password.py
+# Seed the first admin (provisions a Clerk user + linked admin row)
+python3 seed_first_admin.py
 ```
+
+> Authentication is handled by **Clerk**. There are no local passwords to set or
+> reset — additional admins are added via the invite flow (`POST /auth/invite`),
+> and users manage their own sign-in (Google, magic link, password) through Clerk.
 
 ```bash
 cd frontend
@@ -75,7 +76,7 @@ lsof -ti:3000 | xargs kill -9  # Frontend
 
 - **Framework**: FastAPI with async SQLAlchemy ORM
 - **Database**: PostgreSQL (production + Docker dev) / SQLite (local dev)
-- **Auth**: JWT tokens with bcrypt password hashing, role-based access (admin/editor/viewer)
+- **Auth**: Clerk-delegated authentication (RS256 JWTs verified against Clerk's JWKS); invite-only, role-based access (admin/editor/viewer/kasserer). See "Authentication" below.
 - **External API**: Spond API via `spond` and `spond-classes` libraries
 - **Scraping**: bueskyting.no competition results, records, and upcoming events via crawl4ai/httpx+BeautifulSoup
 - **AI Integration**: Configurable AI providers (OpenAI, Anthropic, DeepSeek) for event analysis
@@ -148,7 +149,10 @@ Uses `backend/.env.docker` with PostgreSQL defaults. Just run `docker compose up
 ### Local Development
 Backend config via `backend/.env` (copy from `.env.example`):
 - `SPOND_USERNAME` / `SPOND_PASSWORD` - Spond API credentials
-- `SECRET_KEY` - JWT signing key (generate with `openssl rand -hex 32`)
+- `SECRET_KEY` - Used to derive the Fernet key for encrypting stored API keys, min 32 chars (generate with `openssl rand -hex 32`). No longer used for JWT signing — Clerk handles tokens.
+- `CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` - Clerk API keys (`pk_...` / `sk_...`)
+- `CLERK_ISSUER` - Clerk issuer URL (e.g. `https://your-instance.clerk.accounts.dev`)
+- `CLERK_AUTHORIZED_PARTIES` - Allowed origins for the `azp` token claim (JSON array)
 - `AUTO_SYNC_ENABLED` - Enable background sync
 - `SYNC_*_INTERVAL_MINUTES` - Sync frequency per entity
 
@@ -156,18 +160,22 @@ Backend config via `backend/.env` (copy from `.env.example`):
 Copy `.env.production.example` to `.env` and configure:
 - `DATABASE_URL` - PostgreSQL connection (asyncpg)
 - `POSTGRES_PASSWORD` - Strong database password
-- `SECRET_KEY` - JWT signing key
+- `SECRET_KEY` - Fernet key derivation for encrypted secrets (min 32 chars)
+- `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_ISSUER`, `CLERK_AUTHORIZED_PARTIES` - Clerk auth (use `pk_live_`/`sk_live_` keys in production)
 - `BUNNY_STORAGE_ZONE`, `BUNNY_STORAGE_API_KEY`, `BUNNY_CDN_HOSTNAME` - CDN backup storage
 - `ALLOWED_ORIGINS` - JSON array format: `["https://admin.lillehammerbueskyttere.no"]`
 
 Frontend config via `frontend/.env`:
 - `NUXT_PUBLIC_API_BASE` - Backend API URL (default: `http://localhost:8001/api/v1`)
+- `NUXT_PUBLIC_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (`pk_...`)
 
 ## API Endpoints
 
 Base URL: `http://localhost:8001/api/v1`
 
-- `/auth/login` - JWT authentication
+- `/auth/me` (GET/PUT) - Current admin profile (resolved from Clerk token)
+- `/auth/invite` - Invite a new admin (superuser only; sends Clerk invitation)
+- `/auth/admins`, `/auth/admins/{id}` - Admin user management (CRUD)
 - `/events/`, `/events/sync`, `/events/{id}` - Event management
 - `/groups/`, `/groups/sync`, `/groups/{id}` - Group management
 - `/members/`, `/members/sync`, `/members/{id}` - Member management
@@ -189,8 +197,6 @@ Base URL: `http://localhost:8001/api/v1`
 
 **Timestamp Handling**: SQLAlchemy models use `TimestampMixin`. When creating records via sync services, explicitly set `created_at` and `updated_at` fields. Use timezone-naive datetimes with PostgreSQL (`TIMESTAMP WITHOUT TIME ZONE`).
 
-**bcrypt Compatibility**: Pin `bcrypt==4.0.1` in requirements.txt. Newer bcrypt versions break `passlib` on Python 3.13.
-
 **Analytics Response Format**: Event responses are stored as JSON with structure `{"responses": [...], "accepted_uids": [...]}`. The `analytics_service.py` uses `_get_responses_array()` helper for backward compatibility.
 
 **Nuxt UI CSS**: The `assets/css/main.css` must contain both `@import "tailwindcss"` and `@import "@nuxt/ui"` for proper styling.
@@ -211,7 +217,11 @@ Base URL: `http://localhost:8001/api/v1`
 
 **ALLOWED_ORIGINS Format**: Must be a JSON array in `.env` files: `ALLOWED_ORIGINS=["http://localhost:3000"]`. Comma-separated strings will fail pydantic validation.
 
-**Role-Based Access**: Three roles: `admin` (full access), `editor` (modify data), `viewer` (read-only). Use `get_current_admin`, `get_current_editor_or_above` dependencies from `app/core/deps.py`. The `usePermissions` composable provides frontend guards.
+**Authentication (Clerk)**: Auth is delegated to **Clerk**; the backend issues no tokens. The frontend (`@clerk/nuxt`) obtains a session JWT via `getToken()` and sends it as `Authorization: Bearer <token>` on every request (see `composables/useApi.ts`). The backend verifies the RS256 JWT against Clerk's JWKS (`app/core/clerk.py`), then resolves a local `Admin` row — by `clerk_user_id`, or on first sign-in by email (which links the `clerk_user_id`). Tokens are **not** stored in localStorage (only local UI state is). Key flows in `app/core/deps.py` (`get_current_user`) and `middleware/auth.ts`.
+
+**Invite-only Access**: Users cannot self-register. A matching active `Admin` row must exist or the backend returns `403`. Superusers invite new admins via `POST /auth/invite`, which creates a pending (`is_active=False`, `clerk_user_id=NULL`) row and sends a Clerk invitation; the row auto-activates and links on the invitee's first sign-in. Bootstrap the very first admin with `seed_first_admin.py`. The legacy `hashed_password` column on `admins` still exists but is always `NULL`.
+
+**Role-Based Access**: Four roles: `admin` (full access), `editor` (modify data), `viewer` (read-only), `kasserer` (treasurer; reviews expense reimbursements). Backend guards from `app/core/deps.py`: `get_current_admin`, `get_current_editor_or_above`, `get_current_kasserer_or_admin`, `get_current_superuser`, and the `require_role(*roles)` factory. Frontend `usePermissions` composable / auth store getters (`isAdmin`, `canEdit`, `canReviewExpenses`) gate the UI — cosmetically only; the backend always enforces.
 
 ## Reporting System
 
@@ -312,7 +322,7 @@ DeepSeek R1 (`deepseek-reasoner`) uses `reasoning_content` for chain-of-thought 
 1. Copy `.env.production.example` to `.env`, fill in all values
 2. Set up SSL: `certbot certonly --webroot -w /var/www/certbot -d admin.lillehammerbueskyttere.no`
 3. Run `./scripts/deploy.sh`
-4. Create admin user: `docker compose -f docker-compose.prod.yml exec backend python3 create_admin.py`
+4. Seed the first admin: `docker compose -f docker-compose.prod.yml exec backend python3 seed_first_admin.py` (provisions the Clerk user + linked admin row; further admins are added via the in-app invite flow)
 
 ### SQLite to PostgreSQL Migration
 For migrating existing data from local SQLite to Docker PostgreSQL:
