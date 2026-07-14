@@ -440,6 +440,10 @@ export const useApi = () => {
     })
   }
 
+  const resendInvite = async (id: number) => {
+    return makeRequest<any>(`/auth/admins/${id}/resend-invite`, { method: 'POST' })
+  }
+
   const deleteAdmin = async (id: number) => {
     return makeRequest(`/auth/admins/${id}`, {
       method: 'DELETE',
@@ -1048,6 +1052,7 @@ export const useApi = () => {
     getAdmin,
     createAdmin,
     updateAdmin,
+    resendInvite,
     deleteAdmin,
     // Backups
     getBackups,

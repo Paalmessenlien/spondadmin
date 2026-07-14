@@ -118,6 +118,50 @@ async def update_current_user(
         )
 
 
+def _invitation_payload(email: str, role: str, origin: str | None) -> dict:
+    """Build the Clerk invitation payload, adding a login redirect when the
+    request carries an Origin header."""
+    payload = {
+        "email_address": email,
+        "public_metadata": {"role": role},
+        "notify": True,
+    }
+    redirect_url = (str(origin or "").rstrip("/") + "/login") if origin else ""
+    if redirect_url and redirect_url != "/login":
+        payload["redirect_url"] = redirect_url
+    return payload
+
+
+async def _send_clerk_invitation(email: str, role: str, origin: str | None) -> None:
+    """Create a Clerk invitation (sends the email)."""
+    await clerk_api("POST", "invitations", json=_invitation_payload(email, role, origin))
+
+
+async def _revoke_pending_invitations(email: str) -> None:
+    """
+    Revoke any existing *pending* Clerk invitations for ``email``.
+
+    Clerk rejects creating a second pending invitation for the same address,
+    so a resend must revoke the old one first. Best-effort: failures here are
+    logged, not raised, so a stale/expired invite can't block a resend.
+    """
+    try:
+        result = await clerk_api("GET", "invitations", params={"status": "pending", "limit": 100})
+    except HTTPException as exc:
+        logger_auth.warning("Listing Clerk invitations failed for %s: %s", email, exc.detail)
+        return
+    items = result.get("data") if isinstance(result, dict) else result
+    for inv in (items or []):
+        if inv.get("email_address") == email and inv.get("status") == "pending":
+            inv_id = inv.get("id")
+            if not inv_id:
+                continue
+            try:
+                await clerk_api("POST", f"invitations/{inv_id}/revoke")
+            except HTTPException as exc:
+                logger_auth.warning("Revoking Clerk invitation %s failed: %s", inv_id, exc.detail)
+
+
 @router.post("/invite", response_model=AdminResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("10/hour")
 async def invite_admin(
@@ -141,17 +185,8 @@ async def invite_admin(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    redirect_url = str(request.headers.get("origin") or "").rstrip("/") + "/login"
-    payload = {
-        "email_address": invite.email,
-        "public_metadata": {"role": invite.role},
-        "notify": True,
-    }
-    if redirect_url and redirect_url != "/login":
-        payload["redirect_url"] = redirect_url
-
     try:
-        await clerk_api("POST", "invitations", json=payload)
+        await _send_clerk_invitation(invite.email, invite.role, request.headers.get("origin"))
     except HTTPException as exc:
         await db.rollback()
         logger_auth.warning("Clerk invitation failed for %s: %s", invite.email, exc.detail)
@@ -159,6 +194,41 @@ async def invite_admin(
 
     await db.commit()
     await db.refresh(admin)
+    return admin
+
+
+@router.post("/admins/{admin_id}/resend-invite", response_model=AdminResponse)
+@limiter.limit("10/hour")
+async def resend_invite(
+    request: Request,
+    admin_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Admin = Depends(get_current_superuser),
+):
+    """
+    Re-send a Clerk invitation for a still-pending admin.
+
+    Only valid while the user hasn't signed in yet (``is_active`` is False and
+    no ``clerk_user_id`` linked). Any existing pending Clerk invitation for the
+    address is revoked first, since Clerk rejects a duplicate pending invite.
+
+    Rate limit: 10 per hour per IP.
+    """
+    admin = await AdminService.get_by_id(db, admin_id)
+    if not admin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin not found")
+    if admin.clerk_user_id or admin.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This user has already signed in — there's no pending invite to resend.",
+        )
+
+    await _revoke_pending_invitations(admin.email)
+    try:
+        await _send_clerk_invitation(admin.email, admin.role or "viewer", request.headers.get("origin"))
+    except HTTPException as exc:
+        logger_auth.warning("Resend invitation failed for %s: %s", admin.email, exc.detail)
+        raise
     return admin
 
 

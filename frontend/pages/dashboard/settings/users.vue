@@ -101,6 +101,17 @@
               <td class="py-3 px-4 text-right">
                 <div class="flex items-center justify-end space-x-1">
                   <UButton
+                    v-if="!admin.clerk_user_id"
+                    color="blue"
+                    variant="ghost"
+                    icon="i-heroicons-paper-airplane"
+                    size="xs"
+                    :loading="resendingId === admin.id"
+                    title="Resend invitation"
+                    aria-label="Resend invitation"
+                    @click="handleResend(admin)"
+                  />
+                  <UButton
                     color="neutral"
                     variant="ghost"
                     icon="i-heroicons-pencil-square"
@@ -146,6 +157,8 @@
                 </div>
               </div>
               <div class="flex items-center gap-1 flex-shrink-0">
+                <UButton v-if="!admin.clerk_user_id" color="blue" variant="soft" icon="i-heroicons-paper-airplane"
+                  size="sm" :loading="resendingId === admin.id" aria-label="Resend invitation" @click="handleResend(admin)" />
                 <UButton color="neutral" variant="soft" icon="i-heroicons-pencil-square" size="sm"
                   aria-label="Edit user" @click="openEditModal(admin)" />
                 <UButton v-if="admin.id !== currentUser?.id" color="red" variant="soft" icon="i-heroicons-trash"
@@ -461,6 +474,7 @@ const deleteModalOpen = ref(false)
 const editingAdmin = ref<AdminUser | null>(null)
 const deletingAdmin = ref<AdminUser | null>(null)
 const submitting = ref(false)
+const resendingId = ref<number | null>(null)
 const formError = ref('')
 
 const inviteForm = ref({
@@ -583,6 +597,18 @@ const openEditModal = (admin: AdminUser) => {
 const confirmDelete = (admin: AdminUser) => {
   deletingAdmin.value = admin
   deleteModalOpen.value = true
+}
+
+const handleResend = async (admin: AdminUser) => {
+  resendingId.value = admin.id
+  try {
+    await api.resendInvite(admin.id)
+    toast.add({ title: 'Invitation resent', description: `A fresh invite was sent to ${admin.email}`, color: 'green' })
+  } catch (err: any) {
+    toast.add({ title: 'Error', description: err?.data?.detail || 'Failed to resend invitation', color: 'red' })
+  } finally {
+    resendingId.value = null
+  }
 }
 
 const handleInvite = async () => {
