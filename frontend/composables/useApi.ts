@@ -833,6 +833,98 @@ export const useApi = () => {
   const importForm = async (payload: Record<string, any>) =>
     makeRequest('/forms/import', { method: 'POST', body: payload })
 
+  // Projects (prosjekter / arbeidsoppgaver)
+  const getProjects = async (params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== '' && v != null) as any
+    ).toString()
+    return makeRequest<{ items: any[]; total: number }>(`/projects/${query ? `?${query}` : ''}`)
+  }
+  const getProject = async (id: number) => makeRequest<any>(`/projects/${id}`)
+  const createProject = async (body: Record<string, any>) =>
+    makeRequest<any>('/projects/', { method: 'POST', body })
+  const updateProject = async (id: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/${id}`, { method: 'PATCH', body })
+  const deleteProject = async (id: number) =>
+    makeRequest(`/projects/${id}`, { method: 'DELETE' })
+
+  // Work items — list/board are project-scoped; item CRUD is flat
+  // (/projects/work-items/{id}) per the backend route table.
+  const getProjectWorkItems = async (projectId: number, params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== '' && v != null) as any
+    ).toString()
+    return makeRequest<{ items: any[]; total: number }>(
+      `/projects/${projectId}/work-items${query ? `?${query}` : ''}`
+    )
+  }
+  const getProjectBoard = async (projectId: number, params: Record<string, any> = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== '' && v != null) as any
+    ).toString()
+    return makeRequest<{ columns: any[] }>(
+      `/projects/${projectId}/board${query ? `?${query}` : ''}`
+    )
+  }
+  const createWorkItem = async (projectId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/${projectId}/work-items`, { method: 'POST', body })
+  const getWorkItem = async (itemId: number) =>
+    makeRequest<any>(`/projects/work-items/${itemId}`)
+  const updateWorkItem = async (itemId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/work-items/${itemId}`, { method: 'PATCH', body })
+  const deleteWorkItem = async (itemId: number) =>
+    makeRequest(`/projects/work-items/${itemId}`, { method: 'DELETE' })
+
+  // Work item comments / links / relations
+  const addWorkItemComment = async (itemId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/work-items/${itemId}/comments`, { method: 'POST', body })
+  const updateWorkItemComment = async (commentId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/comments/${commentId}`, { method: 'PATCH', body })
+  const deleteWorkItemComment = async (commentId: number) =>
+    makeRequest(`/projects/comments/${commentId}`, { method: 'DELETE' })
+  const addWorkItemLink = async (itemId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/work-items/${itemId}/links`, { method: 'POST', body })
+  const deleteWorkItemLink = async (linkId: number) =>
+    makeRequest(`/projects/links/${linkId}`, { method: 'DELETE' })
+  const addWorkItemRelation = async (itemId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/work-items/${itemId}/relations`, { method: 'POST', body })
+  const deleteWorkItemRelation = async (relationId: number) =>
+    makeRequest(`/projects/relations/${relationId}`, { method: 'DELETE' })
+
+  // Project dimensions: states / labels / cycles / modules
+  const createProjectState = async (projectId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/${projectId}/states`, { method: 'POST', body })
+  const updateProjectState = async (projectId: number, stateId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/${projectId}/states/${stateId}`, { method: 'PATCH', body })
+  const deleteProjectState = async (projectId: number, stateId: number, moveTo?: number) =>
+    makeRequest(
+      `/projects/${projectId}/states/${stateId}${moveTo != null ? `?move_to=${moveTo}` : ''}`,
+      { method: 'DELETE' }
+    )
+  const createProjectLabel = async (projectId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/${projectId}/labels`, { method: 'POST', body })
+  const updateProjectLabel = async (projectId: number, labelId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/${projectId}/labels/${labelId}`, { method: 'PATCH', body })
+  const deleteProjectLabel = async (projectId: number, labelId: number) =>
+    makeRequest(`/projects/${projectId}/labels/${labelId}`, { method: 'DELETE' })
+  const createProjectCycle = async (projectId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/${projectId}/cycles`, { method: 'POST', body })
+  const updateProjectCycle = async (projectId: number, cycleId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/${projectId}/cycles/${cycleId}`, { method: 'PATCH', body })
+  const deleteProjectCycle = async (projectId: number, cycleId: number) =>
+    makeRequest(`/projects/${projectId}/cycles/${cycleId}`, { method: 'DELETE' })
+  const createProjectModule = async (projectId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/${projectId}/modules`, { method: 'POST', body })
+  const updateProjectModule = async (projectId: number, moduleId: number, body: Record<string, any>) =>
+    makeRequest<any>(`/projects/${projectId}/modules/${moduleId}`, { method: 'PATCH', body })
+  const deleteProjectModule = async (projectId: number, moduleId: number) =>
+    makeRequest(`/projects/${projectId}/modules/${moduleId}`, { method: 'DELETE' })
+
+  // Plane import — raw Plane export array as request body; the caller reads
+  // the file client-side with file.text() and posts the parsed array.
+  const importPlaneProjects = async (items: any[]) =>
+    makeRequest<any>('/projects/import', { method: 'POST', body: items })
+
   // Public (no auth) — the share-link fill flow.
   const getPublicForm = async (slug: string) =>
     $fetch<any>(`/forms/public/${slug}`, { baseURL: config.public.apiBase })
@@ -1013,5 +1105,37 @@ export const useApi = () => {
     importForm,
     getPublicForm,
     submitPublicForm,
+    // Projects (prosjekter)
+    getProjects,
+    getProject,
+    createProject,
+    updateProject,
+    deleteProject,
+    getProjectWorkItems,
+    getProjectBoard,
+    createWorkItem,
+    getWorkItem,
+    updateWorkItem,
+    deleteWorkItem,
+    addWorkItemComment,
+    updateWorkItemComment,
+    deleteWorkItemComment,
+    addWorkItemLink,
+    deleteWorkItemLink,
+    addWorkItemRelation,
+    deleteWorkItemRelation,
+    createProjectState,
+    updateProjectState,
+    deleteProjectState,
+    createProjectLabel,
+    updateProjectLabel,
+    deleteProjectLabel,
+    createProjectCycle,
+    updateProjectCycle,
+    deleteProjectCycle,
+    createProjectModule,
+    updateProjectModule,
+    deleteProjectModule,
+    importPlaneProjects,
   }
 }

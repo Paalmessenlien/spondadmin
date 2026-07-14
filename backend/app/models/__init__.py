@@ -31,6 +31,10 @@ from app.models.expense_attachment import ExpenseAttachment
 from app.models.form import Form
 from app.models.form_field import FormField
 from app.models.form_response import FormResponse, FormAnswer
+from app.models.project import Project, ProjectState, ProjectLabel, ProjectCycle, ProjectModule
+from app.models.work_item import (
+    WorkItem, WorkItemPerson, WorkItemComment, WorkItemLink, WorkItemRelation,
+)
 
 __all__ = [
     "Admin",
@@ -66,4 +70,14 @@ __all__ = [
     "FormField",
     "FormResponse",
     "FormAnswer",
+    "Project",
+    "ProjectState",
+    "ProjectLabel",
+    "ProjectCycle",
+    "ProjectModule",
+    "WorkItem",
+    "WorkItemPerson",
+    "WorkItemComment",
+    "WorkItemLink",
+    "WorkItemRelation",
 ]
